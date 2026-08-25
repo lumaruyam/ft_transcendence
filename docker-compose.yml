@@ -1,0 +1,8 @@
+# Owner: Track 1 (Foundation, Auth, and API infrastructure)
+# Responsible for: containerized deployment of frontend, backend, Postgres, and the Nginx reverse proxy, runnable with a single `docker compose up` per the mandatory containerization requirement.
+
+# TODO: service `frontend` — build frontend/, serve the built assets (or dev server) behind Nginx
+# TODO: service `backend` — build backend/ (Go binary), hosts REST API + WebSocket hub, reads config from .env
+# TODO: service `db` — postgres:xx image, persistent volume, reads POSTGRES_* vars from .env
+# TODO: service `nginx` — infra/nginx/nginx.conf, TLS termination, exposes 443, proxies to frontend/backend
+# TODO: define a shared network and volumes; ensure backend depends_on db

@@ -1,0 +1,12 @@
+{
+  "name": "ft-transcendence-frontend",
+  "version": "0.1.0",
+  "_owner": "Track 1 (Foundation, Auth, and API infrastructure) — package manifest; each src/ subfolder below has its own per-file ownership comments",
+  "_description": "Frontend TypeScript project (vanilla TS or Svelte) per plan.md section 4",
+  "scripts": {
+    "dev": "TODO: dev server command",
+    "build": "TODO: production build command"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

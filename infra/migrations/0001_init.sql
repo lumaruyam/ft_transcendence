@@ -1,0 +1,14 @@
+-- Owner: Track 1 (Foundation, Auth, and API infrastructure)
+-- Responsible for: initial schema creation, matching the GORM models in backend/internal/db/models.go.
+
+-- TODO: CREATE TABLE users (id, email, password_hash, password_salt, name, avatar, oauth_provider, oauth_id, created_at, updated_at)
+-- TODO: CREATE TABLE projects (id, name, owner_id, created_at, updated_at)
+-- TODO: CREATE TABLE project_members (project_id, user_id, role) with a composite primary key / unique constraint
+-- TODO: CREATE TABLE boards, lists, cards with foreign keys down to projects/boards/lists
+-- TODO: CREATE TABLE notes (id, project_id, content_json, updated_by, updated_at)
+-- TODO: CREATE TABLE attachments (id, project_id, card_id nullable, file_url, file_type, uploaded_by, uploaded_at)
+-- TODO: CREATE TABLE git_links (card_id, repo_url, branch_name, pr_status)
+-- TODO: CREATE TABLE notifications (id, user_id, type, payload, read_at, created_at)
+-- TODO: CREATE TABLE webhook_events (id, provider, repo, event_type, payload, processed_at, created_at)
+-- TODO: CREATE TABLE api_keys (id, project_id nullable, user_id nullable, key_hash, rate_limit, created_at)
+-- TODO: add foreign key constraints and indexes matching docs/db-schema.md
