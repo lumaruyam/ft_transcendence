@@ -1,5 +1,8 @@
-// Owner: Track 1 (Foundation, Auth, and API infrastructure)
-// Responsible for: adding/removing members within a project, part of the Organization system major module. TS equivalent of backend/internal/projects/members.go (Go skeleton, removed).
+// Owner: Track 2 (Person A — Kanban CRUD and UI, extended to Organization system / projects & members)
+// Responsible for: adding/removing members within a project, part of the Organization system major module.
+// Reassigned from Track 1 to Track 2 Person A (see TODO.md) alongside projects.service.ts and the new invite-link
+// flow in invites.service.ts, which also writes project_members rows. TS equivalent of
+// backend/internal/projects/members.go (Go skeleton, removed).
 import type { ProjectMember } from "@prisma/client";
 import type { Role } from "../permissions/roles.service";
 

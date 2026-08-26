@@ -10,17 +10,21 @@ the reasoning behind each assignment.
 Socket.IO), not Go. Every path below reflects the new `backend/src/...` layout — the
 former `backend/internal/*.go` skeleton has been removed.
 
-Two paths aren't explicitly assigned in the plan's GitHub management table
-(`backend/src/modules/projects/` and `frontend/src/api/`) — they're grouped under
-Track 1 here since they're foundational/unclaimed elsewhere; confirm this with the team.
+**Rebalance (2026-08-26 — invite-link feature):** Track 1 had noticeably more files
+than the other tracks. `backend/src/modules/projects/` (organization/members CRUD,
+plus the new invite-link flow below) moved from Track 1 to **Track 2 Person A**, who
+already owns Kanban CRUD/UI and is the closest existing owner of project-level
+CRUD work. `frontend/src/api/` stays with Track 1 — it's still unclaimed elsewhere in
+the plan's GitHub management table and is lower-level/foundational (shared HTTP +
+Socket.IO client plumbing) rather than a specific product area. See
+`docs/github-workflow.md` for the updated ownership table.
 
 ## Track 1 — Foundation, Auth, and API infrastructure (1 person)
 
 - `backend/src/server.ts`, `backend/src/app.ts`
 - `backend/src/config/env.ts`
 - `backend/src/modules/auth/password.service.ts`, `jwt.service.ts`, `oauth.service.ts`, `auth.routes.ts`, `auth.validation.ts`
-- `backend/src/modules/permissions/roles.service.ts`, `permissions.middleware.ts`, `users.service.ts`
-- `backend/src/modules/projects/projects.service.ts`, `members.service.ts` *(organization system — unclaimed in the GH table, grouped here)*
+- `backend/src/modules/permissions/roles.service.ts`, `permissions.middleware.ts` *(includes `requireProjectRole`/`requireProjectMembership`, added for the invite-link feature — coordinate with Track 2 Person A, who calls these from `modules/projects/invites.routes.ts`)*, `users.service.ts`
 - `backend/src/modules/publicapi/apikeys.service.ts`, `ratelimit.middleware.ts`, `publicapi.routes.ts`
 - `backend/src/db/prisma/client.ts`
 - `backend/prisma/schema.prisma`
@@ -33,9 +37,11 @@ Track 1 here since they're foundational/unclaimed elsewhere; confirm this with t
 
 ## Track 2 — Kanban core & real-time sync (2 people)
 
-**Person A — Kanban CRUD and UI:**
+**Person A — Kanban CRUD and UI, extended to Organization system / projects & members:**
 - `backend/src/modules/kanban/boards.service.ts`, `lists.service.ts`, `cards.service.ts`, `validation.ts`
 - `frontend/src/kanban/boardApi.ts`, `listApi.ts`, `cardApi.ts`, `dragAndDrop.ts`, `cardDetail.ts`
+- `backend/src/modules/projects/projects.service.ts`, `members.service.ts` *(moved here from Track 1 — see rebalance note above)*
+- `backend/src/modules/projects/invites.controller.ts`, `invites.service.ts`, `invites.routes.ts`, `types.ts`, `README_invites.md` *(new — invite-link membership flow; role enforcement itself stays Track 1's `permissions.middleware.ts`, called from here)*
 
 **Person B — WebSocket layer (Socket.IO):**
 - `backend/src/modules/kanban/hub.ts`, `broadcast.ts`, `presence.ts`
