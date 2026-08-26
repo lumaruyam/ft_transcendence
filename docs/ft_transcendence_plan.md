@@ -1,5 +1,14 @@
 # ft_transcendence – Project Plan
 
+<!-- Owner: Shared, coordinated by whoever holds the Tech Lead role -->
+<!-- Responsible for: the team's full project plan (modules, architecture, tech stack, DB schema, track assignments, file structure). -->
+
+> **Stack pivot note (2026-08-26):** the backend moved from **Go** to **Node.js +
+> TypeScript** (Fastify, Prisma, Socket.IO). This is a tech-stack pivot only — product
+> scope, module selection/scoring, database semantics, timeline, and track ownership
+> intent are unchanged. Sections 4, 7, 8, and 10 below were updated for the new stack;
+> everything else is preserved as originally planned.
+
 ## 0. Project summary
 
 An all-in-one developer collaboration workspace that merges a Kanban board (Trello-style), an infinite whiteboard (Excalidraw-style), a shared notes space (Notion-style page), and deep Git integration. Each project is a shared workspace for a team: a Kanban board for tasks, a whiteboard for sketching/diagramming, a notes page for written documentation, and cards that can be linked to a real Git branch so their status updates automatically as that branch moves through its PR lifecycle (PR opened → "PR pending", merged to main → "Done").
@@ -29,7 +38,7 @@ These are pass/fail requirements. Missing or badly implementing any of them can 
 
 | Module | What it means for this project |
 |---|---|
-| Use a framework for both frontend and backend | Go backend framework + a frontend framework/library (TypeScript-based, e.g. Svelte) |
+| Use a framework for both frontend and backend | Node.js/TypeScript backend framework (Fastify) + a frontend framework/library (TypeScript-based, e.g. Svelte) |
 | Real-time features (WebSockets) | Kanban card create/edit/move/delete broadcasts live to every connected client in a project |
 | Organization system | Create/edit/delete projects (workspaces), add/remove members, view and act within a project |
 | Advanced permissions | Role-based access (e.g. admin/member/viewer), user CRUD, different views/actions per role |
@@ -43,7 +52,7 @@ These are pass/fail requirements. Missing or badly implementing any of them can 
 | File upload | Attachments on cards and notes, including exported whiteboard images |
 | Notification system | Fires on creation, update, and deletion actions across cards, notes, and files |
 | Advanced search | Search across cards, notes, and attachments within a project |
-| ORM | Backend data access goes through an ORM (e.g. GORM in Go) rather than raw SQL |
+| ORM | Backend data access goes through an ORM (Prisma, in the Node.js/TypeScript backend) rather than raw SQL |
 | OAuth 2.0 | GitHub/GitLab login, layered on top of the mandatory email/password baseline, and also needed as the credential source for the Git integration module |
 
 **Total: 17 points**, 3 points above the 14 minimum — a real margin if any single module doesn't fully pass evaluation.
@@ -56,7 +65,7 @@ If time remains after the core plan above is fully working, the team may attempt
 
 ### 3.1 Kanban (real-time)
 
-Boards, lists, and cards. Every mutation (create, edit, move, delete) is written to the database and then broadcast over WebSocket to everyone currently viewing that project, so their screen updates without a page refresh. This broadcast is silent state sync, not a user-facing notification. Presence (who's currently online) is tracked the same way: broadcast a "joined"/"left" event on connect/disconnect.
+Boards, lists, and cards. Every mutation (create, edit, move, delete) is written to the database and then broadcast over WebSocket (Socket.IO) to everyone currently viewing that project, so their screen updates without a page refresh. This broadcast is silent state sync, not a user-facing notification. Presence (who's currently online) is tracked the same way: broadcast a "joined"/"left" event on connect/disconnect.
 
 ### 3.2 Whiteboard (save-and-share, not live in the core plan)
 
@@ -72,17 +81,21 @@ Links Kanban cards to Git branches; listens to GitHub/GitLab webhooks and automa
 
 ## 4. Tech stack
 
-- **Backend: Go.** Chosen to fit a team whose strongest background is C/C++ — Go's explicit typing, explicit error handling, and lack of hidden framework magic make it a smaller conceptual jump than Node or Python, and its goroutines/channels map naturally onto event-loop thinking from prior systems programming work. Key libraries: `gorilla/websocket` for the Kanban WebSocket hub, `golang-jwt` for auth tokens, `go-github` for GitHub API calls, `net/http` plus a lightweight router (e.g. `chi`), and GORM for database access (covers the ORM module).
+- **Backend: Node.js + TypeScript**, built on **Fastify**. Key libraries: **Socket.IO** for the Kanban WebSocket hub, **jsonwebtoken** (or `jose`) for auth tokens, **Octokit** for GitHub API calls plus a GitLab REST client (e.g. `@gitbeaker/rest`) for GitLab, and **Prisma** for database access (covers the ORM module). This replaces the project's original Go-based plan (`gorilla/websocket`, `golang-jwt`, `go-github`, `chi`, GORM) — chosen instead for a TypeScript-first stack shared end-to-end with the frontend, and for Prisma's typed schema/migration workflow.
 - **Frontend: vanilla TypeScript, or Svelte if the Kanban UI's drag-and-drop and reactivity get unwieldy in plain DOM code.** No React as the app's primary framework.
 - **Whiteboard: the `@excalidraw/excalidraw` package**, mounted as a small isolated React tree just on the whiteboard page/route, since Excalidraw ships as a React component.
 - **Notes: a rich text editor library such as Tiptap**, framework-agnostic, integrates cleanly with vanilla TS or Svelte without needing a React mount point.
-- **Real-time sync: plain WebSocket broadcast, no CRDT or operational transform, used by Kanban.** Every card mutation is broadcast immediately after being saved to the database.
-- **Database: PostgreSQL**, accessed through GORM.
+- **Real-time sync: Socket.IO, no CRDT or operational transform, used by Kanban.** Every card mutation is broadcast immediately after being saved to the database.
+- **Database: PostgreSQL**, accessed through **Prisma**.
 - **Auth: email/password with hashed and salted passwords as the mandatory baseline, plus JWT for session tokens, plus OAuth2 (GitHub/GitLab) as an additional login method** — OAuth doubles as the credential source for Git integration.
 - **CSS: a CSS framework or styling solution chosen by the team** (e.g. Tailwind CSS), applied consistently across Kanban, whiteboard, and notes pages.
-- **Infra: Docker Compose**, with containers for the frontend build, the Go backend (which also hosts the WebSocket hub), PostgreSQL, and a reverse proxy (e.g. Nginx) handling HTTPS termination for all browser-facing traffic.
+- **Infra: Docker Compose**, with containers for the frontend build, the Node.js backend (which also hosts the Socket.IO WebSocket hub on the same HTTP server), PostgreSQL, and a reverse proxy (e.g. Nginx) handling HTTPS termination for all browser-facing traffic.
 
 ## 5. Database schema outline
+
+Column-level semantics are technology-agnostic and unchanged by the backend pivot; the
+schema's implementation source of truth is now `backend/prisma/schema.prisma` (Prisma
+models), described in full in `docs/db-schema.md`.
 
 - `users` (id, email, password_hash, password_salt, name, avatar, oauth_provider, oauth_id)
 - `organizations` / `projects` (id, name, owner_id)
@@ -109,59 +122,60 @@ ft_transcendence/
 ├── docker-compose.yml
 ├── .env.example
 ├── README.md
+├── TODO.md
 ├── docs/
+│   ├── ft_transcendence_plan.md
 │   ├── architecture.md
 │   ├── db-schema.md
-│   └── api-spec.md
+│   ├── api-spec.md
+│   └── github-workflow.md
 ├── frontend/
 │   ├── src/
-│   │   ├── kanban/            # boards, lists, cards, drag-and-drop, WS client
+│   │   ├── kanban/            # boards, lists, cards, drag-and-drop, Socket.IO client
 │   │   ├── whiteboard/        # isolated React mount for Excalidraw
 │   │   ├── notes/             # Tiptap editor integration
 │   │   ├── auth/              # login, signup, OAuth flow UI
-│   │   ├── shared/            # design tokens, shared components, CSS setup
-│   │   ├── legal/             # Privacy Policy, Terms of Service pages
-│   │   └── api/                # frontend API client, WS client wrapper
+│   │   ├── shared/             # design tokens, shared components, CSS setup
+│   │   ├── legal/               # Privacy Policy, Terms of Service pages
+│   │   └── api/                  # frontend API client, Socket.IO client wrapper
 │   ├── public/
 │   └── package.json
 ├── backend/
-│   ├── cmd/server/            # main entrypoint
-│   ├── internal/
-│   │   ├── auth/               # email/password, JWT, OAuth2 handlers
-│   │   ├── permissions/        # roles, middleware
-│   │   ├── projects/           # organization system
-│   │   ├── kanban/              # boards/lists/cards CRUD + WS hub
-│   │   ├── notes/               # notes CRUD, autosave endpoint
-│   │   ├── attachments/         # file upload handling
-│   │   ├── search/              # advanced search
-│   │   ├── notifications/       # notification triggers and delivery
-│   │   ├── git/                  # GitHub/GitLab API calls, webhook receiver
-│   │   ├── publicapi/            # API key auth, rate limiting, documented endpoints
-│   │   └── db/                    # GORM models, migrations
-│   └── go.mod
+│   ├── src/
+│   │   ├── server.ts               # process entrypoint (listen, Socket.IO attach)
+│   │   ├── app.ts                  # Fastify app + route registration
+│   │   ├── config/                  # env loading/validation
+│   │   ├── db/prisma/               # Prisma client singleton
+│   │   ├── modules/
+│   │   │   ├── auth/                  # email/password, JWT, OAuth2 handlers
+│   │   │   ├── permissions/           # roles, middleware, user CRUD
+│   │   │   ├── projects/              # organization system
+│   │   │   ├── kanban/                # boards/lists/cards CRUD + Socket.IO hub
+│   │   │   ├── notes/                 # notes CRUD, autosave endpoint
+│   │   │   ├── attachments/           # file upload handling
+│   │   │   ├── search/                # advanced search
+│   │   │   ├── notifications/         # notification triggers and delivery
+│   │   │   ├── git/                    # GitHub (Octokit) / GitLab API calls, webhook receiver
+│   │   │   └── publicapi/              # API key auth, rate limiting, documented endpoints
+│   │   └── (no separate db/models — Prisma schema is the model source of truth)
+│   ├── prisma/
+│   │   └── schema.prisma            # Prisma schema (models, source of truth for DB)
+│   ├── package.json
+│   └── tsconfig.json
 └── infra/
     ├── nginx/                     # reverse proxy + HTTPS config
-    └── migrations/
+    └── migrations/                # hand-maintained SQL baseline scaffold, superseded by Prisma-generated migrations once `prisma migrate dev` has run
 ```
 
 ## 8. GitHub management plan
 
-Each top-level directory has a clear primary owner, matching the track split below, so pull requests route to the right reviewer and merge conflicts stay rare.
-
-| Path | Primary owner | Notes |
-|---|---|---|
-| `backend/internal/auth/`, `backend/internal/permissions/`, `backend/internal/db/`, `infra/`, `docker-compose.yml`, `.env.example` | Track 1 (Foundation) | Changes here affect everyone, so PRs touching these paths need a second reviewer before merge |
-| `backend/internal/kanban/`, `frontend/src/kanban/` | Track 2 (Kanban core & real-time) | Split further between the two people on this track by backend vs. frontend/WS-client |
-| `backend/internal/git/` | Track 3 (Git integration) | |
-| `backend/internal/notes/`, `backend/internal/attachments/`, `backend/internal/search/`, `backend/internal/notifications/`, `frontend/src/whiteboard/`, `frontend/src/notes/`, `frontend/src/shared/`, `frontend/src/legal/` | Track 4 (Whiteboard, notes, supporting modules) | |
-| `backend/internal/publicapi/` | Track 1, with input from whoever owns the endpoints being exposed | Public API wraps existing endpoints, so it needs coordination with Tracks 2–4 as their endpoints stabilize |
-| `docs/`, root `README.md` | Shared, coordinated by whoever holds the Tech Lead role | Everyone contributes their own section; Tech Lead merges and keeps it coherent |
-
-Suggested working conventions:
-- One feature branch per task, named by area (e.g. `kanban/drag-and-drop`, `git/webhook-receiver`)
-- Pull requests required for merging into `main`; at least one other team member reviews before merge, per the project's recommended code review practice
-- Commit messages describe the actual change (not just "fix" or "update"), since the repository history itself is checked during evaluation for real work distribution across all 5 members
-- GitHub Issues (or a shared board) used to track task ownership per track, referenced in the README's Project Management section
+See `docs/github-workflow.md` for the full path-ownership table and working
+conventions (branch naming, PR review rules, commit message expectations). In brief:
+each top-level backend module folder (`backend/src/modules/<domain>/`) has a primary
+track owner matching the track split in section 10 below, so pull requests route to
+the right reviewer and merge conflicts stay rare. Paths shared across everyone
+(`backend/src/modules/auth/`, `permissions/`, `db/`, `prisma/`, `infra/`,
+`docker-compose.yml`, `.env.example`) need a second reviewer before merge.
 
 ## 9. Team roles (process, separate from build tracks)
 
@@ -178,12 +192,12 @@ With 5 people, these can be specialized as dedicated PO, PM, Tech Lead, and 2 De
 
 ### Track 1 — Foundation, Auth, and API infrastructure (1 person)
 
-- Docker Compose setup, DB schema/migrations, hot-reload dev setup
+- Docker Compose setup, DB schema/migrations (Prisma), hot-reload dev setup (`tsx watch`)
 - Mandatory baseline auth: email/password sign-up and login, with hashed and salted password storage
-- JWT-based session handling
-- OAuth2 login flow (GitHub/GitLab), layered on top of the email/password baseline — covers the OAuth minor module and later feeds Track 3's Git API calls
-- Advanced permissions: role definitions, user CRUD, middleware enforcing role-based access
-- ORM setup (GORM) used consistently across the backend — covers the ORM minor module
+- JWT-based session handling (`jsonwebtoken`/`jose`)
+- OAuth2 login flow (GitHub/GitLab), layered on top of the email/password baseline — covers the OAuth minor module and later feeds Track 3's Octokit/GitLab API calls
+- Advanced permissions: role definitions, user CRUD, Fastify preHandler hooks enforcing role-based access
+- ORM setup (Prisma) used consistently across the backend — covers the ORM minor module
 - Public API hardening: API key issuance, rate limiting, documentation for the 5+ required endpoints — covers the Public API major module, in coordination with whichever track owns the underlying endpoints
 - HTTPS/TLS termination via a reverse proxy in the Docker Compose setup
 - `.env` / `.env.example` setup
@@ -201,19 +215,19 @@ This track should be front-loaded hard in week 1, since every other track depend
 - Coordinates with Track 1 on permission checks
 
 **Person B — WebSocket layer:**
-- WebSocket hub on the backend: a map of `project_id → connected clients`
+- Socket.IO server on the backend: per-project rooms (`socket.join(projectId)`) replace a hand-rolled connection map
 - Broadcast a message to every other client in a project's room on any card mutation, after it's saved to Postgres — covers the Major "real-time features" module
-- Frontend message handler updating the DOM to match incoming broadcasts
+- Frontend message handler (using `socket.io-client`) updating the DOM to match incoming broadcasts
 - Presence: broadcast join/leave events, render presence indicators
-- Reconnection handling: re-fetch current state on reconnect rather than assuming the socket resumes cleanly
+- Reconnection handling: re-fetch current state on reconnect rather than assuming the socket resumed cleanly
 - Responsible, together with Person A, for correct behavior under concurrent multi-user actions — no race conditions or data corruption when multiple users act on the same board at once, per the general multi-user requirement
 
 ### Track 3 — Git integration (1 person)
 
-- GitHub/GitLab API calls to create or link a branch to a card, using the OAuth token from Track 1
-- Webhook receiver endpoint for push, pull_request, and merge events
+- GitHub API calls via **Octokit**, GitLab API calls via a GitLab REST client (e.g. `@gitbeaker/rest`), to create or link a branch to a card, using the OAuth token from Track 1
+- Webhook receiver endpoint (Fastify route) for push, pull_request, and merge events
 - Event processing: match incoming payloads to the correct card via `git_links`, drive status transitions (PR pending → Done)
-- Triggers the actual card move (via Track 2's API) and a notification once an event is processed
+- Triggers the actual card move (via Track 2's service functions) and a notification once an event is processed
 - `webhook_events` audit logging for every event received
 - Writes the README justification required for claiming this as a custom Major "Modules of choice" module: why it was chosen, what technical challenges it addresses, how it adds value, and why it merits Major status
 
@@ -231,13 +245,13 @@ This track should be front-loaded hard in week 1, since every other track depend
 ## 11. Timeline (Aug 24 – Sep 30)
 
 **Week 1 (Aug 24–30) — Foundation**
-Track 1 delivers DB schema, mandatory email/password auth, and a minimal working API. Tracks 2–4 scaffold their own pieces against mocked data in parallel.
+Track 1 delivers DB schema (Prisma), mandatory email/password auth, and a minimal working API. Tracks 2–4 scaffold their own pieces against mocked data in parallel.
 
 **Week 2 (Aug 31–Sep 6) — Core build-out**
-Track 2 (Person A): Kanban CRUD and drag-and-drop working. Track 2 (Person B): WebSocket hub scaffolded and tested before wiring to real card events. Track 3: GitHub/GitLab OAuth working end-to-end, first webhook endpoint receiving real events. Track 4: whiteboard embed and notes editor working as independent pieces, plus the shared component library and CSS framework decision made early so Track 2's UI doesn't diverge visually.
+Track 2 (Person A): Kanban CRUD and drag-and-drop working. Track 2 (Person B): Socket.IO hub scaffolded and tested before wiring to real card events. Track 3: GitHub/GitLab OAuth working end-to-end, first webhook endpoint receiving real events. Track 4: whiteboard embed and notes editor working as independent pieces, plus the shared component library and CSS framework decision made early so Track 2's UI doesn't diverge visually.
 
 **Week 3 (Sep 7–13) — Real-time layer and integration**
-Track 2 finishes wiring the WebSocket broadcast to real card mutations, plus presence and reconnection handling. Track 3 finishes the webhook → card status automation end-to-end, including the notification trigger. Track 1 finishes Public API hardening (keys, rate limiting, docs). Track 4 finishes file upload and starts advanced search.
+Track 2 finishes wiring the Socket.IO broadcast to real card mutations, plus presence and reconnection handling. Track 3 finishes the webhook → card status automation end-to-end, including the notification trigger. Track 1 finishes Public API hardening (keys, rate limiting, docs). Track 4 finishes file upload and starts advanced search.
 
 **Week 4 (Sep 14–20) — Supporting modules and full integration**
 Track 4 finishes search and the notification layer, plus Privacy Policy/Terms of Service pages. The whole team does an integration pass: does dragging a card sync live to another browser window, does merging a PR move the card and notify the right person, does the whiteboard export attach correctly, do notes autosave reliably, does the app run clean-console on Chrome. This week should end with an honest checkpoint — are all 11 mandatory-plus-planned modules genuinely working end-to-end.

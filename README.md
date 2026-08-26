@@ -5,19 +5,19 @@
 
 <!-- TODO: Description — project name, goal, brief overview, key features (subject VI) -->
 
-<!-- TODO: Instructions — prerequisites, .env setup, `docker compose up` single-command run (subject VI) -->
+<!-- TODO: Instructions — prerequisites (Node.js 20+, Docker), .env setup, `docker compose up` single-command run, `npx prisma migrate dev` for local schema setup (subject VI) -->
 
-<!-- TODO: Team Information — each member's role(s) (PO/PM/Tech Lead/Developers) and responsibilities, per plan.md section 9 and subject VI -->
+<!-- TODO: Team Information — each member's role(s) (PO/PM/Tech Lead/Developers) and responsibilities, per docs/ft_transcendence_plan.md section 9 and subject VI -->
 
 <!-- TODO: Project Management — task distribution, meetings, tools (GitHub Issues), communication channel -->
 
-<!-- TODO: Technical Stack — Go backend, TypeScript/Svelte frontend, PostgreSQL, GORM, Docker Compose, justification per plan.md section 4 -->
+<!-- TODO: Technical Stack — Node.js + TypeScript backend (Fastify, Prisma, Socket.IO), TypeScript/Svelte frontend, PostgreSQL, Docker Compose, justification per docs/ft_transcendence_plan.md section 4 -->
 
 <!-- TODO: Database Schema — see docs/db-schema.md -->
 
 <!-- TODO: Features List — complete feature list mapped to the team member(s) who built each one -->
 
-<!-- TODO: Modules — list all chosen Major/Minor modules with point totals per plan.md section 2, including the required README justification for the Git integration custom "Modules of choice" Major module -->
+<!-- TODO: Modules — list all chosen Major/Minor modules with point totals per docs/ft_transcendence_plan.md section 2, including the required README justification for the Git integration custom "Modules of choice" Major module -->
 
 <!-- TODO: Individual Contributions — breakdown per team member -->
 

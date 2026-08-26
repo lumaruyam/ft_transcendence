@@ -1,5 +1,11 @@
 -- Owner: Track 1 (Foundation, Auth, and API infrastructure)
--- Responsible for: initial schema creation, matching the GORM models in backend/internal/db/models.go.
+-- Responsible for: initial schema baseline, hand-maintained to describe intent alongside backend/prisma/schema.prisma
+-- (the actual source of truth going forward).
+--
+-- Prisma migrate workflow note: once the team runs `npx prisma migrate dev --name init` against schema.prisma,
+-- Prisma generates its own timestamped SQL migration files under backend/prisma/migrations/ and this hand-written
+-- file is superseded — keep it only as a readable scaffold sketch until that first `prisma migrate dev` run,
+-- then either delete it or keep it as a historical reference (do not hand-edit it after Prisma migrations exist).
 
 -- TODO: CREATE TABLE users (id, email, password_hash, password_salt, name, avatar, oauth_provider, oauth_id, created_at, updated_at)
 -- TODO: CREATE TABLE projects (id, name, owner_id, created_at, updated_at)
@@ -11,4 +17,4 @@
 -- TODO: CREATE TABLE notifications (id, user_id, type, payload, read_at, created_at)
 -- TODO: CREATE TABLE webhook_events (id, provider, repo, event_type, payload, processed_at, created_at)
 -- TODO: CREATE TABLE api_keys (id, project_id nullable, user_id nullable, key_hash, rate_limit, created_at)
--- TODO: add foreign key constraints and indexes matching docs/db-schema.md
+-- TODO: add foreign key constraints and indexes matching docs/db-schema.md and backend/prisma/schema.prisma

@@ -1,0 +1,194 @@
+// Owner: Track 1 (Foundation, Auth, and API infrastructure)
+// Responsible for: the Prisma schema — source of truth for the database, replacing the former GORM struct definitions in backend/internal/db/models.go (Go skeleton, removed). Mirrors docs/db-schema.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User maps to the `users` table: id, email, password_hash, password_salt, name, avatar, oauth_provider, oauth_id.
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  passwordSalt  String   @map("password_salt")
+  name          String
+  avatar        String?
+  oauthProvider String?  @map("oauth_provider")
+  oauthId       String?  @map("oauth_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  ownedProjects  Project[]        @relation("ProjectOwner")
+  memberships    ProjectMember[]
+  updatedNotes   Note[]           @relation("NoteUpdatedBy")
+  uploads        Attachment[]     @relation("AttachmentUploadedBy")
+  notifications  Notification[]
+
+  @@map("users")
+}
+
+// Project maps to the `organizations`/`projects` table: id, name, owner_id — the Organization system major module.
+model Project {
+  id        String   @id @default(uuid())
+  name      String
+  ownerId   String   @map("owner_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner       User            @relation("ProjectOwner", fields: [ownerId], references: [id])
+  members     ProjectMember[]
+  boards      Board[]
+  notes       Note[]
+  attachments Attachment[]
+  apiKeys     ApiKey[]
+
+  @@map("projects")
+}
+
+// ProjectMember maps to `project_members` — the backbone of the Advanced permissions module.
+model ProjectMember {
+  projectId String @map("project_id")
+  userId    String @map("user_id")
+  role      String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@map("project_members")
+}
+
+// Board maps to `boards`.
+model Board {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  title     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lists   List[]
+
+  @@map("boards")
+}
+
+// List maps to `lists` (Kanban columns).
+model List {
+  id       String @id @default(uuid())
+  boardId  String @map("board_id")
+  title    String
+  position Int
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards Card[]
+
+  @@map("lists")
+}
+
+// Card maps to `cards`: id, title, list_id, linked_branch, linked_pr_url, status.
+model Card {
+  id           String   @id @default(uuid())
+  listId       String   @map("list_id")
+  title        String
+  description  String?
+  linkedBranch String?  @map("linked_branch")
+  linkedPrUrl  String?  @map("linked_pr_url")
+  status       String   @default("todo")
+  position     Int
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  gitLink     GitLink?
+  attachments Attachment[]
+
+  @@map("cards")
+}
+
+// Note maps to `notes`: id, project_id, content_json, updated_by, updated_at. Autosaved on edit per Track 4's notes module.
+model Note {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  contentJson Json     @map("content_json")
+  updatedBy   String   @map("updated_by")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  editor  User    @relation("NoteUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@map("notes")
+}
+
+// Attachment maps to `attachments` — covers regular file uploads and exported whiteboard images alike.
+model Attachment {
+  id         String   @id @default(uuid())
+  projectId  String   @map("project_id")
+  cardId     String?  @map("card_id")
+  fileUrl    String   @map("file_url")
+  fileType   String   @map("file_type")
+  uploadedBy String   @map("uploaded_by")
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  card     Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  uploader User    @relation("AttachmentUploadedBy", fields: [uploadedBy], references: [id])
+
+  @@map("attachments")
+}
+
+// GitLink maps to `git_links`: card_id, repo_url, branch_name, pr_status — drives Track 3's card status automation.
+model GitLink {
+  cardId     String @id @map("card_id")
+  repoUrl    String @map("repo_url")
+  branchName String @map("branch_name")
+  prStatus   String @map("pr_status")
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@map("git_links")
+}
+
+// Notification maps to `notifications` — fires on creation/update/deletion actions per Track 4's notification module.
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  type      String
+  payload   Json
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// WebhookEvent maps to `webhook_events` — audit log of every Git webhook received, owned by Track 3.
+model WebhookEvent {
+  id          String    @id @default(uuid())
+  provider    String
+  repo        String
+  eventType   String    @map("event_type")
+  payload     Json
+  processedAt DateTime? @map("processed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("webhook_events")
+}
+
+// ApiKey maps to `api_keys` — supports the Public API major module.
+model ApiKey {
+  id        String   @id @default(uuid())
+  projectId String?  @map("project_id")
+  userId    String?  @map("user_id")
+  keyHash   String   @map("key_hash")
+  rateLimit Int      @map("rate_limit")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}

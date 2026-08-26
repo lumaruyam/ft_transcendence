@@ -1,0 +1,12 @@
+{
+  "_comment": "Owner: Track 1 (Foundation, Auth, and API infrastructure) — placeholder lint config, tune rules as the team's style settles.",
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "rules": {}
+}

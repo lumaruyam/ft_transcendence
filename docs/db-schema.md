@@ -1,177 +1,44 @@
 <!-- Owner: Shared, coordinated by the Tech Lead -->
-<!-- Responsible for: the authoritative, human-readable database schema description, matching backend/internal/db/models.go and infra/migrations/. -->
+<!-- Responsible for: the authoritative, human-readable database schema description. The schema's source of truth is backend/prisma/schema.prisma (Prisma); infra/migrations/0001_init.sql is a hand-maintained SQL baseline scaffold kept in sync until the team's first `prisma migrate dev` run generates real Prisma migrations. -->
 
 # Database Schema
 
-This document is the human-readable counterpart to `backend/internal/db/models.go` (GORM models) and `infra/migrations/`. If this document and the actual migrations ever disagree, the migrations are the source of truth — update this file to match, not the other way around.
+**ORM note:** the backend uses **Prisma** against PostgreSQL (covers the ORM minor
+module). This replaced the earlier GORM-based Go skeleton; the table/column semantics
+below are unchanged by that pivot — only the ORM implementation differs.
 
-## Tables
+Prisma model names are PascalCase / camelCase (e.g. `ApiKey.rateLimit`) and mapped
+back to the snake_case table/column names below via `@@map` / `@map` directives in
+`backend/prisma/schema.prisma`, so the physical Postgres schema stays exactly as
+documented here regardless of which ORM reads it.
 
-### `users`
-
-| Column | Type | Notes |
+| Table | Key columns | Notes |
 |---|---|---|
-| `id` | uuid, PK | |
-| `email` | string, unique | |
-| `password_hash` | string | never stored or logged in plaintext |
-| `password_salt` | string | |
-| `name` | string | |
-| `avatar` | string (URL) | nullable |
-| `oauth_provider` | string | nullable — `github`, `gitlab`, or null if email/password only |
-| `oauth_id` | string | nullable |
-| `created_at` | timestamp | |
+| `users` | id, email, password_hash, password_salt, name, avatar, oauth_provider, oauth_id | Mandatory email/password baseline + OAuth minor module |
+| `projects` | id, name, owner_id | Organization system major module |
+| `project_members` | project_id, user_id, role | Backbone of the Advanced permissions module; composite primary key |
+| `boards` | id, project_id, title | One board per project in the core plan |
+| `lists` | id, board_id, title, position | Kanban columns |
+| `cards` | id, title, list_id, linked_branch, linked_pr_url, status, position | Core Kanban entity; `linked_branch`/`linked_pr_url`/`status` driven by the Git integration module |
+| `notes` | id, project_id, content_json, updated_by, updated_at | Autosaved on edit, last-save-wins |
+| `attachments` | id, project_id, card_id (nullable), file_url, file_type, uploaded_by, uploaded_at | Covers regular file uploads and exported whiteboard images alike |
+| `git_links` | card_id, repo_url, branch_name, pr_status | Drives the webhook-based card status automation |
+| `notifications` | id, user_id, type, payload, read_at, created_at | Fires on creation/update/deletion actions |
+| `webhook_events` | id, provider, repo, event_type, payload, processed_at, created_at | Audit log of every Git webhook received |
+| `api_keys` | id, project_id (nullable), user_id (nullable), key_hash, rate_limit, created_at | Supports the Public API major module |
 
-Baseline auth (email + hashed/salted password) is mandatory regardless of which auth modules are chosen — see plan.md section 1. OAuth fields are additive, populated only if the user links or signs up via GitHub/GitLab.
+## Relations
 
-### `projects`
+- `projects.owner_id -> users.id`
+- `project_members.(project_id, user_id) -> projects.id, users.id` (composite key)
+- `boards.project_id -> projects.id`
+- `lists.board_id -> boards.id`
+- `cards.list_id -> lists.id`
+- `notes.project_id -> projects.id`, `notes.updated_by -> users.id`
+- `attachments.project_id -> projects.id`, `attachments.card_id -> cards.id` (nullable), `attachments.uploaded_by -> users.id`
+- `git_links.card_id -> cards.id` (one-to-one)
+- `notifications.user_id -> users.id`
+- `api_keys.project_id -> projects.id` (nullable — a key may be user-scoped instead)
 
-(referred to as "organizations" in the plan's module mapping — one table serves both concepts, since each project is its own workspace)
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid, PK | |
-| `name` | string | |
-| `owner_id` | uuid, FK → `users.id` | |
-| `created_at` | timestamp | |
-
-### `project_members`
-
-Backbone of the Advanced permissions module — join table between `users` and `projects` carrying role.
-
-| Column | Type | Notes |
-|---|---|---|
-| `project_id` | uuid, FK → `projects.id` | |
-| `user_id` | uuid, FK → `users.id` | |
-| `role` | string | e.g. `admin`, `member`, `viewer` |
-| `joined_at` | timestamp | |
-
-Primary key: composite (`project_id`, `user_id`).
-
-### `boards`
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid, PK | |
-| `project_id` | uuid, FK → `projects.id` | |
-| `name` | string | |
-| `created_at` | timestamp | |
-
-### `lists`
-
-Columns within a board (e.g. "To Do", "PR Pending", "Done").
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid, PK | |
-| `board_id` | uuid, FK → `boards.id` | |
-| `name` | string | |
-| `position` | int | ordering within the board |
-
-### `cards`
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid, PK | |
-| `list_id` | uuid, FK → `lists.id` | |
-| `title` | string | |
-| `description` | text | nullable |
-| `linked_branch` | string | nullable — populated by Git integration |
-| `linked_pr_url` | string | nullable |
-| `status` | string | e.g. `open`, `pr_pending`, `done` |
-| `assignee_id` | uuid, FK → `users.id` | nullable |
-| `position` | int | ordering within the list |
-| `created_at`, `updated_at` | timestamp | |
-
-Every mutation to this table drives the Kanban real-time WebSocket broadcast — see architecture.md, "Kanban real-time flow."
-
-### `notes`
-
-One row per shared note/page (see plan.md section 3.3 — save-and-share, autosaved, not live-collaborative).
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid, PK | |
-| `project_id` | uuid, FK → `projects.id` | |
-| `content_json` | jsonb | Tiptap document structure |
-| `updated_by` | uuid, FK → `users.id` | |
-| `updated_at` | timestamp | last autosave |
-
-No version history table — last-save-wins per plan.md section 3.3, so only the latest state is kept.
-
-### `attachments`
-
-Covers both regular file uploads and exported whiteboard images alike (plan.md section 3.2) — a whiteboard export is just another attachment, not a separate table.
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid, PK | |
-| `project_id` | uuid, FK → `projects.id` | |
-| `card_id` | uuid, FK → `cards.id` | nullable — attachment may belong to a card or just the project |
-| `file_url` | string | |
-| `file_type` | string | mime type |
-| `uploaded_by` | uuid, FK → `users.id` | |
-| `uploaded_at` | timestamp | |
-
-### `git_links`
-
-| Column | Type | Notes |
-|---|---|---|
-| `card_id` | uuid, PK, FK → `cards.id` | one link per card |
-| `repo_url` | string | |
-| `branch_name` | string | |
-| `pr_status` | string | e.g. `none`, `open`, `merged` |
-
-### `notifications`
-
-User-facing alerts, fired on creation/update/deletion actions per the Notification module's actual scope (plan.md section 2) — distinct from the silent Kanban WebSocket broadcast.
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid, PK | |
-| `user_id` | uuid, FK → `users.id` | recipient |
-| `type` | string | e.g. `card_assigned`, `pr_opened`, `pr_merged`, `card_created` |
-| `payload` | jsonb | event-specific data (card id, project id, etc.) |
-| `read_at` | timestamp | nullable — null means unread |
-| `created_at` | timestamp | |
-
-### `webhook_events`
-
-Audit log of every Git webhook received, regardless of whether processing succeeded — see architecture.md, "Git integration flow."
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid, PK | |
-| `provider` | string | `github` or `gitlab` |
-| `repo` | string | |
-| `event_type` | string | `push`, `pull_request`, `merge` |
-| `payload` | jsonb | raw webhook body |
-| `processed_at` | timestamp | nullable — null means received but not yet (or failed to be) processed |
-
-### `api_keys`
-
-Supports the Public API module (see api-spec.md).
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid, PK | |
-| `project_id` | uuid, FK → `projects.id` | nullable |
-| `user_id` | uuid, FK → `users.id` | nullable — a key is scoped to a project or a user, not both |
-| `key_hash` | string | the key itself is never stored in plaintext, only its hash |
-| `rate_limit` | int | requests allowed per window |
-| `created_at` | timestamp | |
-
-## Relations at a glance
-
-```
-users ──< project_members >── projects ──< boards ──< lists ──< cards
-  │                               │                                │
-  │                               ├──< notes                       ├──< attachments
-  │                               ├──< attachments                 └──1 git_links
-  │                               └──< api_keys
-  │
-  ├──< notifications
-  └──< api_keys
-```
-
-<!-- TODO: replace the ASCII relation sketch above with a proper ER diagram once the schema stabilizes and GORM models in models.go are finalized -->
-<!-- TODO: confirm cascade/delete behavior per relation (e.g. does deleting a project cascade-delete its boards/cards/notes, or soft-delete) once Track 1 finalizes migrations.go -->
+<!-- TODO: include an ER diagram once the schema stabilizes -->
+<!-- TODO: once `npx prisma migrate dev` has been run at least once, link to the generated migration files under backend/prisma/migrations/ as the authoritative history -->
