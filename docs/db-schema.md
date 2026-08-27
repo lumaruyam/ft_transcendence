@@ -16,7 +16,8 @@ documented here regardless of which ORM reads it.
 |---|---|---|
 | `users` | id, email, password_hash, password_salt, name, avatar, oauth_provider, oauth_id | Mandatory email/password baseline + OAuth minor module |
 | `projects` | id, name, owner_id | Organization system major module |
-| `project_members` | project_id, user_id, role | Backbone of the Advanced permissions module; composite primary key |
+| `project_members` | project_id, user_id, role | **Sole source of truth for authorization.** Backbone of the Advanced permissions module; composite primary key. Every access-control check (`requireRole`/`getUserRole`) reads this table, regardless of whether the row was created by project creation (owner) or by an invite join — see `project_invites` below |
+| `project_invites` | id, project_id, token_hash (unique), role, max_uses (nullable), use_count, expires_at (nullable), created_by, created_at, revoked_by (nullable, FK `users.id`), revoked_at (nullable) | Invite-link membership flow (`backend/src/modules/projects/invites.ts`). `token_hash` stores a hash of the invite token — the plaintext is returned once at creation and never persisted. An invite **does not replace or duplicate `project_members`**: joining an invite is the *action* that inserts a `project_members` row; the invite row itself is never consulted for authorization afterwards, only for join-time validity (not expired, not revoked, under `max_uses`) |
 | `boards` | id, project_id, title | One board per project in the core plan |
 | `lists` | id, board_id, title, position | Kanban columns |
 | `cards` | id, title, list_id, linked_branch, linked_pr_url, status, position | Core Kanban entity; `linked_branch`/`linked_pr_url`/`status` driven by the Git integration module |
@@ -31,6 +32,12 @@ documented here regardless of which ORM reads it.
 
 - `projects.owner_id -> users.id`
 - `project_members.(project_id, user_id) -> projects.id, users.id` (composite key)
+- `project_invites.project_id -> projects.id`, `project_invites.created_by -> users.id`,
+  `project_invites.revoked_by -> users.id` (nullable — set only once an admin revokes the
+  invite, alongside `revoked_at`). No FK/relation from `project_invites` to `project_members`:
+  the two tables are linked only by the *action* of joining, not by a stored reference —
+  `project_invites` records "was this link ever usable," `project_members` records "who is
+  actually a member, with what role," and only the latter is ever read for authorization
 - `boards.project_id -> projects.id`
 - `lists.board_id -> boards.id`
 - `cards.list_id -> lists.id`

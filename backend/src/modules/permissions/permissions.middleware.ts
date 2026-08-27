@@ -17,29 +17,3 @@ export function requireRole(minRole: Role) {
     // TODO: this is the enforcement point Track 2 Person A coordinates with for card/board permission checks
   };
 }
-
-// requireProjectRole returns a preHandler that only allows callers whose project role is in the given allow-list.
-// Complements requireRole's minimum-privilege-threshold check with an explicit set — used where "admin only" (not
-// "admin-or-above on some ordinal scale") is the actual rule, e.g. invite creation/revocation in
-// modules/projects/invites.routes.ts (owned by Track 2 Person A, who now also owns modules/projects/ — see TODO.md).
-// TODO: consider consolidating with requireRole once the team settles on one role-comparison model (ordinal vs. set).
-export function requireProjectRole(allowedRoles: Role[]) {
-  return async function (request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    // TODO: read project ID from request.params.projectId, caller's user ID from request context (set by requireAuth)
-    // TODO: look up the caller's role via getUserRole; reply.code(403) if it's not in allowedRoles (or the caller isn't a member at all)
-    // TODO: this is the enforcement point for the Organization system module's admin-only actions (invites, member
-    //       removal, project settings) — coordinate with Track 2 Person A, who owns the routes calling this
-  };
-}
-
-// requireProjectMembership returns a preHandler that allows any project member through, regardless of role — for
-// endpoints where "is a member at all" is the only access rule (e.g. viewing a board). Enforces product requirement
-// that all project access is gated by project_members, never by URL knowledge alone (see README_invites.md).
-export function requireProjectMembership() {
-  return async function (request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    // TODO: read project ID from request.params.projectId, caller's user ID from request context
-    // TODO: look up membership via getUserRole (non-null = member); reply.code(403) if the caller has no project_members row
-    // TODO: an invite token alone must never satisfy this check — only a real project_members row (created at join
-    //       time by modules/projects/invites.service.ts's joinProjectFromInvite) counts
-  };
-}

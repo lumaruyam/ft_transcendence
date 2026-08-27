@@ -81,7 +81,7 @@ Links Kanban cards to Git branches; listens to GitHub/GitLab webhooks and automa
 
 ## 4. Tech stack
 
-- **Backend: Node.js + TypeScript**, built on **Fastify**. Key libraries: **Socket.IO** for the Kanban WebSocket hub, **jsonwebtoken** (or `jose`) for auth tokens, **Octokit** for GitHub API calls plus a GitLab REST client (e.g. `@gitbeaker/rest`) for GitLab, and **Prisma** for database access (covers the ORM module). This replaces the project's original Go-based plan (`gorilla/websocket`, `golang-jwt`, `go-github`, `chi`, GORM) — chosen instead for a TypeScript-first stack shared end-to-end with the frontend, and for Prisma's typed schema/migration workflow.
+- **Backend: Node.js + TypeScript**, built on **Fastify**. Key libraries: **Socket.IO** for the Kanban WebSocket hub, **jsonwebtoken** (or `jose`) for auth tokens, **Octokit** for GitHub API calls plus a GitLab REST client (e.g. `@gitbeaker/rest`) for GitLab, **Prisma** for database access (covers the ORM module), and **`@fastify/rate-limit`** as the standardized rate-limiting strategy for all routes (global default plus per-route overrides, e.g. the invite join endpoint — see `docs/architecture.md` "Rate limiting strategy"). This replaces the project's original Go-based plan (`gorilla/websocket`, `golang-jwt`, `go-github`, `chi`, GORM) — chosen instead for a TypeScript-first stack shared end-to-end with the frontend, and for Prisma's typed schema/migration workflow. All backend REST routes are mounted under the canonical `/api` base path (not `/api/v1`) — see `docs/api-spec.md`.
 - **Frontend: vanilla TypeScript, or Svelte if the Kanban UI's drag-and-drop and reactivity get unwieldy in plain DOM code.** No React as the app's primary framework.
 - **Whiteboard: the `@excalidraw/excalidraw` package**, mounted as a small isolated React tree just on the whiteboard page/route, since Excalidraw ships as a React component.
 - **Notes: a rich text editor library such as Tiptap**, framework-agnostic, integrates cleanly with vanilla TS or Svelte without needing a React mount point.
@@ -99,7 +99,8 @@ models), described in full in `docs/db-schema.md`.
 
 - `users` (id, email, password_hash, password_salt, name, avatar, oauth_provider, oauth_id)
 - `organizations` / `projects` (id, name, owner_id)
-- `project_members` (project_id, user_id, role) — backbone of the permissions module
+- `project_members` (project_id, user_id, role) — backbone of the permissions module; sole source of truth for authorization, regardless of whether a member was added directly or via an invite link
+- `project_invites` (id, project_id, token_hash, role, max_uses, use_count, expires_at, created_by, created_at, revoked_by, revoked_at) — invite-link join flow feeding `project_members`; see `docs/db-schema.md`
 - `boards`, `lists`, `cards` (id, title, list_id, linked_branch, linked_pr_url, status)
 - `notes` (id, project_id, content_json, updated_by, updated_at) — autosaved on edit
 - `attachments` (id, project_id, card_id, file_url, file_type, uploaded_by, uploaded_at) — covers regular file uploads and exported whiteboard images alike
@@ -149,7 +150,7 @@ ft_transcendence/
 │   │   ├── modules/
 │   │   │   ├── auth/                  # email/password, JWT, OAuth2 handlers
 │   │   │   ├── permissions/           # roles, middleware, user CRUD
-│   │   │   ├── projects/              # organization system
+│   │   │   ├── projects/              # organization system, incl. invite-link joins (invites.ts)
 │   │   │   ├── kanban/                # boards/lists/cards CRUD + Socket.IO hub
 │   │   │   ├── notes/                 # notes CRUD, autosave endpoint
 │   │   │   ├── attachments/           # file upload handling

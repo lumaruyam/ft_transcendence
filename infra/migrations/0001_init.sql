@@ -10,6 +10,10 @@
 -- TODO: CREATE TABLE users (id, email, password_hash, password_salt, name, avatar, oauth_provider, oauth_id, created_at, updated_at)
 -- TODO: CREATE TABLE projects (id, name, owner_id, created_at, updated_at)
 -- TODO: CREATE TABLE project_members (project_id, user_id, role) with a composite primary key / unique constraint
+-- TODO: CREATE TABLE project_invites (id, project_id, token_hash unique, role, max_uses nullable, use_count default 0,
+--       expires_at nullable, created_by, created_at, revoked_by nullable FK users.id, revoked_at nullable) —
+--       token_hash stores a hash of the invite token, never the plaintext; project_members stays the sole
+--       authorization source of truth, invites only gate the one-time join action
 -- TODO: CREATE TABLE boards, lists, cards with foreign keys down to projects/boards/lists
 -- TODO: CREATE TABLE notes (id, project_id, content_json, updated_by, updated_at)
 -- TODO: CREATE TABLE attachments (id, project_id, card_id nullable, file_url, file_type, uploaded_by, uploaded_at)
