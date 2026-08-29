@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/28 20:01:23 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/08/28 22:19:08 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/08/29 14:47:02 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -43,20 +43,38 @@ async function main(): Promise<void> {
 		// Handle shutdown (SIGTERM / SIGINT)
 		// SIGTERM = SIGnal TERMinate kill signal from container/process managet
 		// SIGINT = Ctrl + C
-		const signals = ["SIGTERM", "I+SIGINT"];
+		const signals = ["SIGTERM", "SIGINT"];
 		signals.forEach((signal) => {
-			processMergeEvent.on(signal, async())
-		})
+			process.on(signal, async() => {
+				console.log(`\n${signal} received, shutting down gracefully...`);
+
+				try {
+					// Close Socket.IO connections
+					app.io?.close(); // app.io is the Socket.IO instance, it manages all WebSocket connections and real-time communication
+					console.log("Socket.IO hub closed");
+
+					// Close Fastify
+					await app.close();
+					console.log("Fastify server closed");
+
+					// Close database
+					await disconnectDatabase();
+					console.log("Database disconnected");
+					console.log("Shutdown complete");
+					process.exit(0);
+				} catch (err) {
+					console.error("Error during shutdown:", err);
+					process.exit(1);
+				}
+			});
+		});
+	} catch (err) {
+		console.error("Fatal error during startup:", err);
+		process.exit(1);
 	}
-  // TODO: const config = loadConfig()
-  // TODO: await connectDatabase()
-  // TODO: const app = buildApp(config)
-  // TODO: attach Socket.IO to app.server (Fastify's underlying Node http.Server) via createKanbanHub(app.server)
-  // TODO: await app.listen({ port: config.port, host: "0.0.0.0" }) — TLS termination happens at the Nginx reverse proxy per infra/nginx
-  // TODO: register SIGTERM/SIGINT handlers that close the Socket.IO hub, close Fastify, then call disconnectDatabase()
 }
 
 main().catch((err) => {
-  // TODO: log the startup error with the configured logger and exit(1)
+  console.error("Unhandled error in main", err);
   process.exit(1);
 });
