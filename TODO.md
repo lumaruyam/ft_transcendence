@@ -21,6 +21,19 @@ new invite endpoints and `auth.routes.ts` (previously bare `/auth/*`, now `/api/
 normalized under the canonical `/api` base path. See `docs/architecture.md` for the full
 request/invite/auth-flow writeup.
 
+**Route-file gap fix (2026-08-30):** `app.ts` was already written assuming a `*.routes.ts` file
+exists per module (it imports `registerProjectsRoutes`, `registerKanbanRoutes`,
+`registerNotesRoutes`, `registerAttachmentsRoutes`, `registerSearchRoutes`,
+`registerNotificationsRoutes`), matching the pattern already used by `auth.routes.ts`,
+`webhook.routes.ts`, and `publicapi.routes.ts`. Those six route files were missing from this
+document's per-track lists — this was a documentation gap, not an intentional omission. Each is
+now added below, owned by whichever track already owns the underlying `*.service.ts` file it
+wraps (route handlers stay thin: decode request → call the service → apply `requireAuth`/
+`requireRole` as `preHandler`). `kanban.routes.ts` also calls into Track 2 Person B's
+`broadcast.ts` after mutations, so it's a light coordination point between the two Track 2
+people. Invite-link routes are unaffected — `invites.ts` stays as the one file that combines
+service logic and route registration, as already established; it is not being split or moved.
+
 Two paths aren't explicitly assigned in the plan's GitHub management table
 (`backend/src/modules/projects/` and `frontend/src/api/`) — they're grouped under
 Track 1 here since they're foundational/unclaimed elsewhere; confirm this with the team.
@@ -31,7 +44,7 @@ Track 1 here since they're foundational/unclaimed elsewhere; confirm this with t
 - `backend/src/config/env.ts`
 - `backend/src/modules/auth/password.service.ts`, `jwt.service.ts`, `oauth.service.ts`, `auth.routes.ts`, `auth.validation.ts`
 - `backend/src/modules/permissions/roles.service.ts`, `permissions.middleware.ts`, `users.service.ts`
-- `backend/src/modules/projects/projects.service.ts`, `members.service.ts`, `invites.ts` *(organization system — unclaimed in the GH table, grouped here; `invites.ts` is the invite-link membership flow: create/join/revoke a `project_invites` row, inserting into `project_members` on join, plus its dedicated `@fastify/rate-limit` policy for the join route)*
+- `backend/src/modules/projects/projects.service.ts`, `members.service.ts`, `invites.ts`, `projects.routes.ts` *(organization system — unclaimed in the GH table, grouped here; `invites.ts` is the invite-link membership flow: create/join/revoke a `project_invites` row, inserting into `project_members` on join, plus its dedicated `@fastify/rate-limit` policy for the join route; `projects.routes.ts` is the thin Fastify wrapper around `projects.service.ts`/`members.service.ts` that `app.ts` already imports as `registerProjectsRoutes` — added 2026-08-30, was missing from this list)*
 - `backend/src/modules/publicapi/apikeys.service.ts`, `ratelimit.middleware.ts`, `publicapi.routes.ts`
 - `backend/src/db/prisma/client.ts`
 - `backend/prisma/schema.prisma` *(now includes `ProjectInvite`/`project_invites`, with `revokedBy`/`revokedAt` FK'd to `users.id`)*
@@ -45,7 +58,7 @@ Track 1 here since they're foundational/unclaimed elsewhere; confirm this with t
 ## Track 2 — Kanban core & real-time sync (2 people)
 
 **Person A — Kanban CRUD and UI:**
-- `backend/src/modules/kanban/boards.service.ts`, `lists.service.ts`, `cards.service.ts`, `validation.ts`
+- `backend/src/modules/kanban/boards.service.ts`, `lists.service.ts`, `cards.service.ts`, `validation.ts`, `kanban.routes.ts` *(`kanban.routes.ts` is the thin Fastify wrapper around boards/lists/cards services that `app.ts` already imports as `registerKanbanRoutes` — added 2026-08-30, was missing from this list; after each mutation it calls Person B's `broadcast.ts`, so coordinate event names/payloads with Person B)*
 - `frontend/src/kanban/boardApi.ts`, `listApi.ts`, `cardApi.ts`, `dragAndDrop.ts`, `cardDetail.ts`
 
 **Person B — WebSocket layer (Socket.IO):**
@@ -59,10 +72,10 @@ Track 1 here since they're foundational/unclaimed elsewhere; confirm this with t
 
 ## Track 4 — Whiteboard, notes, and supporting modules (1 person)
 
-- `backend/src/modules/notes/notes.service.ts`
-- `backend/src/modules/attachments/attachments.service.ts`
-- `backend/src/modules/search/search.service.ts`
-- `backend/src/modules/notifications/notifications.service.ts`
+- `backend/src/modules/notes/notes.service.ts`, `notes.routes.ts` *(`notes.routes.ts` added 2026-08-30, was missing from this list — thin wrapper `app.ts` already imports as `registerNotesRoutes`)*
+- `backend/src/modules/attachments/attachments.service.ts`, `attachments.routes.ts` *(added 2026-08-30 — `registerAttachmentsRoutes`)*
+- `backend/src/modules/search/search.service.ts`, `search.routes.ts` *(added 2026-08-30 — `registerSearchRoutes`)*
+- `backend/src/modules/notifications/notifications.service.ts`, `notifications.routes.ts` *(added 2026-08-30 — `registerNotificationsRoutes`; note `createNotification` itself has no public endpoint, it's called internally by kanban/notes/attachments/git handlers)*
 - `frontend/src/whiteboard/whiteboardMount.tsx`, `exportToImage.ts`
 - `frontend/src/notes/notesEditor.ts`, `notesApi.ts`
 - `frontend/src/shared/designTokens.ts`, `components.ts`, `cssSetup.ts`
