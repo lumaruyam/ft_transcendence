@@ -1,12 +1,24 @@
 {
   "name": "ft-transcendence-frontend",
   "version": "0.1.0",
+  "type": "module",
   "_owner": "Track 1 (Foundation, Auth, and API infrastructure) — package manifest; each src/ subfolder below has its own per-file ownership comments",
-  "_description": "Frontend TypeScript project (vanilla TS or Svelte) per plan.md section 4",
+  "_description": "Frontend: React + TypeScript + Vite",
   "scripts": {
-    "dev": "TODO: dev server command",
-    "build": "TODO: production build command"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2"
+  }
 }
