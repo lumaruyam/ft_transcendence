@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/29 14:54:07 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/08/30 15:29:46 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/08/31 20:55:58 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -52,7 +52,7 @@ function registerRoutes(app: FastifyInstance): void {
 	// Protected routes (require JWT)
 	// Each of these route modules applies requireAuth / requireRole itself as a preHandler
 	app.register(registerProjectsRoutes, { prefix: "/api/projects" });
-	app.register(registerInviteRoutes, { prefix: "/api/projetcs" });
+	app.register(registerInviteRoutes, { prefix: "/api/projects" });
 	app.register(registerKanbanRoutes, { prefix: "/api" });
 	app.register(registerNotesRoutes, { prefix: "/api/notes" });
 	app.register(registerAttachmentsRoutes, { prefix: "/api/attachments" });
