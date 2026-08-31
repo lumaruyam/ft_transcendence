@@ -32,6 +32,7 @@ pnpm-debug.log*
 
 # --- Docker ---
 *.pid
+infra/nginx/certs/
 
 # --- Database / local dev data ---
 *.sqlite

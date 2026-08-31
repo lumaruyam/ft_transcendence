@@ -1,13 +1,21 @@
 # Owner: Track 1 (Foundation, Auth, and API infrastructure)
-# Responsible for: containerized deployment of frontend, backend, Postgres, and the Nginx reverse proxy, runnable with a single `docker compose up` per the mandatory containerization requirement.
+# Responsible for: containerized deployment of frontend, backend, Postgres, and the Nginx reverse proxy.
 #
-# Stack note: backend service now runs Node.js + TypeScript (Fastify + Socket.IO + Prisma), replacing the
-# earlier Go binary. Compiled output is a Node process (`node dist/server.js`), not a static Go binary.
+# To change the exposed ports, edit the lines below ("host:container").
+# On WSL2, ports 80 and 443 are sometimes blocked by Windows (Hyper-V/IIS) — use 7080/443 locally in that case.
 
-# TODO: service `frontend` — build frontend/, serve the built assets (or dev server) behind Nginx
-# TODO: service `backend` — build backend/ with `npm run build` (tsc) and run `npm start` (or `npm run dev` with tsx
-#       for hot-reload in development); hosts the Fastify REST API and the Socket.IO Kanban hub on the same HTTP
-#       server; reads config from .env; run `npx prisma migrate deploy` before start (or as an init container/entrypoint step)
-# TODO: service `db` — postgres:xx image, persistent volume, reads POSTGRES_* vars from .env
-# TODO: service `nginx` — infra/nginx/nginx.conf, TLS termination, exposes 443, proxies HTTP + /socket.io/ upgrades to backend
-# TODO: define a shared network and volumes; ensure backend depends_on db
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      # temporary http port: 7080
+      - "7080:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/nginx/certs:/etc/nginx/certs:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
+  # TODO: backend service — build backend/, run `npx prisma migrate deploy && npm start`
+  # TODO: db service — postgres image, persistent volume

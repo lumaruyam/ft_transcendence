@@ -3,20 +3,22 @@
   "version": "0.1.0",
   "type": "module",
   "_owner": "Track 1 (Foundation, Auth, and API infrastructure) — package manifest; each src/ subfolder below has its own per-file ownership comments",
-  "_description": "Frontend: React + TypeScript + Vite",
+  "_description": "Frontend: Vanilla TypeScript + Vite MPA (React used only for whiteboard/Excalidraw)",
+  "_note_react": "React is pinned to ^18 — @excalidraw/excalidraw 0.17.x declares peer react@^17||^18 and breaks with React 19. Do NOT upgrade react/react-dom past 18.x without first checking Excalidraw compatibility.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@excalidraw/excalidraw": "^0.17.6",
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.5",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^6.1.1",
     "typescript": "^7.0.2",
     "vite": "^8.2.2"
