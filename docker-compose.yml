@@ -1,5 +1,5 @@
 # Owner: Track 1 (Foundation, Auth, and API infrastructure)
-# Responsible for: containerized deployment of frontend, backend, Postgres, and the Nginx reverse proxy, runnable with a single `docker compose up` per the mandatory containerization requirement.
+# Responsible for: containerized deployment of frontend, backend, Postgres, and the Nginx reverse proxy.
 #
 # Stack note: backend service now runs Node.js + TypeScript (Fastify + Socket.IO + Prisma), replacing the
 # earlier Go binary. Compiled output is a Node process (`node dist/server.js`), not a static Go binary.

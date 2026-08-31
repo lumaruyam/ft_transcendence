@@ -24,6 +24,7 @@ build/
 
 # --- Docker ---
 *.pid
+infra/nginx/certs/
 
 # --- Database / local dev data ---
 *.sqlite
