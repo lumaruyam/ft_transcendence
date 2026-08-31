@@ -31,6 +31,8 @@ usage() {
 case "$1" in
   start)
     generate_certs
+    echo "==> Building frontend..."
+    (cd "$FRONTEND_DIR" && npm install && npm run build)
     docker compose up -d
     ;;
 
