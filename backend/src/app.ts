@@ -13,7 +13,7 @@
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: building and configuring the Fastify application instance — route registration, plugins, and middleware wiring.
 import Fastify, { FastifyInstance } from "fastify";
-import type { AppConfig } from "./config/env";
+import type { AppConfig } from "./config/env.js";
 
 // Import plugins
 import cors from "@fastify/cors";
@@ -21,14 +21,14 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 
 // Import route handlers
-import { registerAuthRoutes } from "./modules/auth/auth.routes";
-import { registerProjectsRoutes } from "./modules/projects/projects.routes"; // need new file
-import { registerInviteRoutes } from "./modules/projects/invites";
-import { registerKanbanRoutes } from "./modules/kanban/kanban.routes"; // need to create new file
-import { registerNotesRoutes } from "./modules/notes/notes.routes"; // need new file
-import { registerAttachmentsRoutes } from "./modules/attachments/attachments.routes" // need new file
-import { registerSearchRoutes } from "./modules/search/search.routes"; // need new file
-import { registerNotificationsRoutes } from "./modules/notifications/notifications.routes";
+import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
+import { registerProjectsRoutes } from "./modules/projects/projects.routes.js"; // need new file
+import { registerInviteRoutes } from "./modules/projects/invites.js";
+import { registerKanbanRoutes } from "./modules/kanban/kanban.routes.js"; // need to create new file
+import { registerNotesRoutes } from "./modules/notes/notes.routes.js"; // need new file
+import { registerAttachmentsRoutes } from "./modules/attachments/attachments.routes.js" // need new file
+import { registerSearchRoutes } from "./modules/search/search.routes.js"; // need new file
+import { registerNotificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { registerGitWebhookRoutes } from "./modules/git/webhook.routes.js";
 import { registerPublicApiRoutes } from "./modules/publicapi/publicapi.routes.js";
 
