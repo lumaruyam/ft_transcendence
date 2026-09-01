@@ -7,5 +7,36 @@
 	</head>
 	<body>
 		<h1>Sanbox Kanban</h1>
+
+		<h2>Create a board</h2>
+		<form id="board-form">
+			<input type="text" id="board-title" placeholder="Board Title" required>
+			<button type="submit">Create</button>
+		</form>
+		<p id="board-status"></p>
+		<pre id="board-result"></pre>
+
+		<h2>Create a list</h2>
+		<form id="list-form">
+			<input type="text" id="board-id" placeholder="Board ID" required> <br/>
+			<input type="text" id="list-title" placeholder="List Title" required> <br/>
+			<input type="number" id="list-position" placeholder="List Position" required> <br/>
+			<button type="submit">Create</button>
+		</form>
+		<p id="list-status"></p>
+		<pre id="list-result"></pre>
+
+		<h2>Create a card</h2>
+		<form id="card-form">
+			<input type="text" id="list-id" placeholder="List ID" required> <br/>
+			<input type="text" id="card-title" placeholder="Card Title" required> <br/>
+			<input type="text" id="card-description" placeholder="Card description"> <br/>
+			<input type="number" id="card-position" placeholder="Card Position" required> <br/>
+			<button type="submit">Create</button>
+		</form>
+		<p id="card-status"></p>
+		<pre id="card-result"></pre>
+
+		<script src="script.js"></script>
 	</body>
 </html>

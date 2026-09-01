@@ -17,6 +17,11 @@ fastify.get('/', async (request, reply) => {
   reply.type("text/html").send(html);
 })
 
+fastify.get('/script.js', async (request, reply) => {
+  const js = readFileSync(path.join(__dirname, "public/script.js"), "utf-8");
+  reply.type("application/javascript").send(js);
+})
+
 registerKanbanRoutes(fastify);
 
 const start = async () => {
