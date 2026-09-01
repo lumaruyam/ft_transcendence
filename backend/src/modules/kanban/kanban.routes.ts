@@ -2,10 +2,10 @@
 // Responsible for: Fastify route handlers for boards/lists/cards CRUD. Calls into Track 2 Person B's
 // broadcast.ts after each mutation to notify connected clients over Socket.IO.
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { requireAuth } from "../permissions/permissions.middleware";
-import { createBoard, getBoard, deleteBoard } from "./boards.service";
-import { createList, updateList, deleteList, reorderLists } from "./lists.service";
-import { createCard, updateCard, moveCard, deleteCard } from "./cards.service";
+import { requireAuth } from "../permissions/permissions.middleware.js";
+import { createBoard, getBoard, deleteBoard } from "./board.service.js";
+import { createList, updateList, deleteList } from "./list.service.js";
+import { createCard, updateCard, deleteCard } from "./card.service.js";
 
 export function registerKanbanRoutes(app: FastifyInstance): void {
   app.post("/boards", { preHandler: requireAuth }, createBoardHandler);
@@ -25,7 +25,9 @@ export function registerKanbanRoutes(app: FastifyInstance): void {
 
 // createBoardHandler creates a board within a project.
 async function createBoardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { projectId, title } → call createBoard(input)
+  const body = request.body as { projectId: string; title: string}; // TODO: replace with proper fastify schema validation 
+  const board = await createBoard(body);
+  reply.code(201).send(board);
 }
 
 // getBoardHandler fetches a board with its lists/cards for initial render.
@@ -40,7 +42,9 @@ async function deleteBoardHandler(request: FastifyRequest, reply: FastifyReply):
 
 // createListHandler creates a new list/column on a board.
 async function createListHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { boardId, title } → call createList(input); broadcast "list_created"
+  const body = request.body as { boardId: string; title: string; position: number}; // TODO: replace with proper fastify schema validation 
+  const list = await createList(body);
+  reply.code(201).send(list);
 }
 
 // updateListHandler renames/repositions a list.
@@ -60,7 +64,9 @@ async function reorderListsHandler(request: FastifyRequest, reply: FastifyReply)
 
 // createCardHandler creates a card in a list.
 async function createCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { listId, title, description?, assignee? } → call createCard(input); broadcasts "card_created" internally
+  const body = request.body as {listId: string; title: string; description: string; position: number}; // TODO: replace with proper fastify schema validation
+  const card = await createCard(body);
+  reply.code(201).send(card);
 }
 
 // updateCardHandler edits a card's fields.

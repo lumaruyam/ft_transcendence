@@ -1,7 +1,10 @@
+import "dotenv/config";
 import Fastify from 'fastify'
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+
+import { registerKanbanRoutes } from "../modules/kanban/kanban.routes.js";
 
 const fastify = Fastify({
   logger: true
@@ -14,9 +17,8 @@ fastify.get('/', async (request, reply) => {
   reply.type("text/html").send(html);
 })
 
-/**
- * Run the server!
- */
+registerKanbanRoutes(fastify);
+
 const start = async () => {
   try {
     await fastify.listen({ port: 3000 })
