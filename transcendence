@@ -1,0 +1,63 @@
+#!/bin/bash
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+FRONTEND_DIR="$SCRIPT_DIR/frontend"
+CERTS_DIR="$SCRIPT_DIR/infra/nginx/certs"
+
+generate_certs() {
+  if [ ! -f "$CERTS_DIR/server.crt" ] || [ ! -f "$CERTS_DIR/server.key" ]; then
+    echo "==> Generating self-signed SSL certificates..."
+    mkdir -p "$CERTS_DIR"
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+      -keyout "$CERTS_DIR/server.key" \
+      -out "$CERTS_DIR/server.crt" \
+      -subj "/C=FR/ST=Paris/O=42/CN=localhost" 2>/dev/null
+    echo "    Certificates generated in $CERTS_DIR"
+  fi
+}
+
+usage() {
+  echo "Usage: $0 {start|stop|restart|reload}"
+  echo ""
+  echo "  start    — start all containers"
+  echo "  stop     — stop all containers"
+  echo "  restart  — stop then start all containers"
+  echo "  reload   — rebuild frontend and reload nginx"
+  exit 1
+}
+
+case "$1" in
+  start)
+    generate_certs
+    echo "==> Building frontend..."
+    (cd "$FRONTEND_DIR" && npm install && npm run build)
+    docker compose up -d
+    ;;
+
+  stop)
+    docker compose down
+    ;;
+
+  restart)
+    generate_certs
+    docker compose down
+    docker compose up -d
+    ;;
+
+  reload)
+    echo "==> Building frontend..."
+    (cd "$FRONTEND_DIR" && npm run build)
+
+    echo "==> Reloading nginx..."
+    docker compose exec nginx nginx -s reload
+
+    # TODO: reload backend — once the backend service is implemented,
+    # add: docker compose restart backend
+    ;;
+
+  *)
+    usage
+    ;;
+esac
