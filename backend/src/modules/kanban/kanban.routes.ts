@@ -4,8 +4,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../permissions/permissions.middleware.js";
 import { createBoard, getBoard, deleteBoard } from "./board.service.js";
-import { createList, updateList, deleteList } from "./list.service.js";
-import { createCard, updateCard, deleteCard } from "./card.service.js";
+import { createList, getList, updateList, deleteList } from "./list.service.js";
+import { createCard, getCard, updateCard, deleteCard } from "./card.service.js";
 
 export function registerKanbanRoutes(app: FastifyInstance): void {
   app.post("/boards", { preHandler: requireAuth }, createBoardHandler);
@@ -13,11 +13,13 @@ export function registerKanbanRoutes(app: FastifyInstance): void {
   app.delete("/boards/:id", { preHandler: requireAuth }, deleteBoardHandler);
 
   app.post("/lists", { preHandler: requireAuth }, createListHandler);
+  app.get("/lists/:id", { preHandler: requireAuth }, getListHandler);
   app.put("/lists/:id", { preHandler: requireAuth }, updateListHandler);
   app.delete("/lists/:id", { preHandler: requireAuth }, deleteListHandler);
   app.put("/boards/:boardId/lists/reorder", { preHandler: requireAuth }, reorderListsHandler);
 
   app.post("/cards", { preHandler: requireAuth }, createCardHandler);
+  app.get("/cards/:id", { preHandler: requireAuth }, getCardHandler);
   app.put("/cards/:id", { preHandler: requireAuth }, updateCardHandler);
   app.put("/cards/:id/move", { preHandler: requireAuth }, moveCardHandler);
   app.delete("/cards/:id", { preHandler: requireAuth }, deleteCardHandler);
@@ -32,7 +34,14 @@ async function createBoardHandler(request: FastifyRequest, reply: FastifyReply):
 
 // getBoardHandler fetches a board with its lists/cards for initial render.
 async function getBoardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: call getBoard(request.params.id); 404 if null
+  const { id } = request.params as { id: string};
+  const board = await getBoard(id);
+
+  if (!board) {
+    reply.code(404).send({ error: "Board not found" });
+    return;
+  }
+  reply.send(board);
 }
 
 // deleteBoardHandler deletes a board.
@@ -45,6 +54,18 @@ async function createListHandler(request: FastifyRequest, reply: FastifyReply): 
   const body = request.body as { boardId: string; title: string; position: number}; // TODO: replace with proper fastify schema validation 
   const list = await createList(body);
   reply.code(201).send(list);
+}
+
+// getListHandler fetches a list with its cards for additionnal info.
+async function getListHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const { id } = request.params as { id: string};
+  const list = await getList(id);
+
+  if (!list) {
+    reply.code(404).send({ error: "List not found" });
+    return;
+  }
+  reply.send(list);
 }
 
 // updateListHandler renames/repositions a list.
@@ -67,6 +88,18 @@ async function createCardHandler(request: FastifyRequest, reply: FastifyReply): 
   const body = request.body as {listId: string; title: string; description: string; position: number}; // TODO: replace with proper fastify schema validation
   const card = await createCard(body);
   reply.code(201).send(card);
+}
+
+// getCardHandler fetches a card for additionnal info.
+async function getCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const { id } = request.params as { id: string};
+  const card = await getCard(id);
+
+  if (!card) {
+    reply.code(404).send({ error: "Card not found" });
+    return;
+  }
+  reply.send(card);
 }
 
 // updateCardHandler edits a card's fields.

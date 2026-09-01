@@ -11,6 +11,17 @@ export async function createList(input: { boardId: string; title: string; positi
 	return list;
 }
 
+export async function getList(id: string) {
+	const list = await prisma.list.findUnique({
+		where: { id },
+		include: {
+			cards: {
+				orderBy: { position: "asc" },
+			},
+		},
+	});
+	return list;
+}
 
 export async function updateList(): Promise<void> {
 

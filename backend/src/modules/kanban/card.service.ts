@@ -12,6 +12,13 @@ export async function createCard(input: { listId: string; title: string; descrip
 	return card;
 }
 
+export async function getCard(id: string) {
+	const card = await prisma.card.findUnique({
+		where: { id },
+	});
+	return card;
+}
+
 export async function updateCard(): Promise<void> {
 
 }

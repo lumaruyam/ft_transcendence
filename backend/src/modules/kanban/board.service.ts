@@ -11,8 +11,21 @@ export async function createBoard(input: { projectId: string; title: string}) {
 }
 
 
-export async function getBoard(): Promise<void> {
-
+export async function getBoard(id: string) {
+	const board = await prisma.board.findUnique({
+		where: { id },
+		include: {
+			lists: {
+				orderBy: { position: "asc" },
+				include: {
+					cards: {
+						orderBy: { position: "asc" },
+					},
+				},
+			},
+		},
+	});
+	return board;
 }
 
 
