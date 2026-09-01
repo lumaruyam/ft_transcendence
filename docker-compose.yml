@@ -17,6 +17,8 @@ services:
       - app_net
     volumes:
       - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     env_file:
       - .env
     environment:
@@ -52,7 +54,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     volumes:
-      - frontend_dist: /usr/share/nginx/html
+      - frontend_dist:/usr/share/nginx/html
     command: sh -c "cp -r /app/dist/. /usr/share/nginx/html/"
     # This container is expected to exit 0 after copying so it is not restarted
 
