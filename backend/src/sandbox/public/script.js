@@ -28,7 +28,7 @@ document.getElementById("board-form").addEventListener("submit", async (event) =
       status.textContent = "❌ Network error : " + err.message;
       status.style.color = "red";
     }
-  });
+});
 
   
 document.getElementById("list-form").addEventListener("submit", async (event) => {
@@ -61,9 +61,9 @@ document.getElementById("list-form").addEventListener("submit", async (event) =>
       status.textContent = "❌ Network error : " + err.message;
       status.style.color = "red";
     }
-  });
+});
 
-  document.getElementById("card-form").addEventListener("submit", async (event) => {
+document.getElementById("card-form").addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const listId = document.getElementById("list-id").value;
@@ -94,4 +94,67 @@ document.getElementById("list-form").addEventListener("submit", async (event) =>
       status.textContent = "❌ Network error : " + err.message;
       status.style.color = "red";
     }
-  });
+});
+
+document.getElementById("view-board-form").addEventListener("submit", async (event) => {
+	event.preventDefault();
+
+	const id = document.getElementById("view-board-id").value;
+	const view = document.getElementById("board-view");
+
+	try {
+	const response = await fetch("/boards/" + id);
+	const board = await response.json();
+
+	if (!response.ok) {
+		view.textContent = "❌ Error " + response.status + ": " + board.error;
+		return;
+	}
+
+	view.innerHTML = "<h3>" + board.title + "</h3>" +
+		board.lists.map((list) => `
+		<div style="border:1px solid #ccc; padding:8px; margin:4px; display:inline-block; vertical-align:top;">
+			<strong>${list.title}</strong>
+			<ul>
+			${list.cards.map((card) => `<li>${card.title}</li>`).join("")}
+			</ul>
+		</div>
+		`).join("");
+	} catch (err) {
+	view.textContent = "❌ Network error: " + err.message;
+	}
+});
+
+document.getElementById("view-list-form").addEventListener("submit", async (event) => {
+	event.preventDefault();
+	const id = document.getElementById("view-list-id").value;
+	const view = document.getElementById("list-view");
+
+	const response = await fetch("/lists/" + id);
+	const list = await response.json();
+
+	if (!response.ok) {
+	view.textContent = "❌ Error " + response.status + ": " + list.error;
+	return;
+	}
+
+	view.innerHTML = "<strong>" + list.title + "</strong><ul>" +
+	list.cards.map((card) => `<li>${card.title}</li>`).join("") +
+	"</ul>";
+});
+
+document.getElementById("view-card-form").addEventListener("submit", async (event) => {
+	event.preventDefault();
+	const id = document.getElementById("view-card-id").value;
+	const view = document.getElementById("card-view");
+
+	const response = await fetch("/cards/" + id);
+	const card = await response.json();
+
+	if (!response.ok) {
+	view.textContent = "❌ Error " + response.status + ": " + card.error;
+	return;
+	}
+
+	view.innerHTML = "<strong>" + card.title + "</strong> — " + card.description + " (" + card.status + ")";
+});
