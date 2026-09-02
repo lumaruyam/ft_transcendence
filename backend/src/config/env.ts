@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   env.ts                                             :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/02 19:02:56 by lulmaruy          #+#    #+#             */
+/*   Updated: 2026/09/02 19:03:03 by lulmaruy         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: loading and validating environment configuration (DB DSN, JWT secret, OAuth client IDs, port), read from .env per the mandatory .env/.env.example requirement.
 
