@@ -172,15 +172,20 @@ CREATE INDEX attachments_uploaded_by_idx ON attachments (uploaded_by);
 
 -- ── git_links ───────────────────────────────────────────────────────────────────────────────
 CREATE TABLE git_links (
-	card_id      TEXT PRIMARY KEY,
+	card_id.     TEXT PRIMARY KEY,
 	repo_url     TEXT NOT NULL,
 	branch_name  TEXT NOT NULL,
 	pr_status    TEXT NOT NULL,
 	CONSTRAINT git_links_card_id_fkey
 		FOREIGN KEY (card_id) REFERENCES cards (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
--- TODO: CREATE TABLE attachments (id, project_id, card_id nullable, file_url, file_type, uploaded_by, uploaded_at)
--- TODO: CREATE TABLE git_links (card_id, repo_url, branch_name, pr_status)
+
+-- ── attachments ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE notifications (
+
+)
+
+
 -- TODO: CREATE TABLE notifications (id, user_id, type, payload, read_at, created_at)
 -- TODO: CREATE TABLE webhook_events (id, provider, repo, event_type, payload, processed_at, created_at)
 -- TODO: CREATE TABLE api_keys (id, project_id nullable, user_id nullable, key_hash, rate_limit, created_at)
