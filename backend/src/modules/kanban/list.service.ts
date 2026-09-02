@@ -42,6 +42,15 @@ export async function updateList(id: string, input:  Prisma.ListUncheckedUpdateI
 }
 
 
-export async function deleteList(): Promise<void> {
-
+export async function deleteList(id: string) {
+	try {
+		await prisma.list.delete({ where: { id } });
+		return true;
+	}
+	catch (err)
+	{
+		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025")
+			return false;
+		throw err;
+	}
 }

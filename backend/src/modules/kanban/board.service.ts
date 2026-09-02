@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 
 export async function createBoard(input: { projectId: string; title: string}) {
@@ -29,6 +30,15 @@ export async function getBoard(id: string) {
 }
 
 
-export async function deleteBoard(): Promise<void> {
-
+export async function deleteBoard(id: string) {
+	try {
+		await prisma.board.delete({ where: { id } });
+		return true;
+	}
+	catch (err)
+	{
+		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025")
+			return false;
+		throw err;
+	}
 }

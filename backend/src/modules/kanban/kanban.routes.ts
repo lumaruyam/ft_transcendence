@@ -46,7 +46,14 @@ async function getBoardHandler(request: FastifyRequest, reply: FastifyReply): Pr
 
 // deleteBoardHandler deletes a board.
 async function deleteBoardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: call deleteBoard(request.params.id) (broadcasts "board_deleted" internally)
+  const { id } = request.params as { id: string };
+  const deleted = await deleteBoard(id);
+
+  if (!deleted) {
+    reply.code(404).send({ error: "Board not found" });
+    return;
+  }
+  reply.code(204).send();
 }
 
 // createListHandler creates a new list/column on a board.
@@ -84,9 +91,15 @@ async function updateListHandler(request: FastifyRequest, reply: FastifyReply): 
 
 // deleteListHandler removes a list.
 async function deleteListHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: call deleteList(request.params.id) (broadcasts "list_deleted" internally)
-}
+  const { id } = request.params as { id: string };
+  const deleted = await deleteList(id);
 
+  if (!deleted) {
+    reply.code(404).send({ error: "List not found" });
+    return;
+  }
+  reply.code(204).send();
+}
 // reorderListsHandler persists a new list order after drag-and-drop.
 async function reorderListsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   // TODO: decode body { orderedListIds: string[] } → call reorderLists(request.params.boardId, orderedListIds)
@@ -126,5 +139,12 @@ async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): 
 
 // deleteCardHandler removes a card.
 async function deleteCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: call deleteCard(request.params.id) (broadcasts "card_deleted" internally)
+  const { id } = request.params as { id: string };
+  const deleted = await deleteCard(id);
+
+  if (!deleted) {
+    reply.code(404).send({ error: "Card not found" });
+    return;
+  }
+  reply.code(204).send();
 }

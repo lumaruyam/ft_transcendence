@@ -37,6 +37,15 @@ export async function updateCard(id: string, input: Prisma.CardUncheckedUpdateIn
 	}
 }
 
-export async function deleteCard(): Promise<void> {
-
+export async function deleteCard(id: string) {
+	try {
+		await prisma.card.delete({ where: { id } });
+		return true;
+	}
+	catch (err)
+	{
+		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025")
+			return false;
+		throw err;
+	}
 }
