@@ -158,3 +158,85 @@ document.getElementById("view-card-form").addEventListener("submit", async (even
 
 	view.innerHTML = "<strong>" + card.title + "</strong> — " + card.description + " (" + card.status + ")";
 });
+
+document.getElementById("update-list-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const id = document.getElementById("update-list-id").value;
+  const titleInput = document.getElementById("update-list-title").value;
+  const positionInput = document.getElementById("update-list-position").value;
+  const status = document.getElementById("update-list-status");
+  const result = document.getElementById("update-list-result");
+
+  const body = {};
+  if (titleInput !== "") body.title = titleInput;
+  if (positionInput !== "") body.position = Number(positionInput);
+
+  try {
+    const response = await fetch("/lists/" + id, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const list = await response.json();
+    result.textContent = JSON.stringify(list, null, 2);
+
+    if (response.ok) {
+      status.textContent = "✅ List updated";
+      status.style.color = "green";
+    } else {
+      status.textContent = "❌ Error " + response.status;
+      status.style.color = "red";
+    }
+  } catch (err) {
+    status.textContent = "❌ Network error: " + err.message;
+    status.style.color = "red";
+  }
+});
+
+document.getElementById("update-card-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const id = document.getElementById("update-card-id").value;
+  const titleInput = document.getElementById("update-card-title").value;
+  const descriptionInput = document.getElementById("update-card-description").value;
+  const listIdInput = document.getElementById("update-card-list-id").value;
+  const linkedBranchInput = document.getElementById("update-card-linked-branch").value;
+  const linkedPrUrlInput = document.getElementById("update-card-linked-pr-url").value;
+  const statusFieldInput = document.getElementById("update-card-status-field").value;
+  const positionInput = document.getElementById("update-card-position").value;
+  const feedback = document.getElementById("update-card-feedback");
+  const result = document.getElementById("update-card-result");
+
+  const body = {};
+  if (titleInput !== "") body.title = titleInput;
+  if (descriptionInput !== "") body.description = descriptionInput;
+  if (listIdInput !== "") body.listId = listIdInput;
+  if (linkedBranchInput !== "") body.linkedBranch = linkedBranchInput;
+  if (linkedPrUrlInput !== "") body.linkedPrUrl = linkedPrUrlInput;
+  if (statusFieldInput !== "") body.status = statusFieldInput;
+  if (positionInput !== "") body.position = Number(positionInput);
+
+  try {
+    const response = await fetch("/cards/" + id, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const card = await response.json();
+    result.textContent = JSON.stringify(card, null, 2);
+
+    if (response.ok) {
+      feedback.textContent = "✅ Card updated";
+      feedback.style.color = "green";
+    } else {
+      feedback.textContent = "❌ Error " + response.status;
+      feedback.style.color = "red";
+    }
+  } catch (err) {
+    feedback.textContent = "❌ Network error: " + err.message;
+    feedback.style.color = "red";
+  }
+});

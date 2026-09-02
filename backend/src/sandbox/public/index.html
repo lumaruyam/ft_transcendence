@@ -4,6 +4,45 @@
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>Kanban Sandbox</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				max-width: 700px;
+				margin: 40px auto;
+				padding: 0 16px;
+				background: #fff;
+				color: #222;
+			}
+			h1 {
+				border-bottom: 2px solid #333;
+				padding-bottom: 8px;
+			}
+			h2 {
+				margin-top: 32px;
+				border-bottom: 1px solid #ccc;
+				padding-bottom: 4px;
+			}
+			form {
+				display: flex;
+				flex-direction: column;
+				gap: 6px;
+				max-width: 400px;
+			}
+			input, button {
+				padding: 6px 8px;
+				font-size: 14px;
+			}
+			button {
+				width: fit-content;
+				cursor: pointer;
+			}
+			pre {
+				background: #f5f5f5;
+				padding: 8px;
+				border-radius: 4px;
+				overflow-x: auto;
+			}
+		</style>
 	</head>
 	<body>
 		<h1>Sanbox Kanban</h1>
@@ -57,6 +96,31 @@
 		<button type="submit">Load</button>
 		</form>
 		<div id="card-view"></div>
+
+		<h2>Update a list</h2>
+		<form id="update-list-form">
+		<input type="text" id="update-list-id" placeholder="List ID" required>
+		<input type="text" id="update-list-title" placeholder="New title (leave empty to skip)">
+		<input type="number" id="update-list-position" placeholder="New position (leave empty to skip)">
+		<button type="submit">Update</button>
+		</form>
+		<p id="update-list-status"></p>
+		<pre id="update-list-result"></pre>
+
+		<h2>Update a card</h2>
+		<form id="update-card-form">
+		<input type="text" id="update-card-id" placeholder="Card ID" required>
+		<input type="text" id="update-card-title" placeholder="New title (leave empty to skip)">
+		<input type="text" id="update-card-description" placeholder="New description (leave empty to skip)">
+		<input type="text" id="update-card-list-id" placeholder="New list ID (leave empty to skip)">
+		<input type="text" id="update-card-linked-branch" placeholder="New linked branch (leave empty to skip)">
+		<input type="text" id="update-card-linked-pr-url" placeholder="New linked PR URL (leave empty to skip)">
+		<input type="text" id="update-card-status-field" placeholder="New status (leave empty to skip)">
+		<input type="number" id="update-card-position" placeholder="New position (leave empty to skip)">
+		<button type="submit">Update</button>
+		</form>
+		<p id="update-card-feedback"></p>
+		<pre id="update-card-result"></pre>
 
 		<script src="script.js"></script>
 	</body>
