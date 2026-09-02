@@ -49,6 +49,7 @@ model Project {
   notes       Note[]
   attachments Attachment[]
   apiKeys     ApiKey[]
+  // tags        Tag[] // Add tags later ?
 
   @@map("projects")
 }
@@ -134,9 +135,42 @@ model Card {
   list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
   gitLink     GitLink?
   attachments Attachment[]
+  // tags        CardTag[] // Add tags ?
 
   @@map("cards")
 }
+
+// Tag maps to `tags` — project-scoped labels (e.g. "bug", "urgent") applied to cards.
+// Scoped per-project (not global) so two projects can each have their own "bug" tag
+// with independent colors, and deleting a project cleans up its tags automatically.
+// model Tag {
+//  id        String   @id @default(uuid())
+//  projectId String   @map("project_id")
+//  name      String
+//  color     String?
+//  createdAt DateTime @default(now()) @map("created_at")
+//
+//  project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+//  cards   CardTag[]
+//
+//  @@unique([projectId, name])
+//  @@map("tags")
+//}
+
+// CardTag maps to `card_tags` — the many-to-many join between cards and tags. Explicit
+// join table (rather than an implicit Prisma m-n) to match the project's existing
+// convention (see ProjectMember) and leave room for future columns (e.g. added_by/added_at)
+// without a schema rewrite.
+//model CardTag {
+//  cardId String @map("card_id")
+//  tagId  String @map("tag_id")
+//
+//  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+//  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+//
+//  @@id([cardId, tagId])
+//  @@map("card_tags")
+//}
 
 // Note maps to `notes`: id, project_id, content_json, updated_by, updated_at. Autosaved on edit per Track 4's notes module.
 model Note {
