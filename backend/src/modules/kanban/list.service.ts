@@ -54,3 +54,22 @@ export async function deleteList(id: string) {
 		throw err;
 	}
 }
+
+export async function reorderLists(orderedListIds: string[]) {
+	try {
+		const updates = orderedListIds.map((listId, index) =>
+			prisma.list.update({
+				where: { id: listId },
+				data: { position: index },
+			})
+		);
+		await prisma.$transaction(updates);
+		return true;
+	}
+	catch (err)
+	{
+		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025")
+			return false;
+		throw err;
+	}
+}

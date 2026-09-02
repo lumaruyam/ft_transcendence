@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../permissions/permissions.middleware.js";
 import { createBoard, getBoard, deleteBoard } from "./board.service.js";
-import { createList, getList, updateList, deleteList } from "./list.service.js";
+import { createList, getList, updateList, deleteList, reorderLists } from "./list.service.js";
 import { createCard, getCard, updateCard, deleteCard } from "./card.service.js";
 
 export function registerKanbanRoutes(app: FastifyInstance): void {
@@ -27,8 +27,9 @@ export function registerKanbanRoutes(app: FastifyInstance): void {
 
 // createBoardHandler creates a board within a project.
 async function createBoardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const body = request.body as { projectId: string; title: string}; // TODO: replace with proper fastify schema validation 
+  const body = request.body as { projectId: string; title: string}; // TODO: replace with proper fastify schema validation
   const board = await createBoard(body);
+  // TODO(Track 2 Person B): broadcast "board_created" { board } to the project's room
   reply.code(201).send(board);
 }
 
@@ -53,13 +54,15 @@ async function deleteBoardHandler(request: FastifyRequest, reply: FastifyReply):
     reply.code(404).send({ error: "Board not found" });
     return;
   }
+  // TODO(Track 2 Person B): broadcast "board_deleted" { id } to the project's room
   reply.code(204).send();
 }
 
 // createListHandler creates a new list/column on a board.
 async function createListHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const body = request.body as { boardId: string; title: string; position: number}; // TODO: replace with proper fastify schema validation 
+  const body = request.body as { boardId: string; title: string; position: number}; // TODO: replace with proper fastify schema validation
   const list = await createList(body);
+  // TODO(Track 2 Person B): broadcast "list_created" { list } to the board's room
   reply.code(201).send(list);
 }
 
@@ -86,6 +89,7 @@ async function updateListHandler(request: FastifyRequest, reply: FastifyReply): 
     reply.code(404).send({ error: "List not found" });
     return;
   }
+  // TODO(Track 2 Person B): broadcast "list_updated" { list } to the board's room
   reply.send(list);
 }
 
@@ -98,17 +102,30 @@ async function deleteListHandler(request: FastifyRequest, reply: FastifyReply): 
     reply.code(404).send({ error: "List not found" });
     return;
   }
+  // TODO(Track 2 Person B): broadcast "list_deleted" { id } to the board's room
   reply.code(204).send();
 }
+
 // reorderListsHandler persists a new list order after drag-and-drop.
 async function reorderListsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { orderedListIds: string[] } → call reorderLists(request.params.boardId, orderedListIds)
+  const { boardId } = request.params as { boardId: string };
+  const body = request.body as { orderedListIds: string[] }; // TODO: replace with proper fastify schema validation
+
+  const success = await reorderLists(body.orderedListIds);
+
+  if (!success) {
+    reply.code(404).send({ error: "One or more lists not found" });
+    return;
+  }
+  // TODO(Track 2 Person B): broadcast "lists_reordered" { boardId, orderedListIds } to the board's room
+  reply.code(204).send();
 }
 
 // createCardHandler creates a card in a list.
 async function createCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const body = request.body as {listId: string; title: string; description: string; position: number}; // TODO: replace with proper fastify schema validation
   const card = await createCard(body);
+  // TODO(Track 2 Person B): broadcast "card_created" { card } to the board's room
   reply.code(201).send(card);
 }
 
@@ -134,6 +151,7 @@ async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): 
     reply.code(404).send({ error: "Card not found" });
     return;
   }
+  // TODO(Track 2 Person B): broadcast "card_updated" { card } to the board's room
   reply.send(card);
 }
 
@@ -146,5 +164,6 @@ async function deleteCardHandler(request: FastifyRequest, reply: FastifyReply): 
     reply.code(404).send({ error: "Card not found" });
     return;
   }
+  // TODO(Track 2 Person B): broadcast "card_deleted" { id } to the board's room
   reply.code(204).send();
 }
