@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 
 export async function createCard(input: { listId: string; title: string; description?: string; position: number}) {
@@ -19,8 +20,21 @@ export async function getCard(id: string) {
 	return card;
 }
 
-export async function updateCard(): Promise<void> {
-
+export async function updateCard(id: string, input: Prisma.CardUncheckedUpdateInput) {
+	try 
+	{
+		const card = await prisma.card.update({
+			where: { id },
+			data: input,
+		});
+		return card;
+	}
+	catch (err)
+	{
+		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025")
+			return null;
+		throw err;
+	}
 }
 
 export async function deleteCard(): Promise<void> {

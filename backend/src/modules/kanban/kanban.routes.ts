@@ -1,6 +1,7 @@
 // Owner: Track 2 (Person A — Kanban CRUD and UI)
 // Responsible for: Fastify route handlers for boards/lists/cards CRUD. Calls into Track 2 Person B's
 // broadcast.ts after each mutation to notify connected clients over Socket.IO.
+import { Prisma } from "@prisma/client";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../permissions/permissions.middleware.js";
 import { createBoard, getBoard, deleteBoard } from "./board.service.js";
@@ -21,7 +22,6 @@ export function registerKanbanRoutes(app: FastifyInstance): void {
   app.post("/cards", { preHandler: requireAuth }, createCardHandler);
   app.get("/cards/:id", { preHandler: requireAuth }, getCardHandler);
   app.put("/cards/:id", { preHandler: requireAuth }, updateCardHandler);
-  app.put("/cards/:id/move", { preHandler: requireAuth }, moveCardHandler);
   app.delete("/cards/:id", { preHandler: requireAuth }, deleteCardHandler);
 }
 
@@ -70,7 +70,16 @@ async function getListHandler(request: FastifyRequest, reply: FastifyReply): Pro
 
 // updateListHandler renames/repositions a list.
 async function updateListHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { title?, position? } → call updateList(request.params.id, input); broadcast "list_updated"
+  const { id } = request.params as { id: string };
+  const body = request.body as  Prisma.ListUncheckedUpdateInput; // TODO: replace with proper fastify schema validation
+
+  const list = await updateList(id, body);
+  if (!list)
+  {
+    reply.code(404).send({ error: "List not found" });
+    return;
+  }
+  reply.send(list);
 }
 
 // deleteListHandler removes a list.
@@ -104,12 +113,15 @@ async function getCardHandler(request: FastifyRequest, reply: FastifyReply): Pro
 
 // updateCardHandler edits a card's fields.
 async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { title?, description?, assignee? } → call updateCard(request.params.id, input)
-}
+  const { id } = request.params as { id: string };
+  const body = request.body as Prisma.CardUncheckedUpdateInput; // TODO: replace with proper fastify schema validation
 
-// moveCardHandler relocates a card to a new list/position (drag-and-drop).
-async function moveCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { newListId, newPosition } → call moveCard(request.params.id, newListId, newPosition)
+  const card = await updateCard(id, body);
+  if (!card) {
+    reply.code(404).send({ error: "Card not found" });
+    return;
+  }
+  reply.send(card);
 }
 
 // deleteCardHandler removes a card.

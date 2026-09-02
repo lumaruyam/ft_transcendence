@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 
 export async function createList(input: { boardId: string; title: string; position: number}) {
@@ -23,8 +24,21 @@ export async function getList(id: string) {
 	return list;
 }
 
-export async function updateList(): Promise<void> {
-
+export async function updateList(id: string, input:  Prisma.ListUncheckedUpdateInput) {
+	try 
+	{
+		const list = await prisma.list.update({
+			where: { id },
+			data: input,
+		});
+		return list;
+	}
+	catch (err)
+	{
+		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025")
+			return null;
+		throw err;
+	}
 }
 
 
