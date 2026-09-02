@@ -240,3 +240,41 @@ document.getElementById("update-card-form").addEventListener("submit", async (ev
     feedback.style.color = "red";
   }
 });
+
+async function deleteResource(path, feedbackId) {
+  const feedback = document.getElementById(feedbackId);
+
+  try {
+    const response = await fetch(path, { method: "DELETE" });
+
+    if (response.ok) {
+      feedback.textContent = "✅ Deleted";
+      feedback.style.color = "green";
+    } else {
+      const error = await response.json();
+      feedback.textContent = "❌ Error " + response.status + ": " + error.error;
+      feedback.style.color = "red";
+    }
+  } catch (err) {
+    feedback.textContent = "❌ Network error: " + err.message;
+    feedback.style.color = "red";
+  }
+}
+
+document.getElementById("delete-board-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const id = document.getElementById("delete-board-id").value;
+  await deleteResource("/boards/" + id, "delete-board-feedback");
+});
+
+document.getElementById("delete-list-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const id = document.getElementById("delete-list-id").value;
+  await deleteResource("/lists/" + id, "delete-list-feedback");
+});
+
+document.getElementById("delete-card-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const id = document.getElementById("delete-card-id").value;
+  await deleteResource("/cards/" + id, "delete-card-feedback");
+});
