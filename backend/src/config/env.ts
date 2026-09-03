@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/02 19:02:56 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/02 19:03:03 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/03 21:32:55 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -79,9 +79,9 @@ function optionalIntEnv(name: string, defaultValue: number): number {
 
 function loadOAuthProviderConfig(prefix: "GITHUB" | "GITLAB"): OAuthProviderConfig {
 	return {
-		clientId: requireEnv(`${prefix}_CLIENT_ID`),
-		clientSecret: requireEnv(`${prefix}_CLIENT_SECRET`),
-		redirectUri: requireEnv(`${prefix}_OAUTH_REDIRECT_URI`),
+		clientId: process.env[`${prefix}_CLIENT_ID`] || '', // optional
+		clientSecret: process.env[`${prefix}_CLIENT_SECRET`] || '',
+		redirectUri: process.env[`${prefix}_OAUTH_REDIRECT_URI`] || '',
 	};
 }
 
