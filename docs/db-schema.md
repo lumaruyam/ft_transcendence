@@ -46,6 +46,7 @@ documented here regardless of which ORM reads it.
 - `git_links.card_id -> cards.id` (one-to-one)
 - `notifications.user_id -> users.id`
 - `api_keys.project_id -> projects.id` (nullable — a key may be user-scoped instead)
+- `api_keys.user_id -> users.id` (Added on 03/09/2026)
 
 <!-- TODO: include an ER diagram once the schema stabilizes -->
 <!-- TODO: once `npx prisma migrate dev` has been run at least once, link to the generated migration files under backend/prisma/migrations/ as the authoritative history -->

@@ -20,7 +20,7 @@ CREATE TABLE users (
 	created_at		TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at		TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE UNIQUE INDEX user_email_key ON users (email);
+CREATE UNIQUE INDEX users_email_key ON users (email);
 
 -- ── projects ────────────────────────────────────────────────────────────────────────────────
 CREATE TABLE projects (
@@ -42,7 +42,7 @@ CREATE TABLE project_members (
 	PRIMARY KEY (project_id, user_id),
 	CONSTRAINT project_members_project_id_fkey
 		FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE ON UPDATE CASCADE,
-	CONSTRAINT project_members_user_id_key
+	CONSTRAINT project_members_user_id_fkey
 		FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE INDEX project_members_user_id_idx ON project_members
@@ -89,7 +89,7 @@ CREATE TABLE lists (
 	board_id		TEXT NOT NULL,
 	title			TEXT NOT NULL,
 	position		INTEGER NOT NULL,
-	CONSTRAINT ists_board_id_fkey
+	CONSTRAINT lists_board_id_fkey
 		FOREIGN KEY (board_id) REFERENCES boards (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE INDEX lists_board_id_idx ON lists (board_id);
@@ -172,21 +172,48 @@ CREATE INDEX attachments_uploaded_by_idx ON attachments (uploaded_by);
 
 -- ── git_links ───────────────────────────────────────────────────────────────────────────────
 CREATE TABLE git_links (
-	card_id.     TEXT PRIMARY KEY,
-	repo_url     TEXT NOT NULL,
-	branch_name  TEXT NOT NULL,
-	pr_status    TEXT NOT NULL,
+	card_id			TEXT PRIMARY KEY,
+	repo_url		TEXT NOT NULL,
+	branch_name		TEXT NOT NULL,
+	pr_status		TEXT NOT NULL,
 	CONSTRAINT git_links_card_id_fkey
 		FOREIGN KEY (card_id) REFERENCES cards (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
--- ── attachments ─────────────────────────────────────────────────────────────────────────────
+-- ── notifications ───────────────────────────────────────────────────────────────────────────
 CREATE TABLE notifications (
+	id				TEXT PRIMARY KEY,
+	user_id			TEXT NOT NULL,
+	type			TEXT NOT NULL,
+	payload			JSONB NOT NULL,
+	read_at			TIMESTAMP(3),
+	created_at		TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT notifications_user_id_fkey
+		FOREIGN KEY (user_id) REFERENCES users (id) ON DEETE CASCADE ON UPDATE CASCADE
+);
+CREATE INDEX notifications_user_id_idx ON notifications (user_id);
 
-)
 
+-- ── webhook_events ──────────────────────────────────────────────────────────────────────────
+CREATE TABE webhook_events (
+	id				TEXT PRIMARY KEY,
+	provider		TEXT NOT NULL,
+	repo			TEXT NOT NULL,
+	event_type		TEXT NOT NULL,
+	payload			JSONB NOT NULL,
+	processed_at	TIMESTAMP(3),
+	created_at		TIMESTAMP(3) NOT NUL DEFAULT CURRENT_TIMESTAMP
+);
 
--- TODO: CREATE TABLE notifications (id, user_id, type, payload, read_at, created_at)
--- TODO: CREATE TABLE webhook_events (id, provider, repo, event_type, payload, processed_at, created_at)
--- TODO: CREATE TABLE api_keys (id, project_id nullable, user_id nullable, key_hash, rate_limit, created_at)
--- TODO: add foreign key constraints and indexes matching docs/db-schema.md and backend/prisma/schema.prisma
+-- ── api_keys ────────────────────────────────────────────────────────────────────────────────
+CREATE TABLE api_keys (
+	id				TEXT PRIMARY KEY,
+	project_id		TEXT,
+	user_id			TEXT,
+	key_hash		TEXT NOT NULL,
+	rate_limit		INTEGER NOT NULL,
+	created_at		TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT api_keys_project_id_fkey
+		FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE INDEX api_keys_project_id_idx ON api_keys (project_id);

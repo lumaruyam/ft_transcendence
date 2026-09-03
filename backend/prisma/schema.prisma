@@ -23,13 +23,14 @@ model User {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  ownedProjects  Project[]        @relation("ProjectOwner")
+  ownedProjects  Project[]       @relation("ProjectOwner")
   memberships    ProjectMember[]
-  updatedNotes   Note[]           @relation("NoteUpdatedBy")
-  uploads        Attachment[]     @relation("AttachmentUploadedBy")
+  updatedNotes   Note[]          @relation("NoteUpdatedBy")
+  uploads        Attachment[]    @relation("AttachmentUploadedBy")
   notifications  Notification[]
-  createdInvites ProjectInvite[]  @relation("InviteCreatedBy")
-  revokedInvites ProjectInvite[]  @relation("InviteRevokedBy")
+  createdInvites ProjectInvite[] @relation("InviteCreatedBy")
+  revokedInvites ProjectInvite[] @relation("InviteRevokedBy")
+  apiKeys        ApiKey[]
 
   @@map("users")
 }
@@ -252,6 +253,7 @@ model ApiKey {
   createdAt DateTime @default(now()) @map("created_at")
 
   project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("api_keys")
 }

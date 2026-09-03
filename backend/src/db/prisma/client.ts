@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/02 19:03:20 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/02 19:50:01 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/03 21:27:40 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,7 +23,7 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 
 // prisma is the single shared client instance imported by every module's service layer.
-export const prismaClient = globalForPrisma.prisma ?? new PrismaClient({
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({
 		log:
 			process.env.NODE_ENV === "development"
 				? ["query", "warn", "error"]
