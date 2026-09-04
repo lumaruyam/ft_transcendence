@@ -1,5 +1,5 @@
 # Owner: Track 1 (Foundation, Auth, and API infrastructure)
-# Responsible for: containerized deployment of frontend, backend, Postgres, and the Nginx reverse proxy, runnable with a single `docker compose up` per the mandatory containerization requirement.
+# Responsible for: containerized deployment of frontend, backend, Postgres, and the Nginx reverse proxy.
 #
 # Stack note: backend service now runs Node.js + TypeScript (Fastify + Socket.IO + Prisma), replacing the
 # earlier Go binary. Compiled output is a Node process (`node dist/server.js`), not a static Go binary.
@@ -62,7 +62,7 @@ services:
     image: nginx:1.27
     restart: unless-stopped
     volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro # accepted the nginx-setup setting
       - ./infra/nginx/certs:/etc/nginx/certs:ro
       - frontend_dist:/usr/share/nginx/html:ro
     ports:
