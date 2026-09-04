@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/28 20:01:23 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/03 22:39:08 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/04 19:55:55 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
 
 				try {
 					// Close Socket.IO connections
-					app.io = (app as any).io;
+					const io = (app as any).io;
 					if (io) {
 						io.close();
 					}//  changed from app.io?.close(); app.io is the Socket.IO instance, it manages all WebSocket connections and real-time communication
