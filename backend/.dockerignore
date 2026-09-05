@@ -1,0 +1,7 @@
+// Owner: Track 1
+node_modules
+dist
+.env
+.env.*
+npm-debug.log
+*.log

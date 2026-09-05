@@ -4,38 +4,32 @@
 !.env.example
 .DS_Store
 
-# --- Go (backend) ---
-backend/bin/
-backend/tmp/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-vendor/
-go.work
-go.work.sum
-
 # --- Node / TypeScript / frontend (React, Svelte, Vite, etc.) ---
 node_modules/
 frontend/dist/
 frontend/build/
 frontend/.svelte-kit/
 frontend/.vite/
+frontend/.next/
 *.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# --- Build output ---
+dist/
+build/
+*.pid
+
 # --- Docker ---
 *.pid
+infra/nginx/certs/
 
 # --- Database / local dev data ---
 *.sqlite
 *.sqlite3
+*.db
 pgdata/
 postgres-data/
 
@@ -46,6 +40,7 @@ postgres-data/
 *.swo
 .DS_Store
 Thumbs.db
+Desktop.ini
 
 # --- Logs ---
 *.log
@@ -54,3 +49,21 @@ logs/
 # --- Uploaded/generated files (local dev only — real storage should be a volume or external service, not committed) ---
 backend/uploads/
 frontend/public/uploads/
+uploads/
+
+# --- test / coverage ---
+coverage/
+.nyc_output/
+*.test.js
+*.test.ts
+
+# --- temp files ---
+*.temp
+*.tmp
+*.cache
+
+# --- certs SSL ---
+infra/nginx/certs/
+*.crt
+*.key
+*.pem

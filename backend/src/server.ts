@@ -6,17 +6,17 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/28 20:01:23 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/08/29 14:47:02 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/04 19:55:55 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: process entrypoint — loads config, connects the database, builds the Fastify app, attaches the Socket.IO Kanban hub, and starts listening. Replaces backend/cmd/server/main.go (Go skeleton, removed).
 import "dotenv/config";
-import { loadConfig } from "./config/env";
-import { buildApp } from "./app";
-import { connectDatabase, disconnectDatabase } from "./db/prisma/client";
-import { createKanbanHub } from "./modules/kanban/hub";
+import { loadConfig } from "./config/env.js";
+import { buildApp } from "./app.js";
+import { connectDatabase, disconnectDatabase } from "./db/prisma/client.js";
+import { createKanbanHub } from "./modules/kanban/hub.js";
 
 async function main(): Promise<void> {
 	try {
@@ -50,7 +50,10 @@ async function main(): Promise<void> {
 
 				try {
 					// Close Socket.IO connections
-					app.io?.close(); // app.io is the Socket.IO instance, it manages all WebSocket connections and real-time communication
+					const io = (app as any).io;
+					if (io) {
+						io.close();
+					}//  changed from app.io?.close(); app.io is the Socket.IO instance, it manages all WebSocket connections and real-time communication
 					console.log("Socket.IO hub closed");
 
 					// Close Fastify
