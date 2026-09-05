@@ -1,7 +1,7 @@
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: Fastify preHandler hooks enforcing authentication and role-based access for the Advanced permissions module. TS equivalent of backend/internal/permissions/middleware.go (Go skeleton, removed).
 import type { FastifyRequest, FastifyReply } from "fastify";
-import type { Role } from "./roles.service";
+import type { Role } from "./roles.service.js";
 
 // requireAuth rejects requests without a valid JWT before they reach a handler. Register as a preHandler on protected routes.
 export async function requireAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {

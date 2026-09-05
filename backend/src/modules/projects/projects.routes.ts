@@ -1,10 +1,10 @@
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: Fastify route handlers for project (organization) CRUD and membership management.
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { requireAuth, requireRole } from "../permissions/permissions.middleware";
-import { ROLES } from "../permissions/roles.service";
-import { createProject, getProject, updateProject, deleteProject, listProjectsForUser } from "./projects.service";
-import { addMember, removeMember, listMembers } from "./members.service";
+import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
+import { ROLES } from "../permissions/roles.service.js";
+import { createProject, getProject, updateProject, deleteProject, listProjectsForUser } from "./projects.service.js";
+import { addMember, removeMember, listMembers } from "./members.service.js";
 
 export function registerProjectsRoutes(app: FastifyInstance): void {
   app.get("/", { preHandler: requireAuth }, listProjectsHandler);
