@@ -53,9 +53,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - app_net
     volumes:
       - frontend_dist:/usr/share/nginx/html
-    command: sh -c "cp -r /app/dist/. /usr/share/nginx/html/"
+    expose:
+      - "80"
+    # command: sh -c "cp -r /app/dist/. /usr/share/nginx/html/"
     # This container is expected to exit 0 after copying so it is not restarted
 
   nginx:
@@ -66,13 +71,13 @@ services:
       - ./infra/nginx/certs:/etc/nginx/certs:ro
       - frontend_dist:/usr/share/nginx/html:ro
     ports:
-      - "443:443"
-      - "80:80" # confirm with infra/nginx/nginx.conf
-    depends_on:
-      backend:
-        condition: service_started
-      frontend:
-        condition: service_completed_successfully
+      - "8443:8443" # 42 use rootless Podman and we don't have rights to use port less than 1024
+      - "8080:8080" # confirm with infra/nginx/nginx.conf
+    # depends_on: # remove dependency to allow us to check each service separately
+    #   backend:
+    #     condition: service_started
+    #   frontend:
+    #     condition: service_completed_successfully
     networks:
       - app_net
 

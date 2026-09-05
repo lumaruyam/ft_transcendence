@@ -1,7 +1,7 @@
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: adding/removing members within a project, part of the Organization system major module. TS equivalent of backend/internal/projects/members.go (Go skeleton, removed).
 import type { ProjectMember } from "@prisma/client";
-import type { Role } from "../permissions/roles.service";
+import type { Role } from "../permissions/roles.service.js"
 
 // addMember adds a user to a project with a given role.
 export async function addMember(projectId: string, userId: string, role: Role): Promise<void> {

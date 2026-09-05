@@ -1,7 +1,7 @@
-// Owner: Track 1
+# Owner: Track 1
 
 # --- build stage ---
-FROM node:20-bookworm AS build
+FROM node:20-bookworm AS builder
 WORKDIR /app
 
 COPY package*.json ./
@@ -17,10 +17,6 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 HEALTHCHECK --interval=30s --timeout=3s \
 	CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
-EXPOSE 90
+EXPOSE 80
 
-CMD ["ngix", "-g", "daemon off;"]
-
-FROM debian:bookworm-slim
-WORKDIR /app
-COPY --from=build /app/dist ./dist
+CMD ["nginx", "-g", "daemon off;"]
