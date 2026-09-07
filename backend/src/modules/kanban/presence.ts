@@ -1,6 +1,6 @@
 // Owner: Track 2 (Person B — WebSocket layer)
 // Responsible for: presence tracking (who's online) and reconnection handling, both required by the mandatory multi-user support requirement. TS equivalent of backend/internal/kanban/presence.go (Go skeleton, removed).
-import { broadcastToProject } from "./broadcast";
+import { broadcastToProject } from "./broadcast.js";
 
 // broadcastPresence sends a "joined"/"left" event to a project's room on client connect/disconnect.
 export function broadcastPresence(projectId: string, userId: string, status: "joined" | "left"): void {
