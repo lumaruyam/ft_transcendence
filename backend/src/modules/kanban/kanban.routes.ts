@@ -1,41 +1,103 @@
 // Owner: Track 2 (Person A — Kanban CRUD and UI)
 // Responsible for: Fastify route handlers for boards/lists/cards CRUD. Calls into Track 2 Person B's
 // broadcast.ts after each mutation to notify connected clients over Socket.IO.
-import { Prisma } from "@prisma/client";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../permissions/permissions.middleware.js";
 import { createBoard, getBoard, deleteBoard } from "./board.service.js";
 import { createList, getList, updateList, deleteList, reorderLists } from "./list.service.js";
 import { createCard, getCard, updateCard, deleteCard } from "./card.service.js";
+import {
+  createBoardSchema,
+  boardIdParamSchema,
+  createListSchema,
+  listIdParamSchema,
+  updateListSchema,
+  reorderListsSchema,
+  createCardSchema,
+  cardIdParamSchema,
+  updateCardSchema,
+} from "./kanban.schemas.js";
 
 export function registerKanbanRoutes(app: FastifyInstance): void {
-  app.post("/boards", { preHandler: requireAuth }, createBoardHandler);
-  app.get("/boards/:id", { preHandler: requireAuth }, getBoardHandler);
-  app.delete("/boards/:id", { preHandler: requireAuth }, deleteBoardHandler);
+  app.post<{ Body: { projectId: string; title: string } }>(
+    "/boards",
+    { preHandler: requireAuth, schema: createBoardSchema },
+    createBoardHandler
+  );
+  app.get<{ Params: { id: string } }>(
+    "/boards/:id",
+    { preHandler: requireAuth, schema: boardIdParamSchema },
+    getBoardHandler
+  );
+  app.delete<{ Params: { id: string } }>(
+    "/boards/:id",
+    { preHandler: requireAuth, schema: boardIdParamSchema },
+    deleteBoardHandler
+  );
 
-  app.post("/lists", { preHandler: requireAuth }, createListHandler);
-  app.get("/lists/:id", { preHandler: requireAuth }, getListHandler);
-  app.put("/lists/:id", { preHandler: requireAuth }, updateListHandler);
-  app.delete("/lists/:id", { preHandler: requireAuth }, deleteListHandler);
-  app.put("/boards/:boardId/lists/reorder", { preHandler: requireAuth }, reorderListsHandler);
+  app.post<{ Body: { boardId: string; title: string; position: number } }>(
+    "/lists",
+    { preHandler: requireAuth, schema: createListSchema },
+    createListHandler
+  );
+  app.get<{ Params: { id: string } }>(
+    "/lists/:id",
+    { preHandler: requireAuth, schema: listIdParamSchema },
+    getListHandler
+  );
+  app.put<{ Params: { id: string }; Body: { title?: string; position?: number } }>(
+    "/lists/:id",
+    { preHandler: requireAuth, schema: updateListSchema },
+    updateListHandler
+  );
+  app.delete<{ Params: { id: string } }>(
+    "/lists/:id",
+    { preHandler: requireAuth, schema: listIdParamSchema },
+    deleteListHandler
+  );
+  app.put<{ Params: { boardId: string }; Body: { orderedListIds: string[] } }>(
+    "/boards/:boardId/lists/reorder",
+    { preHandler: requireAuth, schema: reorderListsSchema },
+    reorderListsHandler
+  );
 
-  app.post("/cards", { preHandler: requireAuth }, createCardHandler);
-  app.get("/cards/:id", { preHandler: requireAuth }, getCardHandler);
-  app.put("/cards/:id", { preHandler: requireAuth }, updateCardHandler);
-  app.delete("/cards/:id", { preHandler: requireAuth }, deleteCardHandler);
+  app.post<{ Body: { listId: string; title: string; description?: string; position: number } }>(
+    "/cards",
+    { preHandler: requireAuth, schema: createCardSchema },
+    createCardHandler
+  );
+  app.get<{ Params: { id: string } }>(
+    "/cards/:id",
+    { preHandler: requireAuth, schema: cardIdParamSchema },
+    getCardHandler
+  );
+  app.put<{
+    Params: { id: string };
+    Body: { title?: string; description?: string; position?: number };
+  }>("/cards/:id", { preHandler: requireAuth, schema: updateCardSchema }, updateCardHandler);
+  app.delete<{ Params: { id: string } }>(
+    "/cards/:id",
+    { preHandler: requireAuth, schema: cardIdParamSchema },
+    deleteCardHandler
+  );
 }
 
 // createBoardHandler creates a board within a project.
-async function createBoardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const body = request.body as { projectId: string; title: string}; // TODO: replace with proper fastify schema validation
-  const board = await createBoard(body);
+async function createBoardHandler(
+  request: FastifyRequest<{ Body: { projectId: string; title: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const board = await createBoard(request.body);
   // TODO(Track 2 Person B): broadcast "board_created" { board } to the project's room
   reply.code(201).send(board);
 }
 
 // getBoardHandler fetches a board with its lists/cards for initial render.
-async function getBoardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const { id } = request.params as { id: string};
+async function getBoardHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
   const board = await getBoard(id);
 
   if (!board) {
@@ -46,8 +108,11 @@ async function getBoardHandler(request: FastifyRequest, reply: FastifyReply): Pr
 }
 
 // deleteBoardHandler deletes a board.
-async function deleteBoardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const { id } = request.params as { id: string };
+async function deleteBoardHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
   const deleted = await deleteBoard(id);
 
   if (!deleted) {
@@ -59,16 +124,21 @@ async function deleteBoardHandler(request: FastifyRequest, reply: FastifyReply):
 }
 
 // createListHandler creates a new list/column on a board.
-async function createListHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const body = request.body as { boardId: string; title: string; position: number}; // TODO: replace with proper fastify schema validation
-  const list = await createList(body);
+async function createListHandler(
+  request: FastifyRequest<{ Body: { boardId: string; title: string; position: number } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const list = await createList(request.body);
   // TODO(Track 2 Person B): broadcast "list_created" { list } to the board's room
   reply.code(201).send(list);
 }
 
 // getListHandler fetches a list with its cards for additionnal info.
-async function getListHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const { id } = request.params as { id: string};
+async function getListHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
   const list = await getList(id);
 
   if (!list) {
@@ -79,11 +149,13 @@ async function getListHandler(request: FastifyRequest, reply: FastifyReply): Pro
 }
 
 // updateListHandler renames/repositions a list.
-async function updateListHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const { id } = request.params as { id: string };
-  const body = request.body as  Prisma.ListUncheckedUpdateInput; // TODO: replace with proper fastify schema validation
+async function updateListHandler(
+  request: FastifyRequest<{ Params: { id: string }; Body: { title?: string; position?: number } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
 
-  const list = await updateList(id, body);
+  const list = await updateList(id, request.body);
   if (!list)
   {
     reply.code(404).send({ error: "List not found" });
@@ -94,8 +166,11 @@ async function updateListHandler(request: FastifyRequest, reply: FastifyReply): 
 }
 
 // deleteListHandler removes a list.
-async function deleteListHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const { id } = request.params as { id: string };
+async function deleteListHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
   const deleted = await deleteList(id);
 
   if (!deleted) {
@@ -107,11 +182,13 @@ async function deleteListHandler(request: FastifyRequest, reply: FastifyReply): 
 }
 
 // reorderListsHandler persists a new list order after drag-and-drop.
-async function reorderListsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const { boardId } = request.params as { boardId: string };
-  const body = request.body as { orderedListIds: string[] }; // TODO: replace with proper fastify schema validation
+async function reorderListsHandler(
+  request: FastifyRequest<{ Params: { boardId: string }; Body: { orderedListIds: string[] } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { boardId } = request.params;
 
-  const success = await reorderLists(body.orderedListIds);
+  const success = await reorderLists(request.body.orderedListIds);
 
   if (!success) {
     reply.code(404).send({ error: "One or more lists not found" });
@@ -122,16 +199,23 @@ async function reorderListsHandler(request: FastifyRequest, reply: FastifyReply)
 }
 
 // createCardHandler creates a card in a list.
-async function createCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const body = request.body as {listId: string; title: string; description: string; position: number}; // TODO: replace with proper fastify schema validation
-  const card = await createCard(body);
+async function createCardHandler(
+  request: FastifyRequest<{
+    Body: { listId: string; title: string; description?: string; position: number };
+  }>,
+  reply: FastifyReply
+): Promise<void> {
+  const card = await createCard(request.body);
   // TODO(Track 2 Person B): broadcast "card_created" { card } to the board's room
   reply.code(201).send(card);
 }
 
 // getCardHandler fetches a card for additionnal info.
-async function getCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const { id } = request.params as { id: string};
+async function getCardHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
   const card = await getCard(id);
 
   if (!card) {
@@ -142,11 +226,16 @@ async function getCardHandler(request: FastifyRequest, reply: FastifyReply): Pro
 }
 
 // updateCardHandler edits a card's fields.
-async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const { id } = request.params as { id: string };
-  const body = request.body as Prisma.CardUncheckedUpdateInput; // TODO: replace with proper fastify schema validation
+async function updateCardHandler(
+  request: FastifyRequest<{
+    Params: { id: string };
+    Body: { title?: string; description?: string; position?: number };
+  }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
 
-  const card = await updateCard(id, body);
+  const card = await updateCard(id, request.body);
   if (!card) {
     reply.code(404).send({ error: "Card not found" });
     return;
@@ -156,8 +245,11 @@ async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): 
 }
 
 // deleteCardHandler removes a card.
-async function deleteCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const { id } = request.params as { id: string };
+async function deleteCardHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
   const deleted = await deleteCard(id);
 
   if (!deleted) {
