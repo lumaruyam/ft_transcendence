@@ -32,8 +32,9 @@ async function main(): Promise<void> {
 		const app = buildApp(config);
 		console.log("Fastify app built");
 
-		// Attach Socket.IO to the Fastify server
-		createKanbanHub(app.server);
+		// Attach Socket.IO to the same HTTP server Fastify created, and expose the
+		// instance on the app (app.io) for handlers and the shutdown hook below.
+		app.decorate("io", createKanbanHub(app.server));
 		console.log("Socket.IO hub attached");
 
 		// Start listening
@@ -49,11 +50,9 @@ async function main(): Promise<void> {
 				console.log(`\n${signal} received, shutting down gracefully...`);
 
 				try {
-					// Close Socket.IO connections
-					const io = (app as any).io;
-					if (io) {
-						io.close();
-					}//  changed from app.io?.close(); app.io is the Socket.IO instance, it manages all WebSocket connections and real-time communication
+					// Close Socket.IO (disconnects clients; also closes the shared HTTP
+					// server, which app.close() below then tolerates as already-stopped).
+					app.io.close();
 					console.log("Socket.IO hub closed");
 
 					// Close Fastify

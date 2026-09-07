@@ -13,9 +13,9 @@ import{
 
 const WEBHOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
 // registerGitWebhookRoutes mounts the webhook receiver, called from app.ts. No JWT auth — HMAC signature verification instead.
-export function registerGitWebhookRoutes(app: FastifyInstance): void {
-	app.post("/webhooks/git", webhookReceiverHandler);
-	}
+export async function registerGitWebhookRoutes(app: FastifyInstance): Promise<void> {
+  app.post("/webhooks/git", webhookReceiverHandler);
+}
 
 	// webhookReceiverHandler receives GitHub/GitLab webhook POSTs registered by registerWebhook.
 	async function webhookReceiverHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
