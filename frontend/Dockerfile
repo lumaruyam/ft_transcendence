@@ -10,13 +10,10 @@ COPY . .
 RUN npm run build
 
 # --- Runtime stage ---
+# Not a server: this image only carries the built static files. docker-compose.yml
+# overrides the command to copy /usr/share/nginx/html into the shared frontend_dist
+# volume and exit — the nginx service is what actually serves them. Base is nginx:1.27
+# purely so the layer is already cached by the nginx service (no extra image pull).
 FROM nginx:1.27
 
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-HEALTHCHECK --interval=30s --timeout=3s \
-	CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]

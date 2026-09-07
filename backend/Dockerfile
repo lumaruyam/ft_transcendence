@@ -23,15 +23,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 RUN apt-get update -y \
-	&& apt-get install -y --noinsta-recommends openssl \
+	&& apt-get install -y --no-install-recommends openssl \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Production only install keeps @prisma/client + prisma (both are
 # in "dependencies", not devDependencies
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-
-COPY prisma ./prisma
 RUN npm ci --omit=dev
 
 COPY prisma ./prisma

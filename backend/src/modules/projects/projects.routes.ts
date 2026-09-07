@@ -6,7 +6,7 @@ import { ROLES } from "../permissions/roles.service.js";
 import { createProject, getProject, updateProject, deleteProject, listProjectsForUser } from "./projects.service.js";
 import { addMember, removeMember, listMembers } from "./members.service.js";
 
-export function registerProjectsRoutes(app: FastifyInstance): void {
+export async function registerProjectsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/", { preHandler: requireAuth }, listProjectsHandler);
   app.post("/", { preHandler: requireAuth }, createProjectHandler);
   app.get("/:id", { preHandler: requireAuth }, getProjectHandler);

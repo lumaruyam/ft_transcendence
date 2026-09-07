@@ -5,7 +5,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 // registerAuthRoutes mounts /api/auth/signup, /api/auth/login, /api/auth/logout on the given
 // Fastify instance, called from app.ts. Canonical API base path is /api (not /api/v1) — matches
 // frontend/src/auth/{loginForm,signupForm}.ts, which already call these under /api/auth/*.
-export function registerAuthRoutes(app: FastifyInstance): void {
+export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/auth/signup", signupHandler);
   app.post("/api/auth/login", loginHandler);
   app.post("/api/auth/logout", logoutHandler);

@@ -2,12 +2,12 @@
 // Responsible for: Fastify route handlers for boards/lists/cards CRUD. Calls into Track 2 Person B's
 // broadcast.ts after each mutation to notify connected clients over Socket.IO.
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { requireAuth } from "../permissions/permissions.middleware";
-import { createBoard, getBoard, deleteBoard } from "./boards.service";
-import { createList, updateList, deleteList, reorderLists } from "./lists.service";
-import { createCard, updateCard, moveCard, deleteCard } from "./cards.service";
+import { requireAuth } from "../permissions/permissions.middleware.js";
+import { createBoard, getBoard, deleteBoard } from "./boards.service.js";
+import { createList, updateList, deleteList, reorderLists } from "./lists.service.js";
+import { createCard, updateCard, moveCard, deleteCard } from "./cards.service.js";
 
-export function registerKanbanRoutes(app: FastifyInstance): void {
+export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> {
   app.post("/boards", { preHandler: requireAuth }, createBoardHandler);
   app.get("/boards/:id", { preHandler: requireAuth }, getBoardHandler);
   app.delete("/boards/:id", { preHandler: requireAuth }, deleteBoardHandler);

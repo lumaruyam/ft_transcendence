@@ -95,7 +95,7 @@ export async function listInvites(projectId: string): Promise<ProjectInvite[]> {
 // require requireRole("admin") on :projectId since only project admins manage invites. The join
 // route deliberately does NOT use requireRole — the whole point is granting access to someone
 // who ISN'T a member yet — but does carry the dedicated INVITE_JOIN_RATE_LIMIT config above.
-export function registerInviteRoutes(app: FastifyInstance): void {
+export async function registerInviteRoutes(app: FastifyInstance): Promise<void> {
   // TODO: app.post("/api/projects/:projectId/invites", { preHandler: [requireAuth,
   //       requireRole(ROLES.ADMIN)] }, createInviteHandler)
   // TODO: app.post("/api/projects/invites/:token/join", { preHandler: [requireAuth],

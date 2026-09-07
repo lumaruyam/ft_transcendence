@@ -1,6 +1,7 @@
-// Owner: Track 1
+# Owner: Track 1
 node_modules
 dist
+.git
 .env
 .env.*
 npm-debug.log

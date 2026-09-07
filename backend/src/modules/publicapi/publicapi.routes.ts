@@ -3,7 +3,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
 // registerPublicApiRoutes mounts the documented /api/* public endpoints, called from app.ts behind API-key auth + rate limiting.
-export function registerPublicApiRoutes(app: FastifyInstance): void {
+export async function registerPublicApiRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/projects/:projectId/cards", getCardsHandler);
   app.post("/api/projects/:projectId/cards", createCardHandler);
   app.put("/api/projects/:projectId/cards/:cardId", updateCardHandler);

@@ -45,7 +45,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: sh -c "npx prisma migrate deploy && node dist/server.js"
+    # `exec` so node replaces the shell as PID 1 and actually receives SIGTERM —
+    # without it the shell swallows the signal and the graceful shutdown in
+    # server.ts never runs (container gets SIGKILLed after the 10s timeout).
+    command: sh -c "npx prisma migrate deploy && exec node dist/server.js"
     expose:
       - "3000"
 
@@ -53,31 +56,44 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    restart: unless-stopped
+    # Build-and-copy sidecar: refreshes the shared frontend_dist volume with the
+    # freshly built static files on every `docker compose up`, then exits 0.
+    # A named volume is only auto-populated from image content the first time it
+    # is created, so without this copy an image rebuild would never reach nginx.
+    restart: "no"
     networks:
       - app_net
     volumes:
-      - frontend_dist:/usr/share/nginx/html
-    expose:
-      - "80"
-    # command: sh -c "cp -r /app/dist/. /usr/share/nginx/html/"
-    # This container is expected to exit 0 after copying so it is not restarted
+      - frontend_dist:/export
+    command: sh -c "rm -rf /export/* && cp -r /usr/share/nginx/html/. /export/"
 
   nginx:
     image: nginx:1.27
     restart: unless-stopped
+    environment:
+      # all three consumed by the nginx image's entrypoint at startup:
+      # HTTP_PORT/HTTPS_PORT -> envsubst into default.conf.template;
+      # NGINX_ENTRYPOINT_LOCAL_RESOLVERS -> makes it export ${NGINX_LOCAL_RESOLVERS}
+      # (the container's DNS servers) for the `resolver` directive in that template.
+      HTTP_PORT: ${HTTP_PORT:-8080}
+      HTTPS_PORT: ${HTTPS_PORT:-8443}
+      NGINX_ENTRYPOINT_LOCAL_RESOLVERS: "1"
     volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro # accepted the nginx-setup setting
+      - ./infra/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ./infra/nginx/certs:/etc/nginx/certs:ro
       - frontend_dist:/usr/share/nginx/html:ro
     ports:
-      - "8443:8443" # 42 use rootless Podman and we don't have rights to use port less than 1024
-      - "8080:8080" # confirm with infra/nginx/nginx.conf
-    # depends_on: # remove dependency to allow us to check each service separately
-    #   backend:
-    #     condition: service_started
-    #   frontend:
-    #     condition: service_completed_successfully
+      # host port = container port so the http->https redirect can name the right port.
+      # 42 rootless Podman can't bind < 1024, hence the 8080/8443 defaults (see .env).
+      - "${HTTPS_PORT:-8443}:${HTTPS_PORT:-8443}"
+      - "${HTTP_PORT:-8080}:${HTTP_PORT:-8080}"
+    depends_on:
+      frontend:
+        condition: service_completed_successfully
+      backend:
+        # nginx resolves "backend" per request (see infra/nginx/default.conf.template),
+        # so it no longer needs the backend up at boot — this just orders startup.
+        condition: service_started
     networks:
       - app_net
 
