@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   auth.validation.ts                                 :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/07 21:44:43 by lulmaruy          #+#    #+#             */
+/*   Updated: 2026/09/07 21:44:46 by lulmaruy         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: backend-side validation rules for signup/login fields, per the mandatory dual frontend+backend validation requirement. TS equivalent of the ValidateSignupInput portion of backend/internal/auth/handlers.go (Go skeleton, removed).
 
