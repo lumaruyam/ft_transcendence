@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/08 20:41:49 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/08 21:55:55 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/08 22:12:56 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,9 +24,9 @@ import { generateJwt } from "./jwt.service.js";
 // Fastify instance, called from app.ts. Canonical API base path is /api — matches
 // frontend/src/auth/{loginForm,signupForm}.ts, which already call these under /api/auth/*
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
-	app.post("/api/auth/signup", signupHandler);
-	app.post("/api/auth/login", loginHandler);
-	app.post("/api/auth/logout", logoutHandler);
+	app.post("/signup", signupHandler);
+	app.post("/login", loginHandler);
+	app.post("/logout", logoutHandler);
 }
 
 interface LoginInput {
