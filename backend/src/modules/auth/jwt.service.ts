@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/07 21:42:51 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/07 22:01:52 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/08 20:10:26 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,6 +25,20 @@ export interface JwtClaims {
 	exp: number;
 }
 
+export class JwtExpiredError extends Error {
+	constructor() {
+		super("JWT has expired");
+		this.name = "JwtExpiredError";
+	}
+}
+
+export class JwtInvalidError extends Error {
+	constructor(reason?: string) {
+		super(reason ? `JWT is invalid: ${reason}` : "JWT is invalid");
+		this.name = "JwtInvalidError";
+	}
+}
+
 // generateJwt issues a signed session token for a freshly authenticated user.
 export function generateJwt(userId: string): string {
 	return jwt.sign({ userId }, config.jwtSecret, { expiresIn: TOKEN_TTL });
@@ -36,16 +50,25 @@ export function validateJwt(token: string): JwtClaims {
 		const decoded = jwt.verify(token, config.jwtSecret);
 		if (typeof decoded === "string" || typeof decoded.userId !== "string" || typeof decoded.exp !== "number")
 		{
-			throw new JwtInvalidError("unexpected token payload shape"); // to verify if we should use new
+			throw new JwtInvalidError("unexpected token payload shape");
 		}
+	return { userId: decoded.userId, exp: decoded.exp };
+	} catch (err) {
+		if (err instanceof jwt.TokenExpiredError) {
+			throw new JwtExpiredError();
+		}
+		if (err instanceof JwtInvalidError) {
+			throw err;
+		}
+		if (err instanceof jwt.JsonWebTokenError) {
+			throw new JwtInvalidError(err.message);
+		}
+		throw new JwtInvalidError("could not be verified");
 	}
-  // TODO: verify signature/expiry
-  // TODO: throw a typed error distinguishing "expired" from "invalid" so route handlers can respond appropriately
-  throw new Error("not implemented");
 }
 
 // refreshJwt issues a new token ahead of expiry so long sessions don't force a re-login mid-use.
 export function refreshJwt(token: string): string {
-  // TODO: validate the existing token, then issue a new one with a rolled-forward expiry
-  throw new Error("not implemented");
+	const claims = validateJwt(token);
+	return generateJwt(claims.userId);
 }
