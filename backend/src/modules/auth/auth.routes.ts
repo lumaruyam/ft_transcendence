@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/08 20:41:49 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/08 22:12:56 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/09 20:15:01 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,7 +14,7 @@
 // Responsible for: Fastify route handlers for signup/login/logout
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { Prisma } from "@prisma/client";
+import { Prisma, type User } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 import { validateSignupInput, type SignupInput } from "./auth.validation.js";
 import { hashPassword, verifyPassword } from "./password.service.js";
@@ -32,6 +32,10 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 interface LoginInput {
 	email: string;
 	password: string;
+}
+
+function toAuthResponse(user: User, token: string) {
+	return { token, user: { id: user.id, email: user.email, name: user.name } };
 }
 
 // signupHandler creates a new user with a hashed/salted password
@@ -59,15 +63,7 @@ async function signupHandler(request: FastifyRequest, reply: FastifyReply): Prom
 		const user = await prisma.user.create({
 			data: { email, name, passwordHash: hash, passwordSalt: salt },
 		});
-		const token = generateJwt(user.id);
-		reply.code(201).send({
-			token,
-			user: {
-				id: user.id,
-				email:user.email,
-				name: user.name
-			}
-		});
+		reply.code(201).send(toAuthResponse(user, generateJwt(user.id)));
 		} catch (err) {
 			if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
 				reply.code(409).send({ error: "email_already_registered" });
@@ -102,14 +98,7 @@ async function loginHandler(request: FastifyRequest, reply: FastifyReply): Promi
 		return ;
 	}
 
-	const token = generateJwt(user.id);
-	reply.code(200).send({
-		token,
-		user: {
-			id: user.id,
-			email: user.email,
-			name: user.name
-		}});
+	reply.code(200).send(toAuthResponse(user, generateJwt(user.id)));
 }
 
 // logoutHandler invalidates the caller's current session
