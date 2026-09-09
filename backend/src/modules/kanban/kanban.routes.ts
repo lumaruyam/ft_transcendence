@@ -18,7 +18,7 @@ import {
   updateCardSchema,
 } from "./kanban.schemas.js";
 
-export function registerKanbanRoutes(app: FastifyInstance): void {
+export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Body: { projectId: string; title: string } }>(
     "/boards",
     { preHandler: requireAuth, schema: createBoardSchema },

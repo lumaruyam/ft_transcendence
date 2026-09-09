@@ -1,0 +1,129 @@
+# Owner: Track 1 (Foundation, Auth, and API infrastructure)
+# Responsible for: HTTPS termination and reverse proxying all browser-facing traffic to the frontend/backend containers.
+#
+# This is an nginx image *template*: the container's entrypoint runs envsubst on it at
+# startup, replacing ${HTTP_PORT} / ${HTTPS_PORT} (passed from .env via docker-compose.yml)
+# and writing the result to /etc/nginx/conf.d/default.conf. Only ${VAR} tokens that match
+# a real env var are substituted — nginx's own $host, $uri, $scheme… are left untouched.
+
+# The backend is reached through a per-request DNS lookup: proxy_pass uses the
+# $backend_api variable (set below) plus the `resolver` directive, instead of a bare
+# `server backend:3000` that nginx would resolve once at startup — and refuse to boot
+# if the backend container weren't up yet. With this, nginx always starts; requests
+# made before the backend is listening just 502 -> error page, then recover on their
+# own. ${NGINX_LOCAL_RESOLVERS} is filled by the nginx image's own entrypoint from
+# /etc/resolv.conf (enabled via NGINX_ENTRYPOINT_LOCAL_RESOLVERS in docker-compose.yml)
+# and is correct under both Docker and rootless Podman.
+
+# Map the Upgrade header so WebSocket requests get "Connection: upgrade" and plain
+# HTTP polling requests get "Connection: close" (Socket.IO uses both).
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen ${HTTP_PORT};
+    server_name localhost;
+    return 301 https://$host:${HTTPS_PORT}$request_uri;
+}
+
+server {
+    listen ${HTTPS_PORT} ssl;
+    server_name localhost;
+
+    ssl_certificate     /etc/nginx/certs/server.crt;
+    ssl_certificate_key /etc/nginx/certs/server.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    root /usr/share/nginx/html;
+
+    # See the note at the top of this file. The variable forces per-request resolution;
+    # a bare hostname in proxy_pass would be resolved once at startup and block boot.
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
+    set $backend_api "http://backend:3000";
+
+    proxy_intercept_errors on;
+    error_page 404 /not-found/index.html;
+    error_page 502 503 504 /error/index.html;
+
+    # API -> Node.js backend
+    location /api/ {
+        proxy_pass         $backend_api;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+
+    # Socket.IO -> backend with WebSocket upgrade
+    location /socket.io/ {
+        proxy_pass         $backend_api;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade           $http_upgrade;
+        proxy_set_header   Connection        $connection_upgrade;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+    }
+
+    # /invite/:token -> invitation acceptance
+    location ~ ^/invite/[^/]+$ {
+        try_files /invite/index.html =404;
+    }
+
+    # /auth/callback -> OAuth redirect handler
+    location = /auth/callback {
+        try_files /auth-callback/index.html =404;
+    }
+
+    # /forgot-password
+    location = /forgot-password {
+        try_files /forgot-password/index.html =404;
+    }
+
+    # /app exactly -> project list (dashboard)
+    location = /app {
+        try_files /dashboard/index.html =404;
+    }
+
+    # /app/:id/settings
+    location ~ ^/app/[^/]+/settings$ {
+        try_files /project-settings/index.html =404;
+    }
+
+    # /app/:id/whiteboard
+    location ~ ^/app/[^/]+/whiteboard$ {
+        try_files /whiteboard/index.html =404;
+    }
+
+    # /app/:id/notes
+    location ~ ^/app/[^/]+/notes$ {
+        try_files /notes/index.html =404;
+    }
+
+    # /app/:id -> kanban
+    location ~ ^/app/[^/]+$ {
+        try_files /kanban/index.html =404;
+    }
+
+    # Static assets (JS, CSS, images, fonts)
+    location ~* \.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # /settings -> user settings
+    location = /settings {
+        try_files /settings/index.html =404;
+    }
+
+    # / -> landing page
+    location = / {
+        try_files /landing/index.html =404;
+    }
+
+    # Static assets and remaining routes (login, signup, legal…)
+    location / {
+        try_files $uri $uri/index.html =404;
+    }
+}

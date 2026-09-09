@@ -1,0 +1,110 @@
+#!/bin/bash
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CERTS_DIR="$SCRIPT_DIR/infra/nginx/certs"
+
+# read a KEY=value from .env, falling back to .env.example, then a hard default
+env_value() {
+  local key="$1" default="$2" file val=""
+  for file in "$SCRIPT_DIR/.env" "$SCRIPT_DIR/.env.example"; do
+    [ -f "$file" ] || continue
+    val="$(sed -n "s/^${key}=//p" "$file" | head -n1)"
+    [ -n "$val" ] && break
+  done
+  printf '%s\n' "${val:-$default}"
+}
+
+show_urls() {
+  local http https
+  http="$(env_value HTTP_PORT 8080)"
+  https="$(env_value HTTPS_PORT 8443)"
+  echo ""
+  echo "==> Up. Open:"
+  echo "      https://localhost:${https}/            — app (self-signed cert, accept the warning)"
+  echo "      https://localhost:${https}/api/health  — backend smoke test (should say \"status\":\"ok\")"
+  echo "      http://localhost:${http}/              — redirects to https"
+}
+
+# --build     : rebuild images before starting (code changes -> new image layers)
+# --force-recreate : recreate containers from the freshly built image. podman-compose
+#                    builds the image on --build but will happily keep an old container
+#                    running unless forced, so this is required to actually serve new code.
+BUILD_FLAGS="--build --force-recreate"
+
+ensure_env() {
+  if [ ! -f "$SCRIPT_DIR/.env" ]; then
+    echo "==> No .env found — creating one from .env.example"
+    cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+    echo "    Edit .env to set real secrets before any non-local use."
+  fi
+}
+
+generate_certs() {
+  if [ ! -f "$CERTS_DIR/server.crt" ] || [ ! -f "$CERTS_DIR/server.key" ]; then
+    echo "==> Generating self-signed SSL certificates..."
+    mkdir -p "$CERTS_DIR"
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+      -keyout "$CERTS_DIR/server.key" \
+      -out "$CERTS_DIR/server.crt" \
+      -subj "/C=FR/ST=Paris/O=42/CN=localhost" 2>/dev/null
+    echo "    Certificates generated in $CERTS_DIR"
+  fi
+}
+
+usage() {
+  echo "Usage: $0 {start|stop|restart|reload} [--no-cache]"
+  echo ""
+  echo "  start           — build and start all containers (serves current code)"
+  echo "  stop            — stop and remove all containers"
+  echo "  restart         — stop, then build and start all containers"
+  echo "  reload          — rebuild the frontend only and refresh what nginx serves"
+  echo ""
+  echo "  --no-cache      — force a full image rebuild (re-runs npm ci; slow). Only"
+  echo "                    needed if a cached layer is stale; normal runs don't need it."
+  exit 1
+}
+
+# second arg may be --no-cache
+if [ "$2" = "--no-cache" ]; then
+  BUILD_FLAGS="$BUILD_FLAGS --no-cache"
+elif [ -n "$2" ]; then
+  usage
+fi
+
+case "$1" in
+  start)
+    ensure_env
+    generate_certs
+    docker compose up -d $BUILD_FLAGS
+    show_urls
+    ;;
+
+  stop)
+    docker compose down
+    ;;
+
+  restart)
+    ensure_env
+    generate_certs
+    docker compose down
+    docker compose up -d $BUILD_FLAGS
+    show_urls
+    ;;
+
+  reload)
+    ensure_env
+    # Rebuild the frontend image (fresh `npm run build`) and recreate its container.
+    # The frontend container copies the build into the shared frontend_dist volume and
+    # exits; nginx serves that volume, so the new files are live immediately after.
+    echo "==> Rebuilding frontend and refreshing the static volume..."
+    docker compose up -d $BUILD_FLAGS frontend
+    echo "==> Reloading nginx..."
+    docker compose exec nginx nginx -s reload
+    ;;
+
+  *)
+    usage
+    ;;
+esac

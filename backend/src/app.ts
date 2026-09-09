@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/29 14:54:07 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/08/31 20:55:58 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/02 19:10:02 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,6 +21,7 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 
 // Import route handlers
+import { registerHealthRoutes } from "./modules/health/health.routes.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { registerProjectsRoutes } from "./modules/projects/projects.routes.js"; // need new file
 import { registerInviteRoutes } from "./modules/projects/invites.js";
@@ -46,6 +47,7 @@ function registerPlugins(app: FastifyInstance, config: AppConfig): void {
 
 // Register all routes
 function registerRoutes(app: FastifyInstance): void {
+	app.register(registerHealthRoutes, { prefix: "/api" }); // Smoke test — no auth
 	app.register(registerAuthRoutes, { prefix: "/api/auth" }); // Public routes (no auth required)
 	app.register(registerGitWebhookRoutes, { prefix: "/api"}); // Webhook routes (HMAC-signed, no JWT)
 
