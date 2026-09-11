@@ -1,31 +1,48 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   users.service.ts                                   :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/09 21:34:46 by lulmaruy          #+#    #+#             */
+/*   Updated: 2026/09/09 21:46:25 by lulmaruy         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
-// Responsible for: admin-facing user CRUD required by the Advanced permissions major module. TS equivalent of backend/internal/permissions/userCrud.go (Go skeleton, removed).
+// Responsible for: admin-facing user CRUD required by the Advanced permissions major module
 import type { User } from "@prisma/client";
+import { prisma } from "../../db/prisma/client.js";
 
 export interface UpdateUserInput {
-  name?: string;
-  avatar?: string;
+	name?: string;
+	avatar?: string;
 }
 
-// listUsers returns all users, for the admin user-management view.
+// listUsers returns all users, for the admin user-management view
 export async function listUsers(): Promise<User[]> {
-  // TODO: query all users via prisma.user.findMany; consider pagination once the user count grows
-  return [];
+	return prisma.user.findMany({ orderBy: { createdAt: "asc" } });
 }
 
-// getUser fetches a single user by ID.
+// getUser fetches a single user by ID
 export async function getUser(id: string): Promise<User | null> {
-  // TODO: prisma.user.findUnique, return null if absent (route layer turns this into 404)
-  return null;
+	return prisma.user.findUnique({ where: { id }});
 }
 
-// updateUser applies an admin edit to a user's account (role changes go through assignRole, not here).
+// updateUser applies an admin edit to a user's account (role changes go through assignRole, not here)
 export async function updateUser(id: string, input: UpdateUserInput): Promise<User> {
-  // TODO: validate input fields, apply changes via prisma.user.update
-  throw new Error("not implemented");
+	return prisma.user.update({ where: { id }, data: input });
 }
 
-// deleteUser removes a user account, for admin moderation.
+// deleteUser removes a user account, for admin moderation
+// @team: deleteUser currently works but has unresolved edge cases.
+// What happens to Notes, Attachments, Notifications, ApiKeys, and owned Projects?
+// Options:
+// - Reassign (keep data, transfer ownership)
+// - Soft delete (add deleted_at, filter queries)
+// - Cascade (delete everything)
+// - Restrict (only delete if no related data)
 export async function deleteUser(id: string): Promise<void> {
-  // TODO: cascade-consider: what happens to their cards/notes/attachments — reassign or soft-delete per team decision
+	await prisma.user.delete({ where: { id }});
 }
