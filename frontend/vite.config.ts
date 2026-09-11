@@ -1,12 +1,13 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
 import react from "@vitejs/plugin-react";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 // @ts-ignore — import.meta.dirname requires lib: ["ES2023"] or higher but works at runtime with Vite 8
 
 export default defineConfig({
-  // React plugin is needed only for src/whiteboard/ (Excalidraw).
-  // All other pages are vanilla TS — the plugin only activates on .tsx files.
-  plugins: [react()],
+  // React plugin is needed only for src/whiteboard/ (Excalidraw) — activates only on .tsx files.
+  // Svelte plugin is the frontend main framework — activates only on .svelte files.
+  plugins: [react(), svelte()],
   root: resolve(import.meta.dirname, "src"),
   publicDir: resolve(import.meta.dirname, "public"),
   server: {
