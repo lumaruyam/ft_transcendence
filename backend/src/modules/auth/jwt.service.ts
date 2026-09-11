@@ -1,27 +1,85 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   jwt.service.ts                                     :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/07 21:42:51 by lulmaruy          #+#    #+#             */
+/*   Updated: 2026/09/09 19:19:56 by lulmaruy         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: issuing and validating JWT session tokens (e.g. via `jsonwebtoken` or `jose`), used by every authenticated request across all tracks. TS equivalent of backend/internal/auth/jwt.go (Go skeleton, removed).
 
-export interface JwtClaims {
-  userId: string;
-  exp: number;
+import jwt, { type SignOptions } from "jsonwebtoken";
+
+const TOKEN_TTL: SignOptions["expiresIn"] = "24h";
+
+// jwtSecret is set once via initJwtService, called from app.ts's buildApp(config)
+let jwtSecret: string | undefined;
+
+export function initJwtService(secret: string): void {
+	jwtSecret = secret;
 }
 
-// generateJwt issues a signed session token for a freshly authenticated user (email/password or OAuth).
+function getSecret(): string {
+	if (!jwtSecret) {
+		throw new Error("JWT_SECRET not configured");
+	}
+	return jwtSecret;
+}
+
+export interface JwtClaims {
+	userId: string;
+	exp: number;
+}
+
+export class JwtExpiredError extends Error {
+	constructor() {
+		super("JWT has expired");
+		this.name = "JwtExpiredError";
+	}
+}
+
+export class JwtInvalidError extends Error {
+	constructor(reason?: string) {
+		super(reason ? `JWT is invalid: ${reason}` : "JWT is invalid");
+		this.name = "JwtInvalidError";
+	}
+}
+
+// generateJwt issues a signed session token for a freshly authenticated user.
 export function generateJwt(userId: string): string {
-  // TODO: build JwtClaims with an expiry (e.g. 24h) and sign with config.jwtSecret via jsonwebtoken/jose
-  // TODO: pull the signing secret from src/config/env.ts, never hardcode it
-  throw new Error("not implemented");
+	return jwt.sign({ userId }, getSecret(), { expiresIn: TOKEN_TTL });
 }
 
 // validateJwt parses and verifies a token presented on an incoming request, for use by permissions.middleware.ts.
 export function validateJwt(token: string): JwtClaims {
-  // TODO: verify signature/expiry
-  // TODO: throw a typed error distinguishing "expired" from "invalid" so route handlers can respond appropriately
-  throw new Error("not implemented");
+	try {
+		const decoded = jwt.verify(token, getSecret());
+		if (typeof decoded === "string" || typeof decoded.userId !== "string" || typeof decoded.exp !== "number")
+		{
+			throw new JwtInvalidError("unexpected token payload shape");
+		}
+	return { userId: decoded.userId, exp: decoded.exp };
+	} catch (err) {
+		if (err instanceof jwt.TokenExpiredError) {
+			throw new JwtExpiredError();
+		}
+		if (err instanceof JwtInvalidError) {
+			throw err;
+		}
+		if (err instanceof jwt.JsonWebTokenError) {
+			throw new JwtInvalidError(err.message);
+		}
+		throw new JwtInvalidError("could not be verified");
+	}
 }
 
 // refreshJwt issues a new token ahead of expiry so long sessions don't force a re-login mid-use.
 export function refreshJwt(token: string): string {
-  // TODO: validate the existing token, then issue a new one with a rolled-forward expiry
-  throw new Error("not implemented");
+	const claims = validateJwt(token);
+	return generateJwt(claims.userId);
 }
