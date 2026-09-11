@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/09 21:47:39 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/09 22:32:28 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/11 20:53:22 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -58,7 +58,7 @@ export function requireRole(minRole: Role) {
 		}
 
 		const params = request.params as Record<string, string | undefined> | undefined;
-		const projectId = params?.projectId ?? params?.id;
+		const projectId = params?.projectId;
 		if (!projectId) {
 			reply.code(400).send({ error: "missing_project_id" });
 			return;
