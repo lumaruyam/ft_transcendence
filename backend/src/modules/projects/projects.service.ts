@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/10 20:16:15 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/10 21:47:03 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/12 15:53:59 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -67,24 +67,35 @@ export async function createProject(ownerId: string, input: CreateProjectInput):
 	});
 }
 
-// getProject fetches a project by ID, checking the caller is a member (enforced by permissions middleware upstream).
+// getProject fetches a project by ID, checking the caller is a member
 export async function getProject(id: string): Promise<Project | null> {
 	return prisma.project.findUnique({ where: { id }});
 }
 
-// updateProject edits a project's editable fields (name, etc.).
+// updateProject edits a project's editable fields (name, etc.)
 export async function updateProject(id: string, input: UpdateProjectInput): Promise<Project> {
-  // TODO: validate and apply changes via prisma.project.update; only admins should reach this (enforced via requireRole)
-  throw new Error("not implemented");
+	if (input.name !== undefined) {
+		const errors = validateProjectName(input.name);
+		if (errors.length > 0) {
+			throw new InvalidProjectInputError(errors);
+		}
+	}
+
+	return prisma.project.update({
+		where: { id },
+		data: input.name !== undefined ? { name: input.name.trim() } : {}
+	});
 }
 
-// deleteProject removes a project and cascades to its boards/lists/cards/notes/attachments.
+// deleteProject removes a project and cascades to its boards/lists/cards/notes/attachments
 export async function deleteProject(id: string): Promise<void> {
-  // TODO: decide and implement cascade delete or soft-delete strategy — Prisma's onDelete: Cascade in schema.prisma handles the FK cascade for boards/notes/attachments/api keys/project_invites
+	await prisma.project.delete({ where: { id }});
 }
 
-// listProjectsForUser returns every project a given user is a member of, for the project switcher UI.
+// listProjectsForUser returns every project a given user is a member of, for the project switcher UI
 export async function listProjectsForUser(userId: string): Promise<Project[]> {
-  // TODO: prisma.project.findMany({ where: { members: { some: { userId } } } })
-  return [];
+	return prisma.project.findMany({
+		where: { members: { some: { userId } } },
+		orderBy: { createdAt: "desc" },
+	});
 }
