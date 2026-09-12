@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/12 15:44:50 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/12 22:06:49 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/12 22:14:18 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -130,7 +130,7 @@ async function transferOwnershipHandler(request: FastifyRequest, reply: FastifyR
 		reply.code(200).send({ project });
 	} catch (err) {
 		if (err instanceof NotAProjectMemberError) {
-			reply.code(409).send({ error: "not_a_project_member"});
+			reply.code(409).send({ error: "not_a_project_member" });
 			return;
 		}
 		throw err;

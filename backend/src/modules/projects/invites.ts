@@ -1,18 +1,31 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   invites.ts                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/12 22:09:24 by lulmaruy          #+#    #+#             */
+/*   Updated: 2026/09/12 22:48:09 by lulmaruy         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: the invite-link membership flow — issuing/joining/revoking project invites
-// (the `project_invites` table) — part of the Organization system major module, grouped with
-// projects.service.ts and members.service.ts per docs/github-workflow.md.
+// (the `project_invites` table) — part of the Organization system major module
 //
 // Design note: an invite link only ever proves "this token was valid at the moment it was
 // redeemed." It is NOT an authorization mechanism. Joining an invite does exactly one thing
 // that matters for access control: it inserts a row into `project_members` (via
 // members.service.ts's addMember). Every check after that — on this project's boards, cards,
 // notes, etc. — goes through permissions.middleware.ts's requireRole/getUserRole reading
-// project_members, never through re-checking the invite/token. See docs/architecture.md
-// "Authorization flow" and docs/api-spec.md's invite security notes for the full rationale.
+// project_members, never through re-checking the invite/token.
+import { randomBytes, createHash } from "crypto";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { ProjectInvite } from "@prisma/client";
-import type { Role } from "../permissions/roles.service.js";
+import { prisma } from "../../db/prisma/client.js";
+import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
+import { getUserRole, ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js";
 import { addMember } from "./members.service.js";
 
 // INVITE_JOIN_RATE_LIMIT is the dedicated @fastify/rate-limit policy for POST
@@ -24,36 +37,57 @@ import { addMember } from "./members.service.js";
 //   - unlike most routes it has an externally-visible side effect (project_members growth)
 //     even on failed attempts if not limited, so it also doubles as abuse/DoS protection
 // Keyed by IP by default (the plugin's default keyGenerator); revisit if a token-scoped key
-// is needed once real traffic patterns are known.
+// is needed once real traffic patterns are known
 export const INVITE_JOIN_RATE_LIMIT = {
-  max: 5,
-  timeWindow: "1 minute",
+	max: 5,
+	timeWindow: "1 minute",
 } as const;
 
 export interface CreateInviteInput {
-  role: Role;
-  expiresAt?: Date;
-  maxUses?: number;
+	role: Role;
+	expiresAt?: Date;
+	maxUses?: number;
 }
 
-// createInvite mints a new invite link for a project. Returns the plaintext token exactly
-// once — only its hash is ever persisted (mirrors apikeys.service.ts's issueApiKey).
+// createInvite creates a new invite link for a project. Returns the plaintext token only once
 export async function createInvite(
-  projectId: string,
-  createdByUserId: string,
-  input: CreateInviteInput
+	projectId: string,
+	createdByUserId: string,
+	input: CreateInviteInput
 ): Promise<{ invite: ProjectInvite; plaintextToken: string }> {
-  // TODO: validate input.role is a known Role, input.maxUses > 0 if set, input.expiresAt in the
-  //       future if set — backend half of dual validation requirement
-  // TODO: verify the caller is an admin of projectId via project_members (enforced upstream by
-  //       requireRole in registerInviteRoutes, re-checked here defensively)
-  // TODO: generate a cryptographically random token (crypto.randomBytes(32).toString("base64url"))
-  // TODO: hash the token (e.g. crypto.createHash("sha256")) — unlike password hashing, this is a
-  //       high-entropy random value, so a fast hash is sufficient (no bcrypt/argon2 needed)
-  // TODO: prisma.projectInvite.create({ projectId, tokenHash, role, maxUses, expiresAt, createdBy })
-  // TODO: return { invite, plaintextToken } — the caller (route handler) sends plaintextToken in
-  //       the response body once; it is never recoverable after this call returns
-  throw new Error("not implemented");
+	const errors: string[] = [];
+	if (!input.role || !(input.role in ROLE_RANK)) {
+		errors.push("role must be admin, member or viewer");
+	}
+	if (input.maxUses !== undefined && input.maxUses <= 0) {
+		errors.push("maxUses must be a positive integer");
+	}
+	if (input.expiresAt !== undefined && input.expiresAt.getTime() <= Date.now()) {
+		errors.push("expiresAt must be in the future");
+	}
+	if (errors.length > 0) {
+		throw new InvalidInviteInputError(errors);
+	}
+
+	const callerRole = await getUserRole(projectId, createdByUserId);
+	if (!callerRole || ROLE_RANK[callerRole] < ROLE_RANK[ROLES.ADMIN]) {
+		throw new InviteNotFoundError();
+	}
+
+	const plaintextToken = randomBytes(32).toString("base64url");
+	const tokenHash = hashToken(plaintextToken);
+
+	const invite = await prisma.projectInvite.create({
+		data: {
+			projectId,
+			tokenHash,
+			role: input.role,
+			maxUses: input.maxUses,
+			expiresAt: input.expiresAt,
+			createdBy: createdByUserId,
+		},
+	});
+	return { invite: stripTokenHash(invite), plaintextToken};
 }
 
 // joinInvite is called when a logged-in user redeems an invite token. This is the ONLY place
