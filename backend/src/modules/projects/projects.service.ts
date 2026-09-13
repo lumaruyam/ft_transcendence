@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/10 20:16:15 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/12 15:53:59 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/13 20:57:56 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,9 +15,11 @@
 // Invite-link membership (project_invites, join-by-token) lives in ./invites.ts, not here —
 // this file only owns the project entity itself; project_members stays the sole authorization
 // source of truth regardless of how a member was added (owner creation vs. invite join).
-import type { Project } from "@prisma/client";
+import type { Prisma, Project } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 import { ROLES } from "../permissions/roles.service.js";
+
+type DbClient = typeof prisma | Prisma.TransactionClient;
 
 export interface CreateProjectInput {
 	name: string;
@@ -70,6 +72,35 @@ export async function createProject(ownerId: string, input: CreateProjectInput):
 // getProject fetches a project by ID, checking the caller is a member
 export async function getProject(id: string): Promise<Project | null> {
 	return prisma.project.findUnique({ where: { id }});
+}
+
+export class NotAProjectMemberError extends Error {
+	constructor(public readonly userId: string, public readonly projectId: string) {
+		super(`user ${userId} is not a member of project ${projectId}`);
+		this.name = "NotAProjectMemberError";
+	}
+}
+
+// transferProjectOwnership reassigns a project's ownerId to one of its existing members and promotes that member to admin
+export async function transferProjectOwnership(projectId: string, newOwnerId: string, db: DbClient = prisma): Promise<Project> {
+	const membership = await db.projectMember.findUnique({
+		where: { projectId_userId: { projectId, userId: newOwnerId } },
+	});
+	if (!membership) {
+		throw new NotAProjectMemberError(newOwnerId, projectId);
+	}
+
+	const project = await db.project.update({
+		where: { id: projectId },
+		data: { ownerId: newOwnerId },
+	});
+
+	await db.projectMember.upsert({
+		where: { projectId_userId: { projectId, userId: newOwnerId } },
+		create: { projectId, userId: newOwnerId, role: ROLES.ADMIN },
+		update: { role: ROLES.ADMIN },
+	});
+	return project;
 }
 
 // updateProject edits a project's editable fields (name, etc.)
