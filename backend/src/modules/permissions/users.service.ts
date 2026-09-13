@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/09 21:34:46 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/09 21:46:25 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/13 21:47:36 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,6 +14,7 @@
 // Responsible for: admin-facing user CRUD required by the Advanced permissions major module
 import type { User } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
+import { transferProjectOwnership, NotAProjectMemberError } from "../projects/projects.service.js";
 
 export interface UpdateUserInput {
 	name?: string;
@@ -34,6 +35,34 @@ export async function getUser(id: string): Promise<User | null> {
 export async function updateUser(id: string, input: UpdateUserInput): Promise<User> {
 	return prisma.user.update({ where: { id }, data: input });
 }
+
+export class UserNotFoundError extends Error {
+	constructor() {
+		super("user not found");
+		this.name = "UserNotFoundError";
+	}
+}
+
+export class TransferTargetRequiredError extends Error {
+	constructor(public readonly projectIds: string[]) {
+		super("transferTo is required: user owns oine or more shared Projects");
+		this.name = "TransferTargetRequiredError";
+	}
+}
+
+export class TransferTargetIsSelfError extends Error {
+	constructor() {
+		super("transferTo cannot be the user being deleted");
+		this.name = "TransferTargetSelfError";
+	}
+}
+
+// transferTo is a member ID (userId) to hand ownership to for any shared project this user
+// owns. Required only if the user owns at least one project with other members
+export interface DeleteUserOptions {
+	trensferTo?: string;
+}
+
 
 // deleteUser removes a user account, for admin moderation
 // @team: deleteUser currently works but has unresolved edge cases.
