@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/29 14:54:07 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/09 20:25:05 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/14 22:41:32 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,12 +24,13 @@ import rateLimit from "@fastify/rate-limit";
 import { registerHealthRoutes } from "./modules/health/health.routes.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { initJwtService } from "./modules/auth/jwt.service.js";
-import { registerProjectsRoutes } from "./modules/projects/projects.routes.js"; // need new file
+import { registerProjectsRoutes } from "./modules/projects/projects.routes.js";
 import { registerInviteRoutes } from "./modules/projects/invites.js";
-import { registerKanbanRoutes } from "./modules/kanban/kanban.routes.js"; // need to create new file
-import { registerNotesRoutes } from "./modules/notes/notes.routes.js"; // need new file
-import { registerAttachmentsRoutes } from "./modules/attachments/attachments.routes.js" // need new file
-import { registerSearchRoutes } from "./modules/search/search.routes.js"; // need new file
+import { registerUserRoutes } from "./modules/permissions/users.routes.js";
+import { registerKanbanRoutes } from "./modules/kanban/kanban.routes.js";
+import { registerNotesRoutes } from "./modules/notes/notes.routes.js";
+import { registerAttachmentsRoutes } from "./modules/attachments/attachments.routes.js";
+import { registerSearchRoutes } from "./modules/search/search.routes.js";
 import { registerNotificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { registerGitWebhookRoutes } from "./modules/git/webhook.routes.js";
 import { registerPublicApiRoutes } from "./modules/publicapi/publicapi.routes.js";
@@ -56,6 +57,7 @@ function registerRoutes(app: FastifyInstance): void {
 	// Each of these route modules applies requireAuth / requireRole itself as a preHandler
 	app.register(registerProjectsRoutes, { prefix: "/api/projects" });
 	app.register(registerInviteRoutes, { prefix: "/api/projects" });
+	app.register(registerUserRoutes, { prefix: "api/users" });
 	app.register(registerKanbanRoutes, { prefix: "/api" });
 	app.register(registerNotesRoutes, { prefix: "/api/notes" });
 	app.register(registerAttachmentsRoutes, { prefix: "/api/attachments" });
