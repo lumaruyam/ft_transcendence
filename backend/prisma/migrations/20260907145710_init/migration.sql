@@ -217,3 +217,18 @@ ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_project_id_fkey" FOREIGN KEY ("p
 
 -- AddForeignKey
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- notes.updated_by
+ALTER TABLE "notes" ALTER COLUMN "updated_by" DROP NOT NULL;
+ALTER TABLE "notes" DROP CONSTRAINT "notes_updated_by_fkey";
+ALTER TABLE "notes" ADD CONSTRAINT "notes_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- attachments.uploaded_by
+ALTER TABLE "attachments" ALTER COLUMN "uploaded_by" DROP NOT NULL;
+ALTER TABLE "attachments" DROP CONSTRAINT "attachments_uploaded_by_fkey";
+ALTER TABLE "attachments" ADD CONSTRAINT "attachments_uploaded_by_fkey" FOREIGN KEY ("uploaded_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- project_invites.created_by (revoked_by was already nullable + ON DELETE SET NULL, no change needed)
+ALTER TABLE "project_invites" ALTER COLUMN "created_by" DROP NOT NULL;
+ALTER TABLE "project_invites" DROP CONSTRAINT "project_invites_created_by_fkey";
+ALTER TABLE "project_invites" ADD CONSTRAINT "project_invites_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
