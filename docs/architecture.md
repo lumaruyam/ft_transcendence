@@ -22,7 +22,7 @@ calls in `frontend/src/api/` and `frontend/src/auth/`.
         │(Frontend │ ◀── │  proxy, TLS      │ ◀── │  Node.js + TypeScript     │
         │ TS/Svelte│     │  termination)    │     │  Fastify (HTTP) +         │
         │  client) │     │ infra/nginx/     │     │  Socket.IO (WebSocket),   │
-        └──────────┘     │  nginx.conf      │     │  same http.Server         │
+        └──────────┘     │ default.conf.tmpl│     │  same http.Server         │
                           └──────────────────┘     │  (backend/src/server.ts) │
                                    ▲                └─────────────┬─────────────┘
                                    │ HTTP webhook                 │ Prisma (SQL)
@@ -47,7 +47,8 @@ calls in `frontend/src/api/` and `frontend/src/auth/`.
   (`backend/prisma/schema.prisma` is the schema source of truth; `backend/src/db/prisma/client.ts`
   exports the shared client). No module talks to Postgres with raw SQL — covers the
   ORM minor module.
-- **Reverse proxy** — Nginx (`infra/nginx/nginx.conf`). Terminates TLS for all
+- **Reverse proxy** — Nginx (`infra/nginx/default.conf.template`, rendered at container
+  startup with `${HTTP_PORT}`/`${HTTPS_PORT}` from `.env`). Terminates TLS for all
   browser-facing traffic (general requirement: anything touching a browser must be
   HTTPS) and proxies both plain HTTP routes and the `/socket.io/` WebSocket-upgrade
   path to the backend container. Container-to-container traffic (backend ↔ Postgres)

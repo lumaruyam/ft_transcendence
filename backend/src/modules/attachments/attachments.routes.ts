@@ -1,10 +1,10 @@
 // Owner: Track 4 (Whiteboard, notes, and supporting modules)
 // Responsible for: Fastify route handlers for file upload/download/delete on cards/notes.
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { requireAuth } from "../permissions/permissions.middleware";
-import { uploadAttachment, getAttachment, deleteAttachment } from "./attachments.service";
+import { requireAuth } from "../permissions/permissions.middleware.js";
+import { uploadAttachment, getAttachment, deleteAttachment } from "./attachments.service.js";
 
-export function registerAttachmentsRoutes(app: FastifyInstance): void {
+export async function registerAttachmentsRoutes(app: FastifyInstance): Promise<void> {
   app.post("/", { preHandler: requireAuth }, uploadAttachmentHandler);
   app.get("/:id", { preHandler: requireAuth }, getAttachmentHandler);
   app.delete("/:id", { preHandler: requireAuth }, deleteAttachmentHandler);

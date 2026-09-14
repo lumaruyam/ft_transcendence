@@ -1,10 +1,10 @@
 // Owner: Track 4 (Whiteboard, notes, and supporting modules)
 // Responsible for: Fastify route handler(s) for cross-entity search within a project.
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { requireAuth } from "../permissions/permissions.middleware";
-import { searchAll } from "./search.service";
+import { requireAuth } from "../permissions/permissions.middleware.js";
+import { searchAll } from "./search.service.js";
 
-export function registerSearchRoutes(app: FastifyInstance): void {
+export async function registerSearchRoutes(app: FastifyInstance): Promise<void> {
   app.get("/", { preHandler: requireAuth }, searchHandler);
 }
 

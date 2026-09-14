@@ -1,10 +1,10 @@
 // Owner: Track 4 (Whiteboard, notes, and supporting modules)
 // Responsible for: Fastify route handlers for the shared per-project note (load + autosave).
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { requireAuth } from "../permissions/permissions.middleware";
-import { getLatestNote, autosaveNote } from "./notes.service";
+import { requireAuth } from "../permissions/permissions.middleware.js";
+import { getLatestNote, autosaveNote } from "./notes.service.js";
 
-export function registerNotesRoutes(app: FastifyInstance): void {
+export async function registerNotesRoutes(app: FastifyInstance): Promise<void> {
   app.get("/:projectId", { preHandler: requireAuth }, getNoteHandler);
   app.put("/:projectId", { preHandler: requireAuth }, autosaveNoteHandler);
 }
