@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   oauth.service.ts                                   :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
+/*   By: luli <luli@student.42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/15 21:02:09 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/15 22:18:25 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/15 23:09:55 by luli             ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -175,6 +175,43 @@ export function getOAuthRedirectUrl(provider: "github" | "gitlab"): string {
 	}
 
 	return `${AUTHORIZE_URL[provider]}?${params.toString()}`;
+}
+
+// token exchange + profile fetch
+
+interface ExchangedToken {
+	accessToken: string;
+}
+
+async function exchangeCodeForToken(provider: OAuthProvider, code: string): Promise<ExchangedToken> {
+	const config = getProviderConfig(provider);
+
+	const body: Record<string, string> = {
+		client_id: config.clientId,
+		client_secret: config.clientSecret,
+		code,
+		redirect_uri: config.redirectUri,
+	};
+	if (provider == "gitlab") {
+		body.grant_type = "authorization_code";
+	}
+
+	const response = await fetch(TOKEN_URL[provider], {
+		method: "POST",
+		headers: { "Content_Type": "application/json", Accept: "application/json" },
+		body: JSON.stringify(body),
+	});
+
+	if (!response.ok) {
+		throw new OAuthExchangeError(`${provider} token endpoint returned ${response.status}`);
+	}
+
+	const data = (await response.json()) as { access_token?: string; error?: string; error_description?: string };
+	if (!data.access_token) {
+		throw new OAuthExchangeError(data.error_description ?? data.error ?? "no access_token in provider response");
+	}
+
+	return { accessToken: data.access_token };
 }
 
 // handleOAuthCallback exchanges the provider's auth code for a token, creates/links the User, and returns them.
