@@ -221,7 +221,8 @@ ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_user_id_fkey" FOREIGN KEY ("user
 -- notes.updated_by
 ALTER TABLE "notes" ALTER COLUMN "updated_by" DROP NOT NULL;
 ALTER TABLE "notes" DROP CONSTRAINT "notes_updated_by_fkey";
-ALTER TABLE "notes" ADD CONSTRAINT "notes_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "notes" ADD CONSTRAINT "notes_updated_by_fkey"
+  FOREIGN KEY ("updated_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- attachments.uploaded_by
 ALTER TABLE "attachments" ALTER COLUMN "uploaded_by" DROP NOT NULL;
