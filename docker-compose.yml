@@ -11,7 +11,7 @@
 
 services:
   db:
-    image: postgres:16
+    image: docker.io/library/postgres:16
     restart: unless-stopped
     networks:
       - app_net
@@ -68,7 +68,7 @@ services:
     command: sh -c "rm -rf /export/* && cp -r /usr/share/nginx/html/. /export/"
 
   nginx:
-    image: nginx:1.27
+    image: doxker.io/library/nginx:1.27
     restart: unless-stopped
     environment:
       # all three consumed by the nginx image's entrypoint at startup:
