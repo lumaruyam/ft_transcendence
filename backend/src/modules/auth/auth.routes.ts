@@ -106,3 +106,28 @@ async function logoutHandler(request: FastifyRequest, reply: FastifyReply): Prom
 	//  If a blocklist is added later for early revocation, insert the token's jti here
 	reply.code(204).send();
 }
+
+async function oauthCallbackHandler(request: FasitifyRequest, reply: FastifyReply): Promise<void> {
+	const { provider } = request.params as { provider: string };
+	const { code, state } = request.query as { code?: string; state?: string };
+
+	if (!isOAuthProvider(provider)) {
+		reply.code(404).send({ error: "unknown_provider" });
+		return;
+	}
+
+	try {
+		const user = await handleOAuthCallback(provider, code, state);
+		const token = generateJwt(user.id);
+		reply.redirect(`/auth/callback#token=${encodeURIcomponent(token)}`);
+	} catch (err) {
+		if (
+			err instanceof OAuthNotConfiguredError || err instanceof OAuthExchangeError ||
+			err instanceof OAuthStateError || err instanceof OAuthAccountConflictError) {
+			request.log.warn({ err, provider }, "OAuth callback failed");
+			reply.redirect(`/auth/callback#error=${encodeURIcomponent(err.name)}`);
+			return;
+		}
+		throw err;
+	}
+}
