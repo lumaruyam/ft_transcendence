@@ -11,7 +11,13 @@ import{
 	type GitHubPushPayload
 } from './eventProcessor.service.js';
 
-const WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET || '';
+interface GitHubRepo{
+	full_name?: string;
+}
+
+interface BaseGitHubPayload{
+	repo: GitHubRepo;
+}
 // registerGitWebhookRoutes mounts the webhook receiver, called from app.ts. No JWT auth — HMAC signature verification instead.
 
 	// verifyWebhookSignature validates the provider's HMAC signature header against the configured webhook secret.
@@ -33,9 +39,24 @@ return crypto.timingSafeEqual(sigBuf, digestBuf); //for secure of time we use fu
 export function registerWebhookRoutes(app: FastifyInstance): void { //  app - server
 app.post('/api/webhooks/git', async (request: FastifyRequest, reply: FastifyReply) => { //if post to address /api/..;
 //async func(=>) run with every request; => - replace word "function"
-	const signature = request.headers['x-hub-signature-256'] as string | undefined; //take hash
+
+	//secret webhook
+	const WEBHOOK_SECRET = process.env.GIT_WEBHOOK_SECRET;
+	if(!WEBHOOK_SECRET){
+		request.log.error('GIT_WEBHOOK_SECRET is not configured in .env');
+		return reply.status(500).send({error : 'Server configuration error'});
+}
+	//take hash
+	const signature = request.headers['x-hub-signature-256'] as string | undefined;
+	
+	const body = request.body as BaseGitHubPayload; // for parsing full_name
+	let repoName = 'unkown';
+	if(body?.repo?.full_name)
+		repoName = body.repo.full_name;
+
 	const githubEvent = request.headers['x-github-event'] as string | undefined; // take type of event
 	const rawBody = JSON.stringify(request.body); // convert obj to text
+
 
 	if(!verifyWebhookSignature(rawBody, signature, WEBHOOK_SECRET))
 		return reply.status(401).send({error: 'Invalid HMAC signature'});
