@@ -277,22 +277,68 @@ async function fetchProfile(provider: OAuthProvider, accessToken: string): Promi
 	return provider === "github" ? fetchGitHubProfile(accessToken) : fetchGitLabProfile(accessToken);
 }
 
-async function exchangeAndFetchProfile(provider: OAuthProvider, code: string): Promise<{accessToken: string; profile: OAuthProfile}> {
+async function exchangeAndFetchProfile(provider: OAuthProvider, code: string): Promise<{ accessToken: string; profile: OAuthProfile }> {
 	const { accessToken } = await exchangeCodeForToken(provider, code);
 	const profile = await fetchProfile(provider, accessToken);
 	return { accessToken, profile };
 }
 
-// handleOAuthCallback exchanges the provider's auth code for a token, creates/links the User, and returns them.
-export async function handleOAuthCallback(
-	provider: "github" | "gitlab",
-	code: string
-): Promise<User> {
-  // TODO: exchange code for an access token with the provider (Octokit OAuth app flow for GitHub; GitLab's OAuth2 token endpoint for GitLab)
-  // TODO: fetch the provider profile and find-or-create the matching User row via prisma (oauthProvider, oauthId)
-  // TODO: persist the OAuth access token securely so Track 3's git module can use it for branch/webhook API calls
-  throw new Error("not implemented");
+async function randomUnusablePassword(): Promise<{ hash: string; salt: string }> {
+	return hashPassword(randomBytes(32).toString("hex"));
 }
+
+// handleOAuthCallback exchanges the provider's auth code for a token, creates/links the User, and returns them.
+export async function handleOAuthCallback(provider: OAuthProvider, code: string, state: string): Promise<User> {
+	verifyState(state, provider);
+
+	const { accessToken, profile } = await exchangeAndFetchProfile(provider, code);
+
+	// 1. Already linked to this provider identity
+	const existingByIdentity = await prisma.user.findFirst({
+		where: { oauthProvider: provider, oauthId: profile.oauthId },
+	});
+	if (existingByIdentity) {
+		return prisma.user.update({
+			where: { id: existingByIdentity.id },
+			data: { oauthAccessToken: accessToken,
+				   avatar: profile.avatar ?? existingByIdentity.avatar,
+			},
+		});
+	}
+	return prisma.user.update({
+		where: { id: existingByEmail.id },
+		data: {
+			oauthProvider: provider,
+			oauthId: profile.oauthId,
+			oauthAccessToken: accessToken,
+			avatar: profile.avatar ?? existingByEmail.avatar,
+			},
+		});
+	}
+
+	const { hash, salt } = await randomUnusablePassword();
+	try {
+		return await prisma.user.create({
+			data: {
+				email: profile.email,
+				name: profile.name,
+				avatar: profile.avatar,
+				passwordHash: hash,
+				passwordSalt: salt,
+				oauthProvider: provider,
+				oauthId: profile.oauthId,
+				oauthAccessToken: accessToken,
+			},
+		});
+	} catch (err) {
+		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+			throw new OAuthAccountConflictError(`account ${profile.email} was just created by a concurrent request`);
+		}
+		throw err;
+	}
+}
+
+
 
 // linkOAuthAccount attaches an OAuth identity to an already-authenticated user (adding OAuth on top of email/password).
 export async function linkOAuthAccount(
