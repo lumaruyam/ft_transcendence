@@ -214,6 +214,40 @@ async function exchangeCodeForToken(provider: OAuthProvider, code: string): Prom
 	return { accessToken: data.access_token };
 }
 
+interface function OAuthProfile {
+	oauthId: string;
+	email: string;
+	name: string;
+	avater: string | null;
+}
+
+async function fetchGitHubProfile(accessToken: string): Promise<OAuthProfile> {
+	const authHeaders = { Authorization: `Bearer ${accessToken}`, Accept: "application/vnd.github+json" };
+
+	const userRes = await fetch(USER_URL.github, { headers: authHeaders });
+	if (!usersRes.ok) {
+		throw new OAuthExchangeError(`Github profile fetch returned ${userRes.status}`);
+	}
+	const user = (await userRes.json()) as {
+		id: number;
+		username: string;
+		name: string | null;
+		email: string | null;
+		avater_url: string | null;
+	};
+
+	if (!user.email) {
+		throw new OAuthExchangeError("GitLab did not return an email for this account");
+	}
+
+	return {
+		oauthId: String(user.id),
+		email: user.email.toLowerCase(),
+		name: user.name ?? user.username,
+		avater: user.avater_url,
+	};
+}
+
 // handleOAuthCallback exchanges the provider's auth code for a token, creates/links the User, and returns them.
 export async function handleOAuthCallback(
 	provider: "github" | "gitlab",
