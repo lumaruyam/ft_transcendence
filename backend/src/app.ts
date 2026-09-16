@@ -72,6 +72,7 @@ export function buildApp(config: AppConfig): FastifyInstance {
 	const app = Fastify({ logger: true, });
 
 	initJwtService(config.jwtSecret);
+	initOAuthService({github: config.oauthGithub, gitlab: config.oauthGitlab, stateSecret: config.jwtSecret});
 	registerPlugins(app, config);
 	registerRoutes(app);
 
