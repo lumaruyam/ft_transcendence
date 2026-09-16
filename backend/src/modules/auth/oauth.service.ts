@@ -338,14 +338,28 @@ export async function handleOAuthCallback(provider: OAuthProvider, code: string,
 	}
 }
 
+// linkOAuthAccount attaches an OAuth identity to an already-authenticated user (adding OAuth on top of email/password)
+export async function linkOAuthAccount(userId: string, provider: OAuthProvider, code: string): Promise<void> {
+	const user = await prisma.user.findUnique({ where: { id: userId } });
+	if (!user) {
+		throw new OAuthAccountConflictError(`no user with id ${userId}`);
+	}
 
+	const { accessToken, profile } = await exchangeAndFetchProfile(provider, code);
 
-// linkOAuthAccount attaches an OAuth identity to an already-authenticated user (adding OAuth on top of email/password).
-export async function linkOAuthAccount(
-	userId: string,
-	provider: "github" | "gitlab",
-	oauthId: string
-): Promise<void> {
+	if (user.oauthProvider && (user.oauthProvider !== provider || user.oauthId !== profile.oauthId)) {
+		throw new OAuthAccountConflictError(`user ${userId} already has a ${user.oauthProvider} identity linked, unlink it first`);
+	}
+
+	await prisma.user.update({
+		where: { id: userId },
+		data: {
+			oauthProvider: provider,
+			oauthId: profile.oauthId,
+			oauthAccessToken: accessToken,
+		},
+	});
+}
   // TODO: verify the OAuth identity isn't already linked to a different account
   // TODO: update the user's oauthProvider/oauthId fields via prisma.user.update
 }
