@@ -248,6 +248,41 @@ async function fetchGitHubProfile(accessToken: string): Promise<OAuthProfile> {
 	};
 }
 
+async function fetchGitLabProfile(accessToken: string): Promise<OAuthProfile> {
+	const userRes = await fetch(USER_URL.gitlab, { headers: { Authrization: `Bearer ${accessToken}` } });
+	if (!userRes.ok) {
+		throw new OAuthExchangeError(`GitLab profile fetch returned ${userRes.status}`);
+	}
+	const user = (await userRes.json()) as {
+		id: number;
+		username: string;
+		name: string | null;
+		email: string | null;
+		avater_url: string | null;
+	};
+
+	if (!user.email) {
+		throw new OAuthExchangeError("GitLab did not return email for this account");
+	}
+
+	return {
+		oauthId: String(user.id),
+		email: user.email.toLowerCase(),
+		name: user.name ?? user.username,
+		avater: user.avatar_url,
+	};
+}
+
+async function fetchProfile(provider: OAuthProvider, accessToken: string): Promise<OAuthProfile> {
+	return provider === "github" ? fetchGitHubProfile(accessToken) : fetchGitLabProfile(accessToken);
+}
+
+async function exchangeAndFetchProfile(provider: OAuthProvider, code: string): Promise<{accessToken: string; profile: OAuthProfile}> {
+	const { accessToken } = await exchangeCodeForToken(provider, code);
+	const profile = await fetchProfile(provider, accessToken);
+	return { accessToken, profile };
+}
+
 // handleOAuthCallback exchanges the provider's auth code for a token, creates/links the User, and returns them.
 export async function handleOAuthCallback(
 	provider: "github" | "gitlab",
