@@ -68,7 +68,7 @@ Track 1 here since they're foundational/unclaimed elsewhere; confirm this with t
 
 ## Track 3 — Git integration (1 person)
 
-- `backend/src/modules/git/branchLink.service.ts`, `webhook.routes.ts`, `eventProcessor.service.ts`, `webhookLog.service.ts` *(GitHub via Octokit, GitLab via a GitLab REST client such as `@gitbeaker/rest`)*
+- `backend/src/modules/git/branchLink.service.ts`, `webhook.routes.ts`, `eventProcessor.service.ts`, `webhookLog.service.ts` *(GitHub via Octokit)*
 - Remember: the README justification for claiming this as a custom Major "Modules of choice" module (see `docs/ft_transcendence_plan.md` section 10, Track 3) still needs to be written in `README.md`.
 
 ## Track 4 — Whiteboard, notes, and supporting modules (1 person)

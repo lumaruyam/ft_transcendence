@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/29 14:54:07 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/14 22:41:32 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/17 21:42:49 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,6 +24,7 @@ import rateLimit from "@fastify/rate-limit";
 import { registerHealthRoutes } from "./modules/health/health.routes.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { initJwtService } from "./modules/auth/jwt.service.js";
+import { initOAuthService } from "./modules/auth/oauth.service.js";
 import { registerProjectsRoutes } from "./modules/projects/projects.routes.js";
 import { registerInviteRoutes } from "./modules/projects/invites.js";
 import { registerUserRoutes } from "./modules/permissions/users.routes.js";
@@ -72,7 +73,7 @@ export function buildApp(config: AppConfig): FastifyInstance {
 	const app = Fastify({ logger: true, });
 
 	initJwtService(config.jwtSecret);
-	initOAuthService({github: config.oauthGithub, gitlab: config.oauthGitlab, stateSecret: config.jwtSecret});
+	initOAuthService({ github: config.oauthGithub, stateSecret: config.jwtSecret });
 	registerPlugins(app, config);
 	registerRoutes(app);
 

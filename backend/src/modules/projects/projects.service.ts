@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/10 20:16:15 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/13 20:57:56 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/17 20:59:39 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -47,6 +47,13 @@ export class InvalidProjectInputError extends Error {
 	constructor(public readonly details: string[]) {
 		super("invalid project input");
 		this.name = "InvalidProjectInputError";
+	}
+}
+
+export class NotProjectOwnerError extends Error {
+	constructor() {
+		super("only ther project owner can perform this action");
+		this.name = "NotProjectOwnerError";
 	}
 }
 
@@ -119,7 +126,10 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
 }
 
 // deleteProject removes a project and cascades to its boards/lists/cards/notes/attachments
-export async function deleteProject(id: string): Promise<void> {
+export async function deleteProject(id: string, callerUserId: string): Promise<void> {
+	const project = await prisma.project.findUnique({ where: { id }});
+	if (!project) throw new ProjectNotFoundError();
+	if (project.ownerId !== callerUserId) throw new NotProjectOwnerError();
 	await prisma.project.delete({ where: { id }});
 }
 

@@ -28,7 +28,7 @@ calls in `frontend/src/api/` and `frontend/src/auth/`.
                                    │ HTTP webhook                 │ Prisma (SQL)
                                    │ (push/PR/merge events)       ▼
                           ┌──────────────────┐          ┌──────────────────┐
-                          │  GitHub / GitLab  │          │    PostgreSQL     │
+                          │  GitHub          │          │    PostgreSQL     │
                           │ (external, OAuth  │          │  (docker-compose  │
                           │  + webhooks)      │          │   `db` service)   │
                           └──────────────────┘          └──────────────────┘
@@ -53,7 +53,7 @@ calls in `frontend/src/api/` and `frontend/src/auth/`.
   HTTPS) and proxies both plain HTTP routes and the `/socket.io/` WebSocket-upgrade
   path to the backend container. Container-to-container traffic (backend ↔ Postgres)
   does not need TLS.
-- **External Git providers** — GitHub and GitLab are the only systems outside the
+- **External Git providers** — GitHub is the only systems outside the
   Docker Compose network. The backend talks *out* to them (Octokit / `@gitbeaker/rest`,
   using OAuth tokens from `modules/auth/oauth.service.ts`) to link branches, and they
   talk *in* to the backend's webhook receiver (`modules/git/webhook.routes.ts`) to push
@@ -70,7 +70,7 @@ internal service mesh, this is a single deployable.
 
 | Module | Owns | Depended on by |
 |---|---|---|
-| `auth/` | Signup/login/logout, password hashing, JWT issuance/validation, OAuth2 (GitHub/GitLab) | Every protected route, via `permissions/` |
+| `auth/` | Signup/login/logout, password hashing, JWT issuance/validation, OAuth2 (GitHub) | Every protected route, via `permissions/` |
 | `permissions/` | `requireAuth`/`requireRole` preHandlers, role definitions, `project_members` reads | Every protected route across every module |
 | `projects/` | Projects (organizations) CRUD, `project_members` add/remove/list, **invite-link joins** (`invites.ts`) | `kanban/`, `notes/`, `attachments/`, `search/`, `publicapi/` (all scope data by project) |
 | `kanban/` | Boards/lists/cards CRUD, the Socket.IO hub, broadcast, presence | `git/` (drives card status), `publicapi/` (wraps card CRUD) |
@@ -199,12 +199,11 @@ all.
 
 1. A user links a card to a branch (`backend/src/modules/git/branchLink.service.ts`),
    using the OAuth token captured by `backend/src/modules/auth/oauth.service.ts`.
-   GitHub calls go through **Octokit**; GitLab calls go through a GitLab REST client
-   (e.g. `@gitbeaker/rest`).
+   GitHub calls go through **Octokit**
 2. A webhook is registered on the linked repository for push/pull_request/merge
    events (`registerWebhook` in `webhook.routes.ts`).
 3. On webhook receipt (`webhookReceiverHandler`): this route is **not** JWT-authenticated
-   (GitHub/GitLab aren't logged-in users) — instead its signature is verified via an
+   (GitHub isn't logged-in users) — instead its signature is verified via an
    HMAC check against `GIT_WEBHOOK_SECRET`, rejecting anything that doesn't match
    before the payload is trusted.
 4. The event is logged to `webhook_events` (`webhookLog.service.ts`) for audit/replay,

@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/12 15:44:50 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/12 22:14:18 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/17 21:33:38 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,18 +15,19 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
 import { ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js";
-import { createProject, getProject, updateProject, deleteProject, listProjectsForUser, transferProjectOwnership, InvalidProjectInputError, NotAProjectMemberError, type CreateProjectInput, type UpdateProjectInput, } from "./projects.service.js";
-import { addMember, removeMember, listMembers } from "./members.service.js";
+import { createProject, getProject, updateProject, deleteProject, listProjectsForUser, transferProjectOwnership,
+		InvalidProjectInputError, NotAProjectMemberError, type CreateProjectInput, type UpdateProjectInput, } from "./projects.service.js";
+import { addMember, removeMember, listMembers, UserNotFoundError, LastAdminError, OwnerRoleError } from "./members.service.js";
 
 // Every path below that carries a project ID uses :projectId
 export async function registerProjectsRoutes(app: FastifyInstance): Promise<void> {
 	app.get("/", { preHandler: requireAuth }, listProjectsHandler);
 	app.post("/", { preHandler: requireAuth }, createProjectHandler);
-	app.get("/:projectId", { preHandler: requireAuth }, getProjectHandler);
+	app.get("/:projectId", { preHandler: [requireAuth, requireRole(ROLES.VIEWER)] }, getProjectHandler);
 	app.put("/:projectId", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, updateProjectHandler);
 	app.delete("/:projectId", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, deleteProjectHandler);
 
-	app.get("/:projectId/members", { preHandler: requireAuth }, listMembersHandler);
+	app.get("/:projectId/members", { preHandler: [requireAuth, requireRole(ROLES.VIEWER)] }, listMembersHandler);
 	app.post("/:projectId/members", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, addMemberHandler);
 	app.delete("/:projectId/members/:userId", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, removeMemberHandler);
 	app.post("/:projectId/transfer-ownership", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, transferOwnershipHandler);
@@ -85,7 +86,7 @@ async function updateProjectHandler(request: FastifyRequest, reply: FastifyReply
 // deleteProjectHandler deletes a project (admin only)
 async function deleteProjectHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId } = request.params as { projectId: string };
-	await deleteProject(projectId);
+	await deleteProject(projectId, request.userId as string);
 	reply.code(204).send();
 }
 
@@ -101,19 +102,35 @@ async function addMemberHandler(request: FastifyRequest, reply: FastifyReply): P
 	const { projectId } = request.params as { projectId: string };
 	const body = request.body as { userId?: string; role?: Role } | undefined;
 
-	if (!body?.userId || !body?.role || !(body.role in ROLE_RANK)) {
+	if (!body?.userId || !body?.role || !Object.hasOwn(ROLE_RANK, body.role)) {
 		reply.code(400).send({ error: "invalid_input", details: ["userId and a valid role are required"] });
 		return;
 	}
-	await addMember(projectId, body.userId, body.role);
-	reply.code(204).send();
+	try {
+		await addMember(projectId, body.userId, body.role);
+		reply.code(204).send();
+	} catch (err) {
+		if (err instanceof UserNotFoundError) {
+			reply.code(404).send({ error: "user_not_found"});
+			return;
+		}
+		throw err;
+	}
 }
 
 // removeMemberHandler removes a user from the project (admin only).
 async function removeMemberHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId, userId } = request.params as { projectId: string; userId: string };
-	await removeMember(projectId, userId);
-	reply.code(204).send();
+	try {
+		await removeMember(projectId, userId);
+		reply.code(204).send();
+	} catch (err) {
+		if (err instanceof LastAdminError) {
+			reply.code(409).send({ error: "last_admin" });
+			return;
+		}
+		throw err;
+	}
 }
 
 async function transferOwnershipHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {

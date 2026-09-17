@@ -53,7 +53,7 @@ These are pass/fail requirements. Missing or badly implementing any of them can 
 | Notification system | Fires on creation, update, and deletion actions across cards, notes, and files |
 | Advanced search | Search across cards, notes, and attachments within a project |
 | ORM | Backend data access goes through an ORM (Prisma, in the Node.js/TypeScript backend) rather than raw SQL |
-| OAuth 2.0 | GitHub/GitLab login, layered on top of the mandatory email/password baseline, and also needed as the credential source for the Git integration module |
+| OAuth 2.0 | GitHub login, layered on top of the mandatory email/password baseline, and also needed as the credential source for the Git integration module |
 
 **Total: 17 points**, 3 points above the 14 minimum — a real margin if any single module doesn't fully pass evaluation.
 
@@ -77,17 +77,17 @@ A Notion-style rich text page per project, built with a rich text editor library
 
 ### 3.4 Git integration
 
-Links Kanban cards to Git branches; listens to GitHub/GitLab webhooks and automatically moves a card's status based on PR lifecycle events. This is the project's signature, differentiating feature, claimed as a custom Major "Modules of choice" module.
+Links Kanban cards to Git branches; listens to GitHub webhooks and automatically moves a card's status based on PR lifecycle events. This is the project's signature, differentiating feature, claimed as a custom Major "Modules of choice" module.
 
 ## 4. Tech stack
 
-- **Backend: Node.js + TypeScript**, built on **Fastify**. Key libraries: **Socket.IO** for the Kanban WebSocket hub, **jsonwebtoken** (or `jose`) for auth tokens, **Octokit** for GitHub API calls plus a GitLab REST client (e.g. `@gitbeaker/rest`) for GitLab, **Prisma** for database access (covers the ORM module), and **`@fastify/rate-limit`** as the standardized rate-limiting strategy for all routes (global default plus per-route overrides, e.g. the invite join endpoint — see `docs/architecture.md` "Rate limiting strategy"). This replaces the project's original Go-based plan (`gorilla/websocket`, `golang-jwt`, `go-github`, `chi`, GORM) — chosen instead for a TypeScript-first stack shared end-to-end with the frontend, and for Prisma's typed schema/migration workflow. All backend REST routes are mounted under the canonical `/api` base path (not `/api/v1`) — see `docs/api-spec.md`.
+- **Backend: Node.js + TypeScript**, built on **Fastify**. Key libraries: **Socket.IO** for the Kanban WebSocket hub, **jsonwebtoken** (or `jose`) for auth tokens, **Octokit** for GitHub API calls, **Prisma** for database access (covers the ORM module), and **`@fastify/rate-limit`** as the standardized rate-limiting strategy for all routes (global default plus per-route overrides, e.g. the invite join endpoint — see `docs/architecture.md` "Rate limiting strategy"). This replaces the project's original Go-based plan (`gorilla/websocket`, `golang-jwt`, `go-github`, `chi`, GORM) — chosen instead for a TypeScript-first stack shared end-to-end with the frontend, and for Prisma's typed schema/migration workflow. All backend REST routes are mounted under the canonical `/api` base path (not `/api/v1`) — see `docs/api-spec.md`.
 - **Frontend: vanilla TypeScript, or Svelte if the Kanban UI's drag-and-drop and reactivity get unwieldy in plain DOM code.** No React as the app's primary framework.
 - **Whiteboard: the `@excalidraw/excalidraw` package**, mounted as a small isolated React tree just on the whiteboard page/route, since Excalidraw ships as a React component.
 - **Notes: a rich text editor library such as Tiptap**, framework-agnostic, integrates cleanly with vanilla TS or Svelte without needing a React mount point.
 - **Real-time sync: Socket.IO, no CRDT or operational transform, used by Kanban.** Every card mutation is broadcast immediately after being saved to the database.
 - **Database: PostgreSQL**, accessed through **Prisma**.
-- **Auth: email/password with hashed and salted passwords as the mandatory baseline, plus JWT for session tokens, plus OAuth2 (GitHub/GitLab) as an additional login method** — OAuth doubles as the credential source for Git integration.
+- **Auth: email/password with hashed and salted passwords as the mandatory baseline, plus JWT for session tokens, plus OAuth2 (GitHub) as an additional login method** — OAuth doubles as the credential source for Git integration.
 - **CSS: a CSS framework or styling solution chosen by the team** (e.g. Tailwind CSS), applied consistently across Kanban, whiteboard, and notes pages.
 - **Infra: Docker Compose**, with containers for the frontend build, the Node.js backend (which also hosts the Socket.IO WebSocket hub on the same HTTP server), PostgreSQL, and a reverse proxy (e.g. Nginx) handling HTTPS termination for all browser-facing traffic.
 
@@ -111,7 +111,7 @@ models), described in full in `docs/db-schema.md`.
 
 ## 6. Git integration design
 
-1. A user links a card to a branch. The backend either creates a new branch via the GitHub/GitLab API or lets the user pick an existing one.
+1. A user links a card to a branch. The backend either creates a new branch via the GitHub API or lets the user pick an existing one.
 2. A webhook is registered on the linked repository for push, pull_request, and merge events.
 3. On webhook receipt: opening a PR moves the linked card to a "PR pending" column and fires a notification; merging to main moves the card to "Done" and fires a notification.
 4. Every webhook event is logged to `webhook_events`, so the automation chain is auditable if something doesn't trigger correctly.
@@ -156,7 +156,7 @@ ft_transcendence/
 │   │   │   ├── attachments/           # file upload handling
 │   │   │   ├── search/                # advanced search
 │   │   │   ├── notifications/         # notification triggers and delivery
-│   │   │   ├── git/                    # GitHub (Octokit) / GitLab API calls, webhook receiver
+│   │   │   ├── git/                    # GitHub (Octokit) API calls, webhook receiver
 │   │   │   └── publicapi/              # API key auth, rate limiting, documented endpoints
 │   │   └── (no separate db/models — Prisma schema is the model source of truth)
 │   ├── prisma/
@@ -196,7 +196,7 @@ With 5 people, these can be specialized as dedicated PO, PM, Tech Lead, and 2 De
 - Docker Compose setup, DB schema/migrations (Prisma), hot-reload dev setup (`tsx watch`)
 - Mandatory baseline auth: email/password sign-up and login, with hashed and salted password storage
 - JWT-based session handling (`jsonwebtoken`/`jose`)
-- OAuth2 login flow (GitHub/GitLab), layered on top of the email/password baseline — covers the OAuth minor module and later feeds Track 3's Octokit/GitLab API calls
+- OAuth2 login flow (GitHub), layered on top of the email/password baseline — covers the OAuth minor module and later feeds Track 3's Octokit API calls
 - Advanced permissions: role definitions, user CRUD, Fastify preHandler hooks enforcing role-based access
 - ORM setup (Prisma) used consistently across the backend — covers the ORM minor module
 - Public API hardening: API key issuance, rate limiting, documentation for the 5+ required endpoints — covers the Public API major module, in coordination with whichever track owns the underlying endpoints
@@ -225,7 +225,7 @@ This track should be front-loaded hard in week 1, since every other track depend
 
 ### Track 3 — Git integration (1 person)
 
-- GitHub API calls via **Octokit**, GitLab API calls via a GitLab REST client (e.g. `@gitbeaker/rest`), to create or link a branch to a card, using the OAuth token from Track 1
+- GitHub API calls via **Octokit** to create or link a branch to a card, using the OAuth token from Track 1
 - Webhook receiver endpoint (Fastify route) for push, pull_request, and merge events
 - Event processing: match incoming payloads to the correct card via `git_links`, drive status transitions (PR pending → Done)
 - Triggers the actual card move (via Track 2's service functions) and a notification once an event is processed
@@ -249,7 +249,7 @@ This track should be front-loaded hard in week 1, since every other track depend
 Track 1 delivers DB schema (Prisma), mandatory email/password auth, and a minimal working API. Tracks 2–4 scaffold their own pieces against mocked data in parallel.
 
 **Week 2 (Aug 31–Sep 6) — Core build-out**
-Track 2 (Person A): Kanban CRUD and drag-and-drop working. Track 2 (Person B): Socket.IO hub scaffolded and tested before wiring to real card events. Track 3: GitHub/GitLab OAuth working end-to-end, first webhook endpoint receiving real events. Track 4: whiteboard embed and notes editor working as independent pieces, plus the shared component library and CSS framework decision made early so Track 2's UI doesn't diverge visually.
+Track 2 (Person A): Kanban CRUD and drag-and-drop working. Track 2 (Person B): Socket.IO hub scaffolded and tested before wiring to real card events. Track 3: GitHub OAuth working end-to-end, first webhook endpoint receiving real events. Track 4: whiteboard embed and notes editor working as independent pieces, plus the shared component library and CSS framework decision made early so Track 2's UI doesn't diverge visually.
 
 **Week 3 (Sep 7–13) — Real-time layer and integration**
 Track 2 finishes wiring the Socket.IO broadcast to real card mutations, plus presence and reconnection handling. Track 3 finishes the webhook → card status automation end-to-end, including the notification trigger. Track 1 finishes Public API hardening (keys, rate limiting, docs). Track 4 finishes file upload and starts advanced search.
