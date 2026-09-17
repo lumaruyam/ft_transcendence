@@ -1,7 +1,10 @@
 // Owner: Track 3 (Git integration)
 // Responsible for: the webhook receiver endpoint for push, pull_request, and merge events — the core of the custom "Git/webhook integration" Major module. TS equivalent of backend/internal/git/webhook.go (Go skeleton, removed).
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply, FastifyBaseLogger } from 'fastify';
 import crypto from 'node:crypto';
+import {type LogWebhookEvent, logWebhookEvent} from './webhookLog.service.js';
+import type { WebhookEvent } from '@prisma/client';
+
 
 import{
 	processPushEvent,
@@ -32,8 +35,22 @@ const digestBuf = Buffer.from(digest);
 if(sigBuf.length !== digestBuf.length)
 	return false;
 return crypto.timingSafeEqual(sigBuf, digestBuf); //for secure of time we use func which have the same time
-
 }
+
+async function safeLogWebhookEvent(input: LogWebhookEvent, logger?: FastifyBaseLogger) : Promise<WebhookEvent | null>{
+	try{
+		return await logWebhookEvent(input);
+	}
+	catch(error){
+		if (logger) {
+			logger.error({ error, repo: input.repo }, 'Failed to persist webhook audit log');
+		} else
+			console.error('Failed to persist webhook audit log:', error);
+
+		return null;
+	}
+}
+
 
 // registerWebhook registers a webhook on the linked repository for push/pull_request/merge events.
 export function registerWebhookRoutes(app: FastifyInstance): void { //  app - server
@@ -45,21 +62,30 @@ app.post('/api/webhooks/git', async (request: FastifyRequest, reply: FastifyRepl
 	if(!WEBHOOK_SECRET){
 		request.log.error('GIT_WEBHOOK_SECRET is not configured in .env');
 		return reply.status(500).send({error : 'Server configuration error'});
-}
+	}
 	//take hash
 	const signature = request.headers['x-hub-signature-256'] as string | undefined;
-	
+	const rawBody = JSON.stringify(request.body); // convert obj to text
+
+	if(!verifyWebhookSignature(rawBody, signature, WEBHOOK_SECRET))
+		return reply.status(401).send({error: 'Invalid HMAC signature'});
+
+	const githubEvent = request.headers['x-github-event'];// take type of event
+	if(typeof githubEvent !== 'string')
+		return reply.code(400).send({error: 'Github only'});
 	const body = request.body as BaseGitHubPayload; // for parsing full_name
 	let repoName = 'unkown';
 	if(body?.repo?.full_name)
 		repoName = body.repo.full_name;
 
-	const githubEvent = request.headers['x-github-event'] as string | undefined; // take type of event
-	const rawBody = JSON.stringify(request.body); // convert obj to text
+	//log
+	const loggedEvent = await safeLogWebhookEvent({
+		provider: 'github',
+		repo: repoName,
+		eventType: githubEvent,
+		payload: request.body,
+	}, request.log);
 
-
-	if(!verifyWebhookSignature(rawBody, signature, WEBHOOK_SECRET))
-		return reply.status(401).send({error: 'Invalid HMAC signature'});
 	if(githubEvent === 'push' ){
 		await processPushEvent(request.body as GitHubPushPayload);
 	}
