@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/02 19:02:56 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/03 21:32:55 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/17 21:40:06 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,7 +24,6 @@ export interface AppConfig {
 	databaseUrl: string;
 	jwtSecret: string;
 	oauthGithub: OAuthProviderConfig;
-	oauthGitlab: OAuthProviderConfig;
 	gitWebhookSecret: string;
 	publicApiRateLimitDefault: number;
   // rateLimit configures the @fastify/rate-limit plugin registered globally in app.ts.
@@ -77,11 +76,11 @@ function optionalIntEnv(name: string, defaultValue: number): number {
 	return parsed;
 }
 
-function loadOAuthProviderConfig(prefix: "GITHUB" | "GITLAB"): OAuthProviderConfig {
+function loadGithubOAuthConfig(): OAuthProviderConfig {
 	return {
-		clientId: process.env[`${prefix}_CLIENT_ID`] || '', // optional
-		clientSecret: process.env[`${prefix}_CLIENT_SECRET`] || '',
-		redirectUri: process.env[`${prefix}_OAUTH_REDIRECT_URI`] || '',
+		clientId: process.env.GITHUB_CLIENT_ID || '',
+		clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
+		redirectUri: process.env.GITHUB_OAUTH_REDIRECT_URI || '',
 	};
 }
 
@@ -89,7 +88,7 @@ function loadOAuthProviderConfig(prefix: "GITHUB" | "GITLAB"): OAuthProviderConf
 export function loadConfig(): AppConfig {
 	const nodeEnv = optionalEnv("NODE_ENV", "development");
 	if (nodeEnv !== "development" && nodeEnv !== "production" && nodeEnv !== "test") {
-		throw new Error (`Environment variable NODE_ENV must be one of "development", "test", "production", got "${nodeEnv}"`);
+		throw new Error(`Environment variable NODE_ENV must be one of "development", "test", "production", got "${nodeEnv}"`);
 	}
 
 	return {
@@ -98,8 +97,7 @@ export function loadConfig(): AppConfig {
 		port: optionalIntEnv("PORT", 3000),
 		databaseUrl: requireEnv("DATABASE_URL"),
 		jwtSecret: requireEnv("JWT_SECRET"),
-		oauthGithub: loadOAuthProviderConfig("GITHUB"),
-		oauthGitlab: loadOAuthProviderConfig("GITLAB"),
+		oauthGithub: loadGithubOAuthConfig(),
 		gitWebhookSecret: requireEnv("GIT_WEBHOOK_SECRET"),
 		publicApiRateLimitDefault: optionalIntEnv("PUBLIC_API_RATE_LIMIT_DEFAULT", 100),
 		rateLimit: {

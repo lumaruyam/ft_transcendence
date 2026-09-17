@@ -7,11 +7,10 @@ export async function registerGitWebhookRoutes(app: FastifyInstance): Promise<vo
   app.post("/webhooks/git", webhookReceiverHandler);
 }
 
-// webhookReceiverHandler receives GitHub/GitLab webhook POSTs registered by registerWebhook.
+// webhookReceiverHandler receives GitHub webhook POSTs registered by registerWebhook.
 async function webhookReceiverHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: verify the request signature via verifyWebhookSignature before trusting the payload
-  //       (GitHub: x-hub-signature-256 header; GitLab: x-gitlab-token header — branch on provider)
-  // TODO: parse the event type (push/pull_request/merge) and dispatch to the matching process*Event function in eventProcessor.service.ts
+  // TODO: verify the request signature via verifyWebhookSignature (x-hub-signature-256 header)
+  // TODO: parse the event type (push/pull_request/merge) and dispatch to the matching process*Event function
   // TODO: log every received event via logWebhookEvent regardless of processing outcome
 }
 
@@ -23,6 +22,5 @@ export function verifyWebhookSignature(payload: Buffer, signature: string, secre
 
 // registerWebhook registers a webhook on the linked repository for push/pull_request/merge events.
 export async function registerWebhook(repoUrl: string): Promise<void> {
-  // TODO: Octokit repos.createWebhook (GitHub) or the GitLab client's project-hooks endpoint (GitLab),
-  //       pointing at this server's /webhooks/git route
+  // TODO: Octokit repos.createWebhook, pointing at this server's /webhooks/git route
 }
