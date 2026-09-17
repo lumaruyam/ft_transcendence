@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/08 20:41:49 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/09 20:15:01 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/17 22:54:28 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,6 +19,7 @@ import { prisma } from "../../db/prisma/client.js";
 import { validateSignupInput, type SignupInput } from "./auth.validation.js";
 import { hashPassword, verifyPassword } from "./password.service.js";
 import { generateJwt } from "./jwt.service.js";
+import { handleOAuthCallback, OAuthNotConfiguredError, OAuthExchangeError, OAuthStateError, OAuthAccountConflictError } from "./oauth.service.js";
 
 // registerAuthRoutes mounts /api/auth/signup, /api/auth/login, /api/auth/logout on the given
 // Fastify instance, called from app.ts. Canonical API base path is /api — matches
@@ -27,6 +28,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 	app.post("/signup", signupHandler);
 	app.post("/login", loginHandler);
 	app.post("/logout", logoutHandler);
+	app.get("/oauth/github/callback", oauthCallbackHandler);
 }
 
 interface LoginInput {
@@ -107,25 +109,19 @@ async function logoutHandler(request: FastifyRequest, reply: FastifyReply): Prom
 	reply.code(204).send();
 }
 
-async function oauthCallbackHandler(request: FasitifyRequest, reply: FastifyReply): Promise<void> {
-	const { provider } = request.params as { provider: string };
+async function oauthCallbackHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { code, state } = request.query as { code?: string; state?: string };
 
-	if (!isOAuthProvider(provider)) {
-		reply.code(404).send({ error: "unknown_provider" });
-		return;
-	}
-
 	try {
-		const user = await handleOAuthCallback(provider, code, state);
+		const user = await handleOAuthCallback(code ?? "", state ?? "");
 		const token = generateJwt(user.id);
-		reply.redirect(`/auth/callback#token=${encodeURIcomponent(token)}`);
+		reply.redirect(`/auth/callback#token=${encodeURIComponent(token)}`);
 	} catch (err) {
 		if (
 			err instanceof OAuthNotConfiguredError || err instanceof OAuthExchangeError ||
 			err instanceof OAuthStateError || err instanceof OAuthAccountConflictError) {
-			request.log.warn({ err, provider }, "OAuth callback failed");
-			reply.redirect(`/auth/callback#error=${encodeURIcomponent(err.name)}`);
+			request.log.warn({ err }, "OAuth callback failed");
+			reply.redirect(`/auth/callback#error=${encodeURIComponent(err.name)}`);
 			return;
 		}
 		throw err;
