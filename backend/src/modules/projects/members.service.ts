@@ -12,9 +12,11 @@
 
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: adding/removing members within a project, part of the Organization system major module
-import type { ProjectMember } from "@prisma/client";
+import type { Prisma, ProjectMember, User } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
-import { assignRole, ROLE_RANK, type Role } from "../permissions/roles.service.js"
+import { assignRole, ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js"
+
+type DBClient = typeof prisma | Prisma.TransactionClient;
 
 export class UserNotFoundError extends Error {
 	constructor() {
