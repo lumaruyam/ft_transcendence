@@ -1,8 +1,8 @@
 // Owner: Track 2 (Person A — Kanban CRUD and UI)
 // Responsible for: backend input validation for all board/list/card forms, per the mandatory dual frontend+backend validation requirement. TS equivalent of backend/internal/kanban/validation.go (Go skeleton, removed).
-import type { CreateBoardInput } from "./boards.service";
-import type { CreateListInput } from "./lists.service";
-import type { CreateCardInput } from "./cards.service";
+import type { CreateBoardInput } from "./boards.service.js";
+import type { CreateListInput } from "./lists.service.js";
+import type { CreateCardInput } from "./cards.service.js";
 
 // validateBoardInput checks a board creation/edit request for required fields and length limits.
 export function validateBoardInput(input: CreateBoardInput): string[] {

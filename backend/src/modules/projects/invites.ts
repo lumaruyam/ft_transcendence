@@ -1,19 +1,32 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   invites.ts                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/12 22:09:24 by lulmaruy          #+#    #+#             */
+/*   Updated: 2026/09/13 20:41:28 by lulmaruy         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: the invite-link membership flow — issuing/joining/revoking project invites
-// (the `project_invites` table) — part of the Organization system major module, grouped with
-// projects.service.ts and members.service.ts per docs/github-workflow.md.
+// (the `project_invites` table) — part of the Organization system major module
 //
 // Design note: an invite link only ever proves "this token was valid at the moment it was
 // redeemed." It is NOT an authorization mechanism. Joining an invite does exactly one thing
 // that matters for access control: it inserts a row into `project_members` (via
 // members.service.ts's addMember). Every check after that — on this project's boards, cards,
 // notes, etc. — goes through permissions.middleware.ts's requireRole/getUserRole reading
-// project_members, never through re-checking the invite/token. See docs/architecture.md
-// "Authorization flow" and docs/api-spec.md's invite security notes for the full rationale.
+// project_members, never through re-checking the invite/token.
+import { randomBytes, createHash } from "crypto";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { ProjectInvite } from "@prisma/client";
-import type { Role } from "../permissions/roles.service";
-import { addMember } from "./members.service";
+import { prisma } from "../../db/prisma/client.js";
+import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
+import { getUserRole, ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js";
+import { addMember } from "./members.service.js";
 
 // INVITE_JOIN_RATE_LIMIT is the dedicated @fastify/rate-limit policy for POST
 // /api/projects/invites/:token/join, registered as this route's `config.rateLimit` override
@@ -24,102 +37,259 @@ import { addMember } from "./members.service";
 //   - unlike most routes it has an externally-visible side effect (project_members growth)
 //     even on failed attempts if not limited, so it also doubles as abuse/DoS protection
 // Keyed by IP by default (the plugin's default keyGenerator); revisit if a token-scoped key
-// is needed once real traffic patterns are known.
+// is needed once real traffic patterns are known
 export const INVITE_JOIN_RATE_LIMIT = {
-  max: 5,
-  timeWindow: "1 minute",
+	max: 5,
+	timeWindow: "1 minute",
 } as const;
 
 export interface CreateInviteInput {
-  role: Role;
-  expiresAt?: Date;
-  maxUses?: number;
+	role: Role;
+	expiresAt?: Date;
+	maxUses?: number;
 }
 
-// createInvite mints a new invite link for a project. Returns the plaintext token exactly
-// once — only its hash is ever persisted (mirrors apikeys.service.ts's issueApiKey).
+export class InvalidInviteInputError extends Error {
+	constructor(public readonly details: string[]) {
+		super("invalid invite input");
+		this.name = "InvalidInviteInputError";
+	}
+}
+
+export class InviteNotFoundError extends Error {
+	constructor() {
+		super("invite not found");
+		this.name = "InviteNotFoundError";
+	}
+}
+
+export class InviteRevokedError extends Error {
+	constructor() {
+		super("invite has been revoked");
+		this.name = "InviteRevokedError";
+	}
+}
+
+export class InviteExpiredError extends Error {
+	constructor() {
+		super("invite has expired");
+		this.name = "InviteExpiredError";
+	}
+}
+
+export class InviteExhaustedError extends Error {
+	constructor() {
+		super("invite has reached its max uses");
+		this.name = "InviteExhaustedError";
+	}
+}
+
+export class AlreadyMemberError extends Error {
+	constructor() {
+		super("user is already a member of this project");
+		this.name = "AlreadyMemberError";
+	}
+}
+
+// the token is already a high-entropy random value a fast hash is
+// sufficient here and lets join-time lookups stay cheap
+function hashToken(token: string): string {
+	return createHash("sha256").update(token).digest("hex");
+}
+
+// stripTokenHash omits the secret tokenHash column before an invite is serialized in a response body
+function stripTokenHash(invite: ProjectInvite): ProjectInvite {
+	return { ...invite, tokenHash: "" };
+}
+
+// createInvite creates a new invite link for a project. Returns the plaintext token only once
 export async function createInvite(
-  projectId: string,
-  createdByUserId: string,
-  input: CreateInviteInput
+	projectId: string,
+	createdByUserId: string,
+	input: CreateInviteInput
 ): Promise<{ invite: ProjectInvite; plaintextToken: string }> {
-  // TODO: validate input.role is a known Role, input.maxUses > 0 if set, input.expiresAt in the
-  //       future if set — backend half of dual validation requirement
-  // TODO: verify the caller is an admin of projectId via project_members (enforced upstream by
-  //       requireRole in registerInviteRoutes, re-checked here defensively)
-  // TODO: generate a cryptographically random token (crypto.randomBytes(32).toString("base64url"))
-  // TODO: hash the token (e.g. crypto.createHash("sha256")) — unlike password hashing, this is a
-  //       high-entropy random value, so a fast hash is sufficient (no bcrypt/argon2 needed)
-  // TODO: prisma.projectInvite.create({ projectId, tokenHash, role, maxUses, expiresAt, createdBy })
-  // TODO: return { invite, plaintextToken } — the caller (route handler) sends plaintextToken in
-  //       the response body once; it is never recoverable after this call returns
-  throw new Error("not implemented");
+	const errors: string[] = [];
+	if (!input.role || !(input.role in ROLE_RANK)) {
+		errors.push("role must be admin, member or viewer");
+	}
+	if (input.maxUses !== undefined && input.maxUses <= 0) {
+		errors.push("maxUses must be a positive integer");
+	}
+	if (input.expiresAt !== undefined && input.expiresAt.getTime() <= Date.now()) {
+		errors.push("expiresAt must be in the future");
+	}
+	if (errors.length > 0) {
+		throw new InvalidInviteInputError(errors);
+	}
+
+	const callerRole = await getUserRole(projectId, createdByUserId);
+	if (!callerRole || ROLE_RANK[callerRole] < ROLE_RANK[ROLES.ADMIN]) {
+		throw new InviteNotFoundError();
+	}
+
+	const plaintextToken = randomBytes(32).toString("base64url");
+	const tokenHash = hashToken(plaintextToken);
+
+	const invite = await prisma.projectInvite.create({
+		data: {
+			projectId,
+			tokenHash,
+			role: input.role,
+			maxUses: input.maxUses,
+			expiresAt: input.expiresAt,
+			createdBy: createdByUserId,
+		},
+	});
+	return { invite: stripTokenHash(invite), plaintextToken};
 }
 
-// joinInvite is called when a logged-in user redeems an invite token. This is the ONLY place
-// invite validity is checked; once it succeeds, the invite is irrelevant to future authorization.
+// joinInvite is called when a logged-in user redeems an invite token. This is the only place
+// invite validity is checked; once it succeeds, the invite is irrelevant to future authorization
 export async function joinInvite(token: string, userId: string): Promise<void> {
-  // TODO: hash the presented token and look up the project_invites row by tokenHash
-  // TODO: reject (404/410) if no matching row
-  // TODO: reject (410 Gone) if revokedAt is set
-  // TODO: reject (410 Gone) if expiresAt is set and in the past
-  // TODO: reject (409 Conflict) if maxUses is set and useCount >= maxUses
-  // TODO: reject (409 Conflict) if the user is already a project_members row for this project
-  //       (idempotent no-op or explicit conflict — team to decide)
-  // TODO: in a transaction: call addMember(invite.projectId, userId, invite.role) to insert the
-  //       project_members row — this is the actual membership grant — then increment useCount
-  // TODO: after this point, the invite is spent; do not store/return the token again
+	const tokenHash = hashToken(token);
+	const invite = await prisma.projectInvite.findUnique({ where: { tokenHash } });
+
+	if (!invite) {
+		throw new InviteNotFoundError();
+	}
+	if (invite.revokedAt) {
+		throw new InviteRevokedError();
+	}
+	if (invite.expiresAt && invite.expiresAt.getTime() <= Date.now()) {
+		throw new InviteExpiredError();
+	}
+	if (invite.maxUses !== null && invite.useCount >= invite.maxUses) {
+		throw new InviteExhaustedError();
+	}
+
+	const existingMembership = await prisma.projectMember.findUnique({
+		where: { projectId_userId: { projectId: invite.projectId, userId } },
+	});
+	if (existingMembership) {
+		throw new AlreadyMemberError();
+	}
+
+	// addMember (members.service.ts) inserts the row into project_members
+	// which is what authorization reads from now on, never this invite again
+	await addMember(invite.projectId, userId, invite.role as Role);
+	await prisma.projectInvite.update({
+		where: { id: invite.id },
+		data: { useCount: { increment: 1 } },
+	});
 }
 
 // revokeInvite disables an invite link before it expires or is fully used, e.g. if it leaked.
-// Does NOT touch project_members — existing members stay members; this only stops future joins.
-export async function revokeInvite(
-  projectId: string,
-  inviteId: string,
-  revokedByUserId: string
-): Promise<void> {
-  // TODO: verify the caller is an admin of projectId via project_members (enforced upstream)
-  // TODO: prisma.projectInvite.update({ where: { id: inviteId, projectId }, data: { revokedBy:
-  //       revokedByUserId, revokedAt: new Date() } }) — no-op/error if already revoked
+// Does NOT touch project_members — existing members stay members. This only stops future joins.
+export async function revokeInvite(projectId: string, inviteId: string, revokedByUserId: string): Promise<void> {
+	const invite = await prisma.projectInvite.findUnique({ where: { id: inviteId } });
+	if (!invite || invite.projectId !== projectId) {
+		throw new InviteNotFoundError();
+	}
+	if (invite.revokedAt) {
+		throw new InviteRevokedError();
+	}
+
+	await prisma.projectInvite.update({
+		where: { id: inviteId },
+		data: { revokedBy: revokedByUserId, revokedAt: new Date() },
+	});
 }
 
-// listInvites returns a project's outstanding and past invites for the members management view.
+// listInvites returns a project's outstanding and past invites for the members management view
+//  Not one of the 5 documented Public API endpoints
 export async function listInvites(projectId: string): Promise<ProjectInvite[]> {
-  // TODO: prisma.projectInvite.findMany({ where: { projectId }, orderBy: { createdAt: "desc" } })
-  // TODO: never include tokenHash in the serialized response — it's a secret, not a display field
-  return [];
+	const invites = await prisma.projectInvite.findMany({
+		where: { projectId },
+		orderBy: { createdAt: "desc" },
+	})
+	return invites.map(stripTokenHash);
 }
 
 // registerInviteRoutes mounts the invite endpoints on the given Fastify instance, called from
 // app.ts. All three require requireAuth (the caller must be logged in); create/revoke also
 // require requireRole("admin") on :projectId since only project admins manage invites. The join
 // route deliberately does NOT use requireRole — the whole point is granting access to someone
-// who ISN'T a member yet — but does carry the dedicated INVITE_JOIN_RATE_LIMIT config above.
-export function registerInviteRoutes(app: FastifyInstance): void {
-  // TODO: app.post("/api/projects/:projectId/invites", { preHandler: [requireAuth,
-  //       requireRole(ROLES.ADMIN)] }, createInviteHandler)
-  // TODO: app.post("/api/projects/invites/:token/join", { preHandler: [requireAuth],
-  //       config: { rateLimit: INVITE_JOIN_RATE_LIMIT } }, joinInviteHandler)
-  // TODO: app.delete("/api/projects/:projectId/invites/:inviteId", { preHandler: [requireAuth,
-  //       requireRole(ROLES.ADMIN)] }, revokeInviteHandler)
+// who ISN'T a member yet — but does carry the dedicated INVITE_JOIN_RATE_LIMIT config above
+export async function registerInviteRoutes(app: FastifyInstance): Promise<void> {
+	app.post("/:projectId/invites", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, createInviteHandler);
+	app.get("/:projectId/invites", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, listInviteHandler);
+	app.post("/invites/:token/join", { preHandler: [requireAuth], config: { rateLimit: INVITE_JOIN_RATE_LIMIT } }, joinInviteHandler);
+	app.delete("/:projectId/invites/:inviteId", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)]}, revokeInviteHandler);
 }
 
 // createInviteHandler — POST /api/projects/{project_id}/invites. Admin-only (requireRole).
 async function createInviteHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode/validate body against CreateInviteInput, call createInvite, return 201 with
-  //       { invite, token: plaintextToken } — this is the one response that ever carries the
-  //       plaintext token
+	const { projectId } = request.params as { projectId: string };
+	const body =  request.body as Partial<CreateInviteInput> | undefined;
+	const input: CreateInviteInput = {
+		role: body?.role as Role,
+		maxUses: body?.maxUses,
+		expiresAt: body?.expiresAt ? new Date(body.expiresAt) : undefined,
+	};
+
+	try {
+		const { invite, plaintextToken } = await createInvite(projectId, request.userId as string, input);
+		reply.code(201).send({ invite, token: plaintextToken });
+	} catch (err) {
+		if (err instanceof InvalidInviteInputError) {
+			reply.code(400).send({ error: "invalid_input", details:err.details });
+			return;
+		}
+		if (err instanceof InviteNotFoundError) {
+			reply.code(404).send({ error: "project_not_found" });
+			return;
+		}
+		throw err;
+	}
 }
 
-// joinInviteHandler — POST /api/projects/invites/{token}/join. Requires auth, NOT project
-// membership. Rate-limited per INVITE_JOIN_RATE_LIMIT (see registerInviteRoutes).
+// istInvitesHandler GET /api/projects/{project_id}/invites. Admin-only
+async function listInviteHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const { projectId } = request.params as { projectId: string };
+	const invites = await listInvites(projectId);
+	reply.code(200).send({ invites });
+}
+
+// joinInviteHandler POST /api/projects/invites/{token}/join. Requires auth Rate-limited per INVITE_JOIN_RATE_LIMIT
 async function joinInviteHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: read :token from params and the caller's userId from request context (set by
-  //       requireAuth), call joinInvite, map its rejection reasons to 404/409/410, else 200/204
+	const { token } = request.params as { token: string };
+
+	try {
+		await joinInvite(token, request.userId as string);
+		reply.code(204).send();
+	} catch (err) {
+		if (err instanceof InviteNotFoundError) {
+			reply.code(404).send({ error: "invite_not_found" });
+			return;
+		}
+		if (err instanceof InviteRevokedError || err instanceof InviteExpiredError) {
+			reply.code(410).send({ error: err instanceof InviteRevokedError ? "invite_revoked" : "invite_expired" });
+			return;
+		}
+		if (err instanceof InviteExhaustedError || err instanceof AlreadyMemberError) {
+			reply.code(409).send({ error: err instanceof InviteExhaustedError ? "invite_exhausted" : "already_member" });
+			return;
+		}
+		throw err;
+	}
 }
 
 // revokeInviteHandler — DELETE /api/projects/{project_id}/invites/{invite_id}. Admin-only.
 async function revokeInviteHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: read :projectId/:inviteId from params and the caller's userId, call revokeInvite,
-  //       return 204
+	const { projectId, inviteId } = request.params as { projectId: string; inviteId: string };
+
+	try {
+		await revokeInvite(projectId, inviteId, request.userId as string);
+		reply.code(204).send();
+	} catch (err) {
+		if (err instanceof InviteNotFoundError) {
+			reply.code(404).send({ error: "invite_not_found" });
+			return;
+		}
+		if (err instanceof InviteRevokedError) {
+			reply.code(409).send({ error: "already_revoked" });
+			return;
+		}
+		throw err;
+	}
 }
