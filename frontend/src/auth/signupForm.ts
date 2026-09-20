@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   signupForm.ts                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/20 18:29:03 by lulmaruy          #+#    #+#             */
+/*   Updated: 2026/09/20 18:29:05 by lulmaruy         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: the signup form UI and its frontend-side validation, part of the mandatory email/password baseline.
 

@@ -1,3 +1,16 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   oauthFlow.ts                                       :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/20 18:26:24 by lulmaruy          #+#    #+#             */
+/*   Updated: 2026/09/20 18:26:25 by lulmaruy         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
+
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: the OAuth2 login UI flow (GitHub only), layered on top of the email/password baseline.
 
