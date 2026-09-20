@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   loginForm.ts                                       :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/09/20 18:26:16 by lulmaruy          #+#    #+#             */
+/*   Updated: 2026/09/20 18:26:18 by lulmaruy         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: the login form UI and its frontend-side validation, part of the mandatory email/password baseline.
 
