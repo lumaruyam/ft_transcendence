@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/14 22:20:51 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/14 22:32:30 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/20 15:41:08 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,7 +16,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "./permissions.middleware.js";
-import { deleteUser, UserNotFoundError, TransferTargetRequiredError, TransferTargetIsSelfError, } from "./users.service.js";
+import { deleteUser, UserNotFoundError, TransferTargetRequiredError, TransferTargetIsSelfError, LastAdminOfMembershipError } from "./users.service.js";
 import { NotAProjectMemberError } from "../projects/projects.service.js";
 
 
@@ -52,6 +52,9 @@ async function deleteUserHandler(request: FastifyRequest, reply: FastifyReply): 
 		if (err instanceof NotAProjectMemberError) {
 			reply.code(409).send({ error: "transfer_target_not_a_member", projectId: err.projectId });
 			return;
+		}
+		if (err instanceof LastAdminOfMembershipError) {
+			reply.code(409).send({ error: "last_admin_of_membership", projectIds:err.projectIds })
 		}
 		throw err;
 	}

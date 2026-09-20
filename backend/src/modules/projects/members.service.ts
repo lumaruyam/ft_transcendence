@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/11 21:57:27 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/12 15:44:12 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/20 16:17:54 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,13 +32,50 @@ export class LastAdminError extends Error {
 	}
 }
 
+export class OwnerRoleError extends Error {
+	constructor() {
+		super("the project owner's role cannot be chnaged or removed this way");
+		this.name = "OwnerRoleError";
+	}
+}
+
+type SafeUser = Pick<User, "id" | "name" | "email" | "avatar" | "createdAt">;
+export type MemberWithUser = ProjectMember & { user: SafeUser };
+
+
 // addMember adds a user to a project with a given role.
-export async function addMember(projectId: string, userId: string, role: Role): Promise<void> {
+export async function addMember(projectId: string, userId: string, role: Role, db: DBClient = prisma): Promise<void> {
 	const user = await prisma.user.findUnique({ where: { id: userId } });
 	if (!user) {
 		throw new UserNotFoundError();
 	}
 	await assignRole(projectId, userId, role);
+
+	const project = await db.project.findUnique({
+		where: { id: projectId },
+		select: { ownerId: true },
+	});
+	if (project && project.ownerId === userId && role !== ROLES.ADMIN) {
+		throw new OwnerRoleError();
+	}
+
+	const existing = await db.projectMember.findUnique({
+		where: { projectId_userId: { projectId, userId } },
+	});
+	if (existing && existing.role === "admin" && role !== "admin") {
+		const adminCount = await db.projectMember.count({
+			where: { projectId, role: "admin" },
+		});
+		if (adminCount <= 1) {
+			throw new LastAdminError();
+		}
+	}
+
+	await db.projectMember.upsert({
+		where: { projectId_userId: { projectId, userId } },
+		create: { projectId, userId, role },
+		update: { role },
+	});
 }
 
 // removeMember removes a user's membership from a project.
@@ -48,6 +85,14 @@ export async function removeMember(projectId: string, userId: string): Promise<v
 	});
 	if (!target) {
 		return;
+	}
+
+	const project = await prisma.project.findUnique({
+		where: { id: projectId },
+		select: { ownerId: true },
+	});
+	if (project && project.ownerId === userId) {
+		throw new OwnerRoleError();
 	}
 
 	if (target.role === "admin") {
@@ -67,7 +112,10 @@ export async function removeMember(projectId: string, userId: string): Promise<v
 export async function listMembers(projectId: string): Promise<ProjectMember[]> {
 	const members = await prisma.projectMember.findMany({
 		where: { projectId },
-		include: { user: true },
+		select:{ projectId: true, userId: true, role: true,
+			user: { select: { id: true, name: true, email: true, avatar: true, createdAt: true }},
+		},
 	});
-	return members.sort((a, b) => ROLE_RANK[b.role as Role] - ROLE_RANK[a.role as Role]);
+	return (members as MemberWithUser[]).sort(
+		(a, b) => ROLE_RANK[b.role as Role] - ROLE_RANK[a.role as Role]);
 }

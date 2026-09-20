@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/12 15:44:50 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/12 22:14:18 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/20 16:19:46 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,17 +16,23 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
 import { ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js";
 import { createProject, getProject, updateProject, deleteProject, listProjectsForUser, transferProjectOwnership, InvalidProjectInputError, NotAProjectMemberError, type CreateProjectInput, type UpdateProjectInput, } from "./projects.service.js";
-import { addMember, removeMember, listMembers } from "./members.service.js";
+import { addMember, removeMember, listMembers, UserNotFoundError, LastAdminError, OwnerRoleError } from "./members.service.js";
+
+// A role coming from the request body is untrusted input. ROLE_RANK is a plain object
+// Object.hasOwn only matches keys we actually defined on ROLE_RANK
+function isKnownRole(role: unknown): role is Role {
+	return typeof role === "string" && Object.hasOwn(ROLE_RANK, role);
+}
 
 // Every path below that carries a project ID uses :projectId
 export async function registerProjectsRoutes(app: FastifyInstance): Promise<void> {
 	app.get("/", { preHandler: requireAuth }, listProjectsHandler);
 	app.post("/", { preHandler: requireAuth }, createProjectHandler);
-	app.get("/:projectId", { preHandler: requireAuth }, getProjectHandler);
+	app.get("/:projectId", { preHandler: [requireAuth, requireRole(ROLES.VIEWER)] }, getProjectHandler);
 	app.put("/:projectId", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, updateProjectHandler);
 	app.delete("/:projectId", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, deleteProjectHandler);
 
-	app.get("/:projectId/members", { preHandler: requireAuth }, listMembersHandler);
+	app.get("/:projectId/members", { preHandler: [requireAuth, requireRole(ROLES.VIEWER)] }, listMembersHandler);
 	app.post("/:projectId/members", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, addMemberHandler);
 	app.delete("/:projectId/members/:userId", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, removeMemberHandler);
 	app.post("/:projectId/transfer-ownership", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, transferOwnershipHandler);
@@ -85,6 +91,15 @@ async function updateProjectHandler(request: FastifyRequest, reply: FastifyReply
 // deleteProjectHandler deletes a project (admin only)
 async function deleteProjectHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId } = request.params as { projectId: string };
+	const project = await getProject(projectId);
+	if (!project) {
+		reply.code(404).send({ error: "project_not_found" });
+		return;
+	}
+	if (project.ownerId !== request.userId) {
+		reply.code(403).send({ error: "owner_required" });
+		return;
+	}
 	await deleteProject(projectId);
 	reply.code(204).send();
 }
@@ -99,21 +114,50 @@ async function listMembersHandler(request: FastifyRequest, reply: FastifyReply):
 // addMemberHandler adds a user to the project with a given role (admin only)
 async function addMemberHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId } = request.params as { projectId: string };
-	const body = request.body as { userId?: string; role?: Role } | undefined;
+	const body = request.body as { userId?: string; role?: unknown } | undefined;
 
-	if (!body?.userId || !body?.role || !(body.role in ROLE_RANK)) {
+	if (!body?.userId || !isKnownRole(body.role)) {
 		reply.code(400).send({ error: "invalid_input", details: ["userId and a valid role are required"] });
 		return;
 	}
-	await addMember(projectId, body.userId, body.role);
-	reply.code(204).send();
+	try {
+		await addMember(projectId, body.userId, body.role);
+		reply.code(204).send();
+	} catch (err) {
+		if (err instanceof UserNotFoundError) {
+			reply.code(404).send({ error: "user_not_found" });
+			return;
+		}
+		if (err instanceof LastAdminError) {
+			reply.code(409).send({ error: "last_admin" });
+			return;
+		}
+		if (err instanceof OwnerRoleError) {
+			reply.code(409).send({ error: "owner_role_immutable" });
+			return;
+		}
+		throw err;
+	}
+
 }
 
 // removeMemberHandler removes a user from the project (admin only).
 async function removeMemberHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId, userId } = request.params as { projectId: string; userId: string };
-	await removeMember(projectId, userId);
-	reply.code(204).send();
+	try {
+		await removeMember(projectId, userId);
+		reply.code(204).send();
+	} catch (err) {
+		if (err instanceof LastAdminError) {
+			reply.code(409).send({ error: "last_admin" });
+			return;
+		}
+		if (err instanceof OwnerRoleError) {
+			reply.code(409).send({ error: "cannot_remove_owner" });
+			return;
+		}
+		throw err;
+	}
 }
 
 async function transferOwnershipHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -125,9 +169,19 @@ async function transferOwnershipHandler(request: FastifyRequest, reply: FastifyR
 		return;
 	}
 
+	const project = await getProject(projectId);
+	if (!project) {
+		reply.code(404).send({ error: "project_not_found" });
+		return;
+	}
+	if (project.ownerId !== request.userId) {
+		reply.code(403).send({ error: "owner_required" });
+		return;
+	}
+
 	try {
-		const project = await transferProjectOwnership(projectId, body.newOwnerId);
-		reply.code(200).send({ project });
+		const updated = await transferProjectOwnership(projectId, body.newOwnerId);
+		reply.code(200).send({ project: updated });
 	} catch (err) {
 		if (err instanceof NotAProjectMemberError) {
 			reply.code(409).send({ error: "not_a_project_member" });
