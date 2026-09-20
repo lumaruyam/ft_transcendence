@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/12 15:44:50 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/20 17:27:47 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/20 17:41:50 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -18,6 +18,12 @@ import { ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js";
 import { createProject, getProject, updateProject, deleteProject, listProjectsForUser, transferProjectOwnership,
 		InvalidProjectInputError, NotAProjectMemberError, type CreateProjectInput, type UpdateProjectInput, } from "./projects.service.js";
 import { addMember, removeMember, listMembers, UserNotFoundError, LastAdminError, OwnerRoleError } from "./members.service.js";
+
+// A role coming from the request body is untrusted input. ROLE_RANK is a plain object 	// Every path below that carries a project ID uses :projectId
+// Object.hasOwn only matches keys we actually defined on ROLE_RANK
+function isKnownRole(role: unknown): role is Role {
+	return typeof role === "string" && Object.hasOwn(ROLE_RANK, role);
+}
 
 // Every path below that carries a project ID uses :projectId
 export async function registerProjectsRoutes(app: FastifyInstance): Promise<void> {
