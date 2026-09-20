@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/12 22:09:24 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/13 20:41:28 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/20 15:12:01 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -109,13 +109,13 @@ export async function createInvite(
 	input: CreateInviteInput
 ): Promise<{ invite: ProjectInvite; plaintextToken: string }> {
 	const errors: string[] = [];
-	if (!input.role || !(input.role in ROLE_RANK)) {
+	if (!input.role || !Object.hasOwn(ROLE_RANK, input.role)) {
 		errors.push("role must be admin, member or viewer");
 	}
-	if (input.maxUses !== undefined && input.maxUses <= 0) {
+	if (input.maxUses !== undefined && (!Number.isInteger(input.maxUses) || input.maxUses <= 0)) {
 		errors.push("maxUses must be a positive integer");
 	}
-	if (input.expiresAt !== undefined && input.expiresAt.getTime() <= Date.now()) {
+	if (input.expiresAt !== undefined && (Number.isNaN(input.expiresAt.getTime()) || input.expiresAt.getTime() <= Date.now())) {
 		errors.push("expiresAt must be in the future");
 	}
 	if (errors.length > 0) {
@@ -147,7 +147,8 @@ export async function createInvite(
 // invite validity is checked; once it succeeds, the invite is irrelevant to future authorization
 export async function joinInvite(token: string, userId: string): Promise<void> {
 	const tokenHash = hashToken(token);
-	const invite = await prisma.projectInvite.findUnique({ where: { tokenHash } });
+	await prisma.$transaction(async (tx) => {
+		const invite = await tx.projectInvite.findUnique({ where: { tokenHash } });
 
 	if (!invite) {
 		throw new InviteNotFoundError();
@@ -162,19 +163,25 @@ export async function joinInvite(token: string, userId: string): Promise<void> {
 		throw new InviteExhaustedError();
 	}
 
-	const existingMembership = await prisma.projectMember.findUnique({
+	const existingMembership = await tx.projectMember.findUnique({
 		where: { projectId_userId: { projectId: invite.projectId, userId } },
 	});
 	if (existingMembership) {
 		throw new AlreadyMemberError();
 	}
 
+	const claim = await tx.projectInvite.updateMany({
+		where: {
+			id: invite.id, OR: [{ maxUses: null }, { useCount: { lt: invite.maxUses ?? 0 } }],},
+			data: { useCount: { increment: 1 } },
+	});
+	if (claim.count === 0) {
+		throw new InviteExhaustedError();
+	}
+
 	// addMember (members.service.ts) inserts the row into project_members
 	// which is what authorization reads from now on, never this invite again
-	await addMember(invite.projectId, userId, invite.role as Role);
-	await prisma.projectInvite.update({
-		where: { id: invite.id },
-		data: { useCount: { increment: 1 } },
+	await addMember(invite.projectId, userId, invite.role as Role, tx);
 	});
 }
 
