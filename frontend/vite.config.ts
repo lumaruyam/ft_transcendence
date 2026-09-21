@@ -7,6 +7,16 @@ export default defineConfig({
   // React plugin is needed only for src/whiteboard/ (Excalidraw).
   // All other pages are vanilla TS — the plugin only activates on .tsx files.
   plugins: [react()],
+  //a little modification from track 4
+  //Excalidraw 0.17's development bundle breaks under Vite's dependency
+  //pre-bundling (css-loader interop error), so always load its production build.
+  resolve: {
+    alias: {
+    "@excalidraw/excalidraw": resolve(
+    import.meta.dirname,
+    "node_modules/@excalidraw/excalidraw/dist/excalidraw.production.min.js",),
+    },
+  },
   root: resolve(import.meta.dirname, "src"),
   publicDir: resolve(import.meta.dirname, "public"),
   server: {
