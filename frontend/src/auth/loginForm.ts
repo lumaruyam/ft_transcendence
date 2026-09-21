@@ -13,10 +13,25 @@
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: the login form UI and its frontend-side validation, part of the mandatory email/password baseline.
 
+import { login, storeAuthSession, AuthApiError } from "./authClient";
+import { startOAuthLogin } from "./oauthFlow";
+
 interface LoginFormValues {
   email: string;
   password: string;
 }
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DASHBOARD_PATH = "/app";
+const SIGNUP_PATH = "/signup";
+const FORGOT_PASSWORD_PATH = "/forgot-password";
+
+export function validateLoginForm(values: LoginFormValues): string[] {
+  const errors: string[] = [];
+  if (!values.email.trim()) {
+    errors.push("email is required.");
+  } else if (!EMAIL_RE.test
+    
 
 // renderLoginForm mounts the login form into the given container element.
 function renderLoginForm(container: HTMLElement): void {
