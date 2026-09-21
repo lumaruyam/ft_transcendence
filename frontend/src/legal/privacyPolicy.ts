@@ -59,7 +59,7 @@ const SECTIONS: Section[] = [
 			"You can see and correct your account information in your settings at any time.",
 			"You can export your data in a machine-readable format from your settings.",
 			"You can delete your account. When you do, we remove your personal information — your email, your name, and your avatar are erased, and your login credentials are destroyed. Your notifications and your API keys are permanently deleted.",
-			"Content you created inside a shared project stays in that project, no longer attached to your name, so that your teammates' work is not broken by your departure. If you own a project that has other members, ownership is transferred to another member; if you are the only member, the project is deleted with your account.",
+			"Content you created inside a shared project stays in that project, no longer attached to your name, so that your teammates' work is not broken by your departure. If you own a project that has other members, you choose which member it is transferred to before your account is deleted; if you are the only member, the project is deleted with your account.",
 			"You also have the right to complain to a data protection authority. In France, that is the CNIL (www.cnil.fr).",
 		],
 	},

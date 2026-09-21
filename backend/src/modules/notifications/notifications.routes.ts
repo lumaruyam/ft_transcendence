@@ -5,16 +5,37 @@ import { requireAuth } from "../permissions/permissions.middleware.js";
 import { listNotifications, markNotificationRead } from "./notifications.service.js";
 
 export async function registerNotificationsRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/", { preHandler: requireAuth }, listNotificationsHandler);
-  app.put("/:id/read", { preHandler: requireAuth }, markReadHandler);
+	app.get("/", { preHandler: requireAuth }, listNotificationsHandler);
+	app.put("/:id/read", { preHandler: requireAuth }, markReadHandler);
 }
 
-// listNotificationsHandler returns the caller's notifications, most recent first.
+//list notifications when GET /notifications
 async function listNotificationsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: call listNotifications(request.userId)
+	const userId = request.userId;
+	if (!userId) {
+		reply.code(401).send({ error: "unauthenticated" });
+		return;
+	}
+
+	const notifications = await listNotifications(userId);
+	reply.code(200).send({ notifications });
 }
 
-// markReadHandler marks a single notification as read.
+//mark a notification as read when PUT /notifications/:id/read
 async function markReadHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: call markNotificationRead(request.params.id)
+	const userId = request.userId;
+	if (!userId) {
+		reply.code(401).send({ error: "unauthenticated" });
+		return;
+	}
+  //take id of notification from request.params(URL path)
+	const { id } = request.params as { id: string };
+
+	const updated = await markNotificationRead(id, userId);
+	if (!updated) {
+		// 404: notification not exist; 403: not right to view this notification; 401: not logged in
+		reply.code(404).send({ error: "notification_not_found" });
+		return;
+	}
+	reply.code(204).send();//204: no content is returned, but success
 }

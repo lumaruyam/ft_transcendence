@@ -29,10 +29,12 @@ export async function listNotifications(userId: string): Promise<Notification[]>
 	});
 }   
 
-//marks a notification as read with prisma.notification.update
-export async function markNotificationRead(id: string): Promise<void> {
-	await prisma.notification.update({
-		where: { id },
-		data: { readAt: new Date() },//set readAt of this notification to now
+//marks a notification as read, only if it belongs to this user
+//returns false if no such notification exists for this user
+export async function markNotificationRead(id: string, userId: string): Promise<boolean> {
+	const result = await prisma.notification.updateMany({
+		where: { id, userId },
+		data: { readAt: new Date() },
 	});
+	return result.count > 0;
 }
