@@ -74,7 +74,7 @@ app.post('/api/webhooks/git', async (request: FastifyRequest, reply: FastifyRepl
 	if(typeof githubEvent !== 'string')
 		return reply.code(400).send({error: 'Github only'});
 	const body = request.body as BaseGitHubPayload; // for parsing full_name
-	let repoName = 'unkown';
+	let repoName = 'unknown';
 	if(body?.repo?.full_name)
 		repoName = body.repo.full_name;
 
