@@ -1,34 +1,100 @@
-// Owner: Track 4 (Whiteboard, notes, and supporting modules)
-// Responsible for: the Advanced search minor module — search across cards, notes, and attachments within a project. TS equivalent of backend/internal/search/search.go (Go skeleton, removed).
-
+//Owner: Track 4 (Whiteboard, notes, and supporting modules)
+//user can search a word in notes, cards, and attachments within a project; this service returns the results to the frontend
+import { prisma } from "../../db/prisma/client.js";
+//interface defines the structure of a search result
 export interface SearchResult {
-  entityType: "card" | "note" | "attachment";
-  entityId: string;
-  title: string;
-  snippet: string;
+	entityType: "card" | "note" | "attachment";//type
+	entityId: string;//ID
+	title: string;//title
+	snippet: string;//snippet,resume
 }
 
-// searchCards searches card titles/descriptions within a project.
+const MAX_RESULTS_PER_TYPE = 20;//max number for each type of search result (card, note, attachment)
+const SNIPPET_RADIUS = 60;//before and after the match, how many charaters to show in the snippet
+
+//intern helper function, make a snippet/query=word to search for, text=the content to search in
+function makeSnippet(text: string, query: string): string {
+	const at = text.toLowerCase().indexOf(query.toLowerCase());//first index of the query in the text
+	if (at === -1) return text.slice(0, SNIPPET_RADIUS * 2);//show the first 120 charaters if the query is not found
+
+	const start = Math.max(0, at - SNIPPET_RADIUS);//start index of the snippet, 60 charaters before the match
+	const end = Math.min(text.length, at + query.length + SNIPPET_RADIUS);//end index of the snippet, 60 charaters after the match
+	return (start > 0 ? "…" : "") + text.slice(start, end) + (end < text.length ? "…" : "");
+}//return a snippet with the query highlighted, and ellipses if the snippet is not at the start or end of the text
+
+//searches card titles/descriptions within a project.
 export async function searchCards(projectId: string, query: string): Promise<SearchResult[]> {
-  // TODO: prisma.card.findMany with a `contains` filter (joined through list -> board -> project), matching query against title/description
-  //       consider Postgres full-text search (tsvector) for relevance ranking once this needs to scale beyond ILIKE
-  return [];
+	if (query.trim() === "") return [];//return empty if user searches for empty
+
+	//search for cards in the project in database
+	const cards = await prisma.card.findMany({
+		where: {
+			list: { board: { projectId } },//search for cards which is this projectId
+			OR: [
+				{ title: { contains: query, mode: "insensitive" } },//insenttive to case for title
+				{ description: { contains: query, mode: "insensitive" } },//intensitive to case for description
+			],
+		},
+		take: MAX_RESULTS_PER_TYPE,//take only the first 20 results from database
+		orderBy: { updatedAt: "desc" },
+	});
+
+	return cards.map((card) => ({//cards from database are mapped to SearchResult interface, and makeSnippet is called to create a snippet for each card
+		entityType: "card" as const,
+		entityId: card.id,
+		title: card.title,		//if description is null, use title as snippet
+		snippet: makeSnippet(card.description ?? card.title, query),
+	}));
 }
 
-// searchNotes searches note content within a project.
+//search note content within a project.
 export async function searchNotes(projectId: string, query: string): Promise<SearchResult[]> {
-  // TODO: search notes.contentJson text for the query
-  return [];
+	if (query.trim() === "") return [];//return empty if user searches for empty
+	//search for notes in the project in database
+	const note = await prisma.note.findFirst({ where: { projectId } });
+	if (!note) return [];
+	//take the content of this note, convert it to string, give it to const text
+	const text = JSON.stringify(note.contentJson);
+	if (!text.toLowerCase().includes(query.toLowerCase())) return [];
+
+	return [
+		{
+			entityType: "note",
+			entityId: note.id,
+			title: "Project note",
+			snippet: makeSnippet(text, query),
+		},
+	];
 }
 
-// searchAttachments searches attachment file names within a project.
+//search attachment file names within a project.
 export async function searchAttachments(projectId: string, query: string): Promise<SearchResult[]> {
-  // TODO: prisma.attachment.findMany filtered by projectId
-  return [];
+	if (query.trim() === "") return [];//return empty if user searches for empty
+	const attachments = await prisma.attachment.findMany({
+		where: {//search in database
+			projectId,
+			fileUrl: { contains: query, mode: "insensitive" },
+		},
+		take: MAX_RESULTS_PER_TYPE,
+		orderBy: { uploadedAt: "desc" },
+	});
+
+	return attachments.map((attachment) => ({
+		entityType: "attachment" as const,
+		entityId: attachment.id,//with his id at the end
+		title: attachment.fileUrl.split("/").pop() ?? attachment.fileUrl,
+		snippet: attachment.fileType,//with his type at the end
+	}));
 }
 
-// searchAll combines cards/notes/attachments results for the project's global search bar.
+//search cards/notes/attachments results once time, and return them to the frontend
 export async function searchAll(projectId: string, query: string): Promise<SearchResult[]> {
-  // TODO: call searchCards/searchNotes/searchAttachments in parallel (Promise.all) and merge, ranked by relevance
-  return [];
+	if (query.trim() === "") return [];//return empty if user searches for empty
+
+	const [cards, notes, attachments] = await Promise.all([
+		searchCards(projectId, query),
+		searchNotes(projectId, query),
+		searchAttachments(projectId, query),
+	]);
+	return [...cards, ...notes, ...attachments];
 }
