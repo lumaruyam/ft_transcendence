@@ -2,7 +2,7 @@
 // Responsible for: the webhook receiver endpoint for push, pull_request, and merge events — the core of the custom "Git/webhook integration" Major module. TS equivalent of backend/internal/git/webhook.go (Go skeleton, removed).
 import type { FastifyInstance, FastifyRequest, FastifyReply, FastifyBaseLogger } from 'fastify';
 import crypto from 'node:crypto';
-import {type LogWebhookEvent, logWebhookEvent} from './webhookLog.service.js';
+import {type LogWebhookEvent, logWebhookEvent, markWebhookProcessed} from './webhookLog.service.js';
 import type { WebhookEvent } from '@prisma/client';
 
 
@@ -19,7 +19,7 @@ interface GitHubRepo{
 }
 
 interface BaseGitHubPayload{
-	repo: GitHubRepo;
+	repository: GitHubRepo;
 }
 // registerGitWebhookRoutes mounts the webhook receiver, called from app.ts. No JWT auth — HMAC signature verification instead.
 
@@ -54,7 +54,7 @@ async function safeLogWebhookEvent(input: LogWebhookEvent, logger?: FastifyBaseL
 
 // registerWebhook registers a webhook on the linked repository for push/pull_request/merge events.
 export function registerWebhookRoutes(app: FastifyInstance): void { //  app - server
-app.post('/api/webhooks/git', async (request: FastifyRequest, reply: FastifyReply) => { //if post to address /api/..;
+app.post('/api/webhooks/git', {config: { rawBody: true } as any}, async (request: FastifyRequest, reply: FastifyReply) => { //if post to address /api/..;
 //async func(=>) run with every request; => - replace word "function"
 
 	//secret webhook
@@ -65,7 +65,7 @@ app.post('/api/webhooks/git', async (request: FastifyRequest, reply: FastifyRepl
 	}
 	//take hash
 	const signature = request.headers['x-hub-signature-256'] as string | undefined;
-	const rawBody = JSON.stringify(request.body); // convert obj to text
+	const rawBody = (request as any).rawBody || '';
 
 	if(!verifyWebhookSignature(rawBody, signature, WEBHOOK_SECRET))
 		return reply.status(401).send({error: 'Invalid HMAC signature'});
@@ -74,29 +74,39 @@ app.post('/api/webhooks/git', async (request: FastifyRequest, reply: FastifyRepl
 	if(typeof githubEvent !== 'string')
 		return reply.code(400).send({error: 'Github only'});
 	const body = request.body as BaseGitHubPayload; // for parsing full_name
-	let repoName = 'unknown';
-	if(body?.repo?.full_name)
-		repoName = body.repo.full_name;
+	const repoName = body?.repository?.full_name || 'unknown';
 
-	//log
+	//log start and save res for id of note of prisma
 	const loggedEvent = await safeLogWebhookEvent({
 		provider: 'github',
 		repo: repoName,
 		eventType: githubEvent,
 		payload: request.body,
 	}, request.log);
+	try{
+		if(githubEvent === 'push' ){
+			await processPushEvent(request.body as GitHubPushPayload);
+		}
+		else if(githubEvent === 'pull_request'){
+			const prPayload = request.body as GitHubPullRequestPayload;
+			if(prPayload.action === 'opened' || prPayload.action === 'reopened')
+				await processPullRequestEvent(prPayload);
+			else if(prPayload.action === 'closed' && prPayload.pull_request.merged)
+				await processMergeEvent(prPayload);
+		}
+		//check id and mark that carde changed position
+		if (loggedEvent && 'id' in loggedEvent) {
+			await markWebhookProcessed(String(loggedEvent.id));
+		}
+		return reply.status(200).send({status: 'ok'});
+	}
+	catch (error) {
+	  // Ловим всё, что прилетело из eventProcessor (например, отвалившуюся базу)
+	  request.log.error({ error, event: githubEvent }, 'Failed to process webhook payload');
 
-	if(githubEvent === 'push' ){
-		await processPushEvent(request.body as GitHubPushPayload);
+	  // Отвечаем 500, чтобы GitHub знал, что доставка не удалась и нужно попробовать позже
+	  return reply.status(500).send({ error: 'Internal processing error' });
 	}
-	else if(githubEvent === 'pull_request'){
-		const prPayload = request.body as GitHubPullRequestPayload;
-		if(prPayload.action === 'opened' || prPayload.action === 'reopened')
-			await processPullRequestEvent(prPayload);
-		else if(prPayload.action === 'closed' && prPayload.pull_request.merged)
-			await processMergeEvent(prPayload);
-	}
-	return reply.status(200).send({status: 'ok'});
 });
 
 }
