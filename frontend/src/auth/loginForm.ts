@@ -30,11 +30,19 @@ export function validateLoginForm(values: LoginFormValues): string[] {
   const errors: string[] = [];
   if (!values.email.trim()) {
     errors.push("email is required.");
-  } else if (!EMAIL_RE.test
-    
+  } else if (!EMAIL_RE.test(values.email.trim())) {
+    errors.push("Enter a valid email address.");
+  }
+  if (!values.password) {
+    errors.push("password is required.");
+  }
+  return errors;
+}
 
-// renderLoginForm mounts the login form into the given container element.
+// renderLoginForm mounts the login form into the given container element
 function renderLoginForm(container: HTMLElement): void {
+  
+  
   // TODO: render email/password inputs and a submit button
   // TODO: wire submit to validateLoginForm then submitLogin
 }
