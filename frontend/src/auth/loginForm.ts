@@ -41,7 +41,14 @@ export function validateLoginForm(values: LoginFormValues): string[] {
 
 // renderLoginForm mounts the login form into the given container element
 function renderLoginForm(container: HTMLElement): void {
+  container.innerHTML = "";
+  container.style.cssText = "max-width:360px;width:100%;font-family:sans-serif;color:#e2e8f0;";
   
+  const form = document.createElement("Form");
+  form.noValidate = true; // turn off the HTML automatic validation to use validateLoginForm
+  const.heading = document.createElement("h1");
+  heading.textContent = "Log in";
+  heading.style.cssText
   
   // TODO: render email/password inputs and a submit button
   // TODO: wire submit to validateLoginForm then submitLogin
