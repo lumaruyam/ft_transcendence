@@ -48,8 +48,20 @@ function renderLoginForm(container: HTMLElement): void {
   form.noValidate = true; // turn off the HTML automatic validation to use validateLoginForm
   const.heading = document.createElement("h1");
   heading.textContent = "Log in";
-  heading.style.cssText
+  heading.style.cssText = "font-size:1.75rem;margin-bottom:1.25rem;";
+  form.appendChild(heading);
+
+  const emailField = createField("email", "Email", "email");
+  const passwordField = createField("password", "Password", "password");
+  form.appendChild(emailField.wrapper);
+  form.appendChild(passwordField.wrapper);
+
+  const errorBox = document.createElement("div");
+  errorBox.setAttribute("role", "alert");
+  errorBox.style.cssText = "color:#f87171;font-size:.85rem;margin:.5rem 0 1rem;min-height:1.1em;";
+  form.appendChild(errorBox);
   
+    
   // TODO: render email/password inputs and a submit button
   // TODO: wire submit to validateLoginForm then submitLogin
 }
