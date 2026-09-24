@@ -4,9 +4,11 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../permissions/permissions.middleware.js";
 import { getLatestNote, autosaveNote } from "./notes.service.js";
 
+// The "/notes" sub-namespace belongs here, not to app.ts — paths stay relative to whatever
+// single boundary prefix app.ts registers this module with (currently "/api").
 export async function registerNotesRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/:projectId", { preHandler: requireAuth }, getNoteHandler);
-  app.put("/:projectId", { preHandler: requireAuth }, autosaveNoteHandler);
+  app.get("/notes/:projectId", { preHandler: requireAuth }, getNoteHandler);
+  app.put("/notes/:projectId", { preHandler: requireAuth }, autosaveNoteHandler);
 }
 
 // getNoteHandler returns the current saved note for a project.

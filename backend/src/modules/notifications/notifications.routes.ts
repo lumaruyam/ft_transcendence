@@ -4,9 +4,11 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../permissions/permissions.middleware.js";
 import { listNotifications, markNotificationRead } from "./notifications.service.js";
 
+// The "/notifications" sub-namespace belongs here, not to app.ts — paths stay relative to
+// whatever single boundary prefix app.ts registers this module with (currently "/api").
 export async function registerNotificationsRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/", { preHandler: requireAuth }, listNotificationsHandler);
-  app.put("/:id/read", { preHandler: requireAuth }, markReadHandler);
+  app.get("/notifications", { preHandler: requireAuth }, listNotificationsHandler);
+  app.put("/notifications/:id/read", { preHandler: requireAuth }, markReadHandler);
 }
 
 // listNotificationsHandler returns the caller's notifications, most recent first.

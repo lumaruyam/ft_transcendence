@@ -95,12 +95,15 @@ export async function listInvites(projectId: string): Promise<ProjectInvite[]> {
 // require requireRole("admin") on :projectId since only project admins manage invites. The join
 // route deliberately does NOT use requireRole — the whole point is granting access to someone
 // who ISN'T a member yet — but does carry the dedicated INVITE_JOIN_RATE_LIMIT config above.
+// The "/projects" sub-namespace belongs here (and in projects.routes.ts), not to app.ts —
+// paths stay relative to whatever single boundary prefix app.ts registers this module with
+// (currently "/api").
 export async function registerInviteRoutes(app: FastifyInstance): Promise<void> {
-  // TODO: app.post("/api/projects/:projectId/invites", { preHandler: [requireAuth,
+  // TODO: app.post("/projects/:projectId/invites", { preHandler: [requireAuth,
   //       requireRole(ROLES.ADMIN)] }, createInviteHandler)
-  // TODO: app.post("/api/projects/invites/:token/join", { preHandler: [requireAuth],
+  // TODO: app.post("/projects/invites/:token/join", { preHandler: [requireAuth],
   //       config: { rateLimit: INVITE_JOIN_RATE_LIMIT } }, joinInviteHandler)
-  // TODO: app.delete("/api/projects/:projectId/invites/:inviteId", { preHandler: [requireAuth,
+  // TODO: app.delete("/projects/:projectId/invites/:inviteId", { preHandler: [requireAuth,
   //       requireRole(ROLES.ADMIN)] }, revokeInviteHandler)
 }
 

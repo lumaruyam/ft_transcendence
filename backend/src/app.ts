@@ -47,19 +47,23 @@ function registerPlugins(app: FastifyInstance, config: AppConfig): void {
 
 // Register all routes
 function registerRoutes(app: FastifyInstance): void {
+	// Every module below shares the same single "/api" boundary prefix — the one thing a
+	// reverse proxy would care about. Each module's own route file owns its sub-namespace
+	// (e.g. "/auth/...", "/projects/...") so moving the API's mount point never means editing
+	// every route file, just this one prefix.
 	app.register(registerHealthRoutes, { prefix: "/api" }); // Smoke test — no auth
-	app.register(registerAuthRoutes, { prefix: "/api/auth" }); // Public routes (no auth required)
+	app.register(registerAuthRoutes, { prefix: "/api" }); // Public routes (no auth required)
 	app.register(registerGitWebhookRoutes, { prefix: "/api"}); // Webhook routes (HMAC-signed, no JWT)
 
 	// Protected routes (require JWT)
 	// Each of these route modules applies requireAuth / requireRole itself as a preHandler
-	app.register(registerProjectsRoutes, { prefix: "/api/projects" });
-	app.register(registerInviteRoutes, { prefix: "/api/projects" });
+	app.register(registerProjectsRoutes, { prefix: "/api" });
+	app.register(registerInviteRoutes, { prefix: "/api" });
 	app.register(registerKanbanRoutes, { prefix: "/api" });
-	app.register(registerNotesRoutes, { prefix: "/api/notes" });
-	app.register(registerAttachmentsRoutes, { prefix: "/api/attachments" });
-	app.register(registerSearchRoutes, { prefix: "/api/search" });
-	app.register(registerNotificationsRoutes, { prefix: "/api/notifications" });
+	app.register(registerNotesRoutes, { prefix: "/api" });
+	app.register(registerAttachmentsRoutes, { prefix: "/api" });
+	app.register(registerSearchRoutes, { prefix: "/api" });
+	app.register(registerNotificationsRoutes, { prefix: "/api" });
 
 	app.register(registerPublicApiRoutes, { prefix: "/api" }); // Public API routes (API-key auth, not JWT)
 }

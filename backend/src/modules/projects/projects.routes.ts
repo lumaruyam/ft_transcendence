@@ -6,16 +6,18 @@ import { ROLES } from "../permissions/roles.service.js";
 import { createProject, getProject, updateProject, deleteProject, listProjectsForUser } from "./projects.service.js";
 import { addMember, removeMember, listMembers } from "./members.service.js";
 
+// The "/projects" sub-namespace belongs here, not to app.ts — paths stay relative to whatever
+// single boundary prefix app.ts registers this module with (currently "/api").
 export async function registerProjectsRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/", { preHandler: requireAuth }, listProjectsHandler);
-  app.post("/", { preHandler: requireAuth }, createProjectHandler);
-  app.get("/:id", { preHandler: requireAuth }, getProjectHandler);
-  app.put("/:id", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, updateProjectHandler);
-  app.delete("/:id", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, deleteProjectHandler);
+  app.get("/projects", { preHandler: requireAuth }, listProjectsHandler);
+  app.post("/projects", { preHandler: requireAuth }, createProjectHandler);
+  app.get("/projects/:id", { preHandler: requireAuth }, getProjectHandler);
+  app.put("/projects/:id", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, updateProjectHandler);
+  app.delete("/projects/:id", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, deleteProjectHandler);
 
-  app.get("/:id/members", { preHandler: requireAuth }, listMembersHandler);
-  app.post("/:id/members", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, addMemberHandler);
-  app.delete("/:id/members/:userId", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, removeMemberHandler);
+  app.get("/projects/:id/members", { preHandler: requireAuth }, listMembersHandler);
+  app.post("/projects/:id/members", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, addMemberHandler);
+  app.delete("/projects/:id/members/:userId", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, removeMemberHandler);
 }
 
 // listProjectsHandler returns every project the caller belongs to.

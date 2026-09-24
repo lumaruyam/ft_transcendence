@@ -2,13 +2,13 @@
 // Responsible for: Fastify route handlers for signup/login/logout — the mandatory baseline user management required regardless of chosen modules. TS equivalent of backend/internal/auth/handlers.go (Go skeleton, removed).
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
-// registerAuthRoutes mounts /api/auth/signup, /api/auth/login, /api/auth/logout on the given
-// Fastify instance, called from app.ts. Canonical API base path is /api (not /api/v1) — matches
-// frontend/src/auth/{loginForm,signupForm}.ts, which already call these under /api/auth/*.
+// registerAuthRoutes mounts /auth/signup, /auth/login, /auth/logout under whatever prefix
+// app.ts registers this module with (currently "/api", the one boundary the reverse proxy
+// cares about) — the "/auth" sub-namespace belongs here, not to app.ts.
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
-  app.post("/api/auth/signup", signupHandler);
-  app.post("/api/auth/login", loginHandler);
-  app.post("/api/auth/logout", logoutHandler);
+  app.post("/auth/signup", signupHandler);
+  app.post("/auth/login", loginHandler);
+  app.post("/auth/logout", logoutHandler);
 }
 
 // signupHandler creates a new user with a hashed/salted password.
