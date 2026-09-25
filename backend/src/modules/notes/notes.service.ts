@@ -6,11 +6,8 @@ import { prisma } from "../../db/prisma/client.js";
 
 //give me a projectId, i will load the current saved note; 
 export async function getLatestNote(projectId: string): Promise<Note | null> {
-	return prisma.note.findFirst({
-		where: { projectId },
-		orderBy: { updatedAt: "desc" },
-	});
-}
+	return prisma.note.findUnique({ where: { projectId } });
+}//findUnique means find maximum one result
 
 //Last save wins.
 export async function autosaveNote(
@@ -24,15 +21,12 @@ export async function autosaveNote(
 	}
   //JSON object ok, now make it executable for Prisma
 	const content = contentJson as Prisma.InputJsonObject;
-  //find the existed note with this projectId
-	const existing = await prisma.note.findFirst({ where: { projectId } });
-	if (existing) {
-		return prisma.note.update({
-			where: { id: existing.id },
-			data: { contentJson: content, updatedBy: userId },
-		});
-	}//if there's no note in this projectId, create a new one
-	return prisma.note.create({
-		data: { projectId, contentJson: content, updatedBy: userId },
+
+	//one statement: update the project's note if it exists, otherwise create it.
+	//the database guarantees no second request can slip in between.
+	return prisma.note.upsert({
+		where: { projectId },
+		update: { contentJson: content, updatedBy: userId },
+		create: { projectId, contentJson: content, updatedBy: userId },
 	});
 }

@@ -19,9 +19,9 @@ const SECTIONS: Section[] = [
 	{
 		title: "2. What we collect",
 		paragraphs: [
-			"Account data: your email address, your display name, and your password. Passwords are never stored in readable form — we store a salted hash. If you sign in with GitHub or GitLab instead, we store the name of that provider and the account identifier it gives us, but not your password there. You may also set an avatar image URL.",
+			"Account data: your email address, your display name, and your password. Passwords are never stored in readable form — we store a salted hash. If you sign in with GitHub instead, we store that provider's name and the account identifier it gives us, but not your GitHub password. You may also set an avatar image URL.",
 			"Content you create: projects, boards, lists, cards, notes, whiteboards, and any files you upload. For each of these we also record who created or last modified it, and when.",
-			"Activity data: notifications generated for you, invitation links you create or use, API keys you generate, and — if you connect a Git repository — the webhook events we receive from GitHub or GitLab about that repository.",
+			"Activity data: notifications generated for you, invitation links you create or use, API keys you generate, and — if you connect a Git repository — the webhook events we receive from GitHub about that repository.",
 			"Technical data: ordinary web server logs, which include your IP address, the page or endpoint requested, and the time. We keep these to debug problems and to notice abuse.",
 		],
 	},
@@ -43,7 +43,7 @@ const SECTIONS: Section[] = [
 		title: "5. Who can see your data",
 		paragraphs: [
 			"Other members of a project can see the content of that project, including notes, cards, files, and the name attached to each change. If you do not want someone to see something, do not put it in a project they belong to.",
-			"Nobody outside your projects can see your content. We do not send your data to any third party, with one exception: if you link a Git repository, requests are exchanged with GitHub or GitLab so that repository events can be shown in the application. Those providers have their own privacy policies.",
+			"Nobody outside your projects can see your content. We do not send your data to any third party, with one exception: if you link a Git repository, requests are exchanged with GitHub so that repository events can be shown in the application. GitHub has its own privacy policy.",
 		],
 	},
 	{
@@ -66,7 +66,7 @@ const SECTIONS: Section[] = [
 	{
 		title: "8. Security",
 		paragraphs: [
-			"Passwords are hashed with bcrypt and a per-user salt, so we never see or store the password itself. Sessions use signed tokens that expire.",
+			"Passwords are hashed with scrypt and a per-user salt, so we never see or store the password itself. Sessions use signed tokens that expire.",
 			"Traffic between your browser and the server is encrypted with HTTPS.",
 			"This is a student project. We have done our best, but we cannot promise the security of a professional service. Please do not store anything genuinely sensitive here.",
 		],

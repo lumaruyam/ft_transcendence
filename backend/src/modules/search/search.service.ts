@@ -22,6 +22,26 @@ function makeSnippet(text: string, query: string): string {
 	return (start > 0 ? "…" : "") + text.slice(start, end) + (end < text.length ? "…" : "");
 }//return a snippet with the query highlighted, and ellipses if the snippet is not at the start or end of the text
 
+// extractPlainText walks a Tiptap JSON document and returns only the text it contains,
+// so search never matches or displays structural keys like "type" or "content".
+function extractPlainText(node: unknown): string {
+	if (node === null || typeof node !== "object") return "";
+
+	if (Array.isArray(node)) {
+		return node.map(extractPlainText).join("");
+	}
+
+	const record = node as { type?: unknown; text?: unknown; content?: unknown };
+
+	if (record.type === "text" && typeof record.text === "string") {
+		return record.text;
+	}
+
+	const inner = extractPlainText(record.content);
+	// paragraphs and headings are separate blocks: add a space so words don't run together
+	return record.type === "paragraph" || record.type === "heading" ? `${inner} ` : inner;
+}
+
 //searches card titles/descriptions within a project.
 export async function searchCards(projectId: string, query: string): Promise<SearchResult[]> {
 	if (query.trim() === "") return [];//return empty if user searches for empty
@@ -51,11 +71,11 @@ export async function searchCards(projectId: string, query: string): Promise<Sea
 export async function searchNotes(projectId: string, query: string): Promise<SearchResult[]> {
 	if (query.trim() === "") return [];//return empty if user searches for empty
 	//search for notes in the project in database
-	const note = await prisma.note.findFirst({ where: { projectId } });
+	const note = await prisma.note.findUnique({ where: { projectId } });
 	if (!note) return [];
 	//take the content of this note, convert it to string, give it to const text
-	const text = JSON.stringify(note.contentJson);
-	if (!text.toLowerCase().includes(query.toLowerCase())) return [];
+	const text = extractPlainText(note.contentJson).trim();
+	if (text === "" || !text.toLowerCase().includes(query.toLowerCase())) return [];
 
 	return [
 		{
