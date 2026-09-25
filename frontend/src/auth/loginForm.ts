@@ -76,6 +76,8 @@ function renderLoginForm(container: HTMLElement): void {
   oauthButton.type = "button";
   oauthButton.textContent = "Continue with Github";
   oauthButton.style.cssText = buttonStyle(false);
+  oauthButton.addEventListner("click", () => startOAuthLogin();
+  form.appendChild(oauthButton);
 
                                              
                                           
