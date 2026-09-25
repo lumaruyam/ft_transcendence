@@ -27,6 +27,17 @@ export const createBoardSchema: FastifySchema = {
 
 export const boardIdParamSchema: FastifySchema = { params: idParamSchema };
 
+export const projectIdParamSchema: FastifySchema = {
+  params: {
+    type: "object",
+    required: ["projectId"],
+    additionalProperties: false,
+    properties: {
+      projectId: { type: "string", format: "uuid" },
+    },
+  },
+};
+
 export const createListSchema: FastifySchema = {
   body: {
     type: "object",

@@ -6,17 +6,357 @@
   <title>Kanban – ft_transcendence</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 2rem; }
-    #board-root { display: flex; gap: 1rem; align-items: flex-start; }
-    .list-column { display: flex; flex-direction: column; gap: .5rem; width: 16rem; flex-shrink: 0; background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: .75rem; }
-    .list-title { font-size: .95rem; }
-    .list-cards { display: flex; flex-direction: column; gap: .5rem; }
-    .card { background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: .6rem .75rem; font-size: .875rem; }
-    .board-empty { color: #94a3b8; font-size: .9rem; }
+
+    :root {
+      color-scheme: dark;
+      --bg-app: #1e1f22;
+      --bg-sidebar: #2b2d31;
+      --bg-topbar: #313338;
+      --bg-main: #313338;
+      --bg-elevated: #383a40;
+      --bg-input: #1e1f22;
+      --text: #f2f3f5;
+      --text-muted: #949ba4;
+      --border: #26282c;
+      --accent: #5865f2;
+      --accent-hover: #4752c4;
+      --online: #23a55a;
+      --offline: #80848e;
+      --shadow: 0 6px 18px rgba(0, 0, 0, .22);
+      --shadow-lg: 0 14px 34px rgba(0, 0, 0, .2);
+      --shadow-inset: inset 0 1px 4px rgba(0, 0, 0, .28);
+      --highlight: rgba(255, 255, 255, .035);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) {
+        color-scheme: light;
+        /* Softer than pure white — reduces glare compared to stark #fff panels. */
+        --bg-app: #e7e9ec;
+        --bg-sidebar: #f4f5f7;
+        --bg-topbar: #f4f5f7;
+        --bg-main: #eceef1;
+        --bg-elevated: #fafafb;
+        --bg-input: #e9ebee;
+        --text: #23252a;
+        --text-muted: #62656c;
+        --border: #dadce0;
+        --offline: #a9adb4;
+        --shadow: 0 6px 18px rgba(30, 34, 42, .08);
+        --shadow-lg: 0 14px 34px rgba(30, 34, 42, .09);
+        --shadow-inset: inset 0 1px 3px rgba(30, 34, 42, .08);
+        --highlight: rgba(255, 255, 255, .1);
+      }
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg-app: #e7e9ec;
+      --bg-sidebar: #f4f5f7;
+      --bg-topbar: #f4f5f7;
+      --bg-main: #eceef1;
+      --bg-elevated: #fafafb;
+      --bg-input: #e9ebee;
+      --text: #23252a;
+      --text-muted: #62656c;
+      --border: #dadce0;
+      --offline: #a9adb4;
+      --shadow: 0 6px 18px rgba(30, 34, 42, .08);
+      --shadow-lg: 0 14px 34px rgba(30, 34, 42, .09);
+      --shadow-inset: inset 0 1px 3px rgba(30, 34, 42, .08);
+      --highlight: rgba(255, 255, 255, .1);
+    }
+
+    body {
+      font-family: "gg sans", "Segoe UI", system-ui, sans-serif;
+      background: var(--bg-app);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .app-shell { display: flex; height: 100vh; }
+
+    /* ---- Sidebar ---- */
+    .sidebar {
+      width: 240px;
+      flex-shrink: 0;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      position: relative;
+      transition: width .18s ease, background-color .15s ease, border-color .15s ease;
+    }
+    .sidebar.collapsed { width: 72px; }
+    .sidebar-toggle {
+      position: absolute; top: 50%; right: -18px;
+      transform: translateY(-50%);
+      width: 36px; height: 36px; flex-shrink: 0;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform .18s ease, background-color .15s ease, color .15s ease;
+      z-index: 5;
+    }
+    /* Small nudge — flex centering alone still reads as slightly off at this size once
+       anti-aliasing is factored in. */
+    .sidebar-toggle svg { display: block; transform: translate(0, 1px); }
+    .sidebar-toggle:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .sidebar.collapsed .sidebar-toggle { transform: translateY(-50%) rotate(180deg); }
+
+    .sidebar-home {
+      display: flex; align-items: center; gap: 10px;
+      margin: 6px 12px 12px;
+      padding: 6px;
+      border-radius: 14px;
+      text-decoration: none; color: var(--text);
+      transition: background-color .15s ease, margin .18s ease, padding .18s ease;
+    }
+    .sidebar-home:hover { background: var(--border); }
+    /* Collapsed: only the badge is visible, so center it in the row instead of the default
+       flex-start — margin/padding here are concrete px values (not width:auto<->fit-content,
+       which can't transition), so this animates in step with .sidebar's own width transition
+       instead of snapping. The hover highlight is dropped in favor of animating the badge
+       directly below, since a wrapping square never quite reads right around a single icon. */
+    .sidebar.collapsed .sidebar-home {
+      justify-content: center;
+      margin: 6px 8px 12px;
+      padding: 4px;
+    }
+    .sidebar.collapsed .sidebar-home:hover { background: none; }
+    .sidebar-home-badge {
+      width: 44px; height: 44px; flex-shrink: 0;
+      border-radius: 14px;
+      background: var(--accent); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1.15rem;
+      transition: border-radius .15s ease, filter .15s ease;
+    }
+    .sidebar.collapsed .sidebar-home:hover .sidebar-home-badge {
+      border-radius: 30%;
+      filter: brightness(1.15);
+    }
+    .sidebar-home-icon {
+      display: none; flex-shrink: 0;
+      width: 44px; height: 44px;
+      align-items: center; justify-content: center;
+      border-radius: 14px; background: var(--accent); color: #fff;
+    }
+    .sidebar-home-label { display: none; font-weight: 700; font-size: .95rem; white-space: nowrap; }
+    .sidebar:not(.collapsed) .sidebar-home-badge { display: none; }
+    .sidebar:not(.collapsed) .sidebar-home-icon { display: flex; }
+    .sidebar:not(.collapsed) .sidebar-home-label { display: inline; }
+
+    /* ---- Main area / topbar ---- */
+    .main-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      height: 56px; flex-shrink: 0;
+      background: var(--bg-topbar);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px;
+      transition: background-color .15s ease, border-color .15s ease;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 10px; }
+    .board-logo {
+      width: 28px; height: 28px; flex-shrink: 0;
+      border-radius: 8px;
+      background: var(--accent); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .65rem;
+    }
+    .topbar-title { font-weight: 600; font-size: .95rem; }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+
+    /* ---- Participants widget ---- */
+    .participants { position: relative; cursor: pointer; }
+    .avatar-stack {
+      display: flex; align-items: center;
+      padding: 4px 10px 4px 4px;
+      border-radius: 20px;
+      background: var(--bg-elevated);
+      transition: background-color .15s ease;
+    }
+    .avatar-stack:hover { background: var(--border); }
+    .avatar {
+      position: relative;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .65rem; font-weight: 700; color: #fff;
+      border: 2px solid var(--bg-topbar);
+      margin-left: -8px;
+    }
+    .avatar:first-child { margin-left: 0; }
+    .avatar-dot {
+      position: absolute; bottom: -1px; right: -1px;
+      width: 9px; height: 9px; border-radius: 50%;
+      border: 2px solid var(--bg-topbar);
+    }
+    .avatar-dot.online { background: var(--online); }
+    .avatar-dot.offline { background: var(--offline); }
+    .avatar-more {
+      width: 28px; height: 28px; margin-left: -8px;
+      border-radius: 50%;
+      background: var(--border); color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .6rem; font-weight: 700;
+      border: 2px solid var(--bg-topbar);
+    }
+
+    /* ---- Profile menu ---- */
+    .profile-menu { position: relative; }
+    .profile-avatar-btn {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--accent); color: #fff;
+      border: none; cursor: pointer;
+      font-weight: 700; font-size: .85rem;
+      transition: filter .15s ease;
+    }
+    .profile-avatar-btn:hover { filter: brightness(1.12); }
+
+    /* ---- Shared dropdown ---- */
+    .dropdown {
+      position: absolute; top: calc(100% + 10px); right: 0;
+      min-width: 240px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: 8px;
+      opacity: 0; pointer-events: none;
+      transform: translateY(-6px) scale(.98);
+      transition: opacity .12s ease, transform .12s ease;
+      z-index: 50;
+    }
+    .dropdown.open { opacity: 1; pointer-events: auto; transform: translateY(0) scale(1); }
+    .dropdown-section-title {
+      font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
+      color: var(--text-muted); padding: 6px 8px 4px;
+    }
+    .dropdown-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px; border-radius: 6px; cursor: default;
+      color: var(--text); text-decoration: none; font-size: .85rem;
+    }
+    .dropdown-link { cursor: pointer; }
+    .dropdown-item:hover { background: var(--border); }
+    .dropdown-item-info { display: flex; flex-direction: column; }
+    .dropdown-item-status { font-size: .7rem; color: var(--text-muted); }
+    .dropdown-divider { height: 1px; background: var(--border); margin: 6px 4px; }
+
+    .theme-toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px; font-size: .85rem;
+    }
+    .theme-switch {
+      width: 36px; height: 20px; border-radius: 10px;
+      background: var(--border); position: relative; cursor: pointer;
+      transition: background-color .15s ease;
+    }
+    .theme-switch.on { background: var(--accent); }
+    .theme-switch-knob {
+      position: absolute; top: 2px; left: 2px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #fff;
+      transition: left .15s ease;
+    }
+    .theme-switch.on .theme-switch-knob { left: 18px; }
+
+    /* ---- Board ---- */
+    #board-root {
+      flex: 1; overflow: auto;
+      display: flex; gap: 1rem; align-items: flex-start;
+      padding: 1.25rem;
+      background: var(--bg-main);
+      transition: background-color .15s ease;
+    }
+    .list-column {
+      display: flex; flex-direction: column; gap: .5rem;
+      width: 16rem; flex-shrink: 0; max-height: 100%;
+      background: linear-gradient(180deg, var(--highlight), transparent 40%), var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px; padding: .75rem;
+      /* Soft, large-radius shadow — an ambient "panel floats a little" cue, not a hard contact
+         shadow, so it stays visible even this close to other columns/the board edge. */
+      box-shadow: var(--shadow-lg);
+      transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+    .list-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .list-title-input {
+      flex: 1; min-width: 0;
+      background: transparent; border: none;
+      color: var(--text); font: inherit; font-weight: 600; font-size: .95rem;
+      padding: 2px 4px;
+    }
+    .list-title-input:focus { outline: 2px solid var(--accent); border-radius: 6px; }
+    .list-cards { display: flex; flex-direction: column; gap: .5rem; overflow-y: auto; }
+    .card {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      /* Inset rather than a drop shadow — cards should read as set into the column, not
+         floating above it. Inset shadows also never get clipped by an ancestor's overflow. */
+      box-shadow: var(--shadow-inset);
+      transition: background-color .15s ease, border-color .15s ease, box-shadow .12s ease;
+    }
+    .card:hover { border-color: var(--accent); }
+    .card-row { display: flex; align-items: center; }
+    .card-title-input {
+      flex: 1; min-width: 0; background: transparent; border: none;
+      color: var(--text); font: inherit; padding: .5rem .65rem;
+    }
+    .card-title-input:focus { outline: 2px solid var(--accent); border-radius: 6px; }
+    .list-delete, .card-delete {
+      background: transparent; border: none; cursor: pointer;
+      color: var(--text-muted); opacity: 0;
+      font-size: 1rem; line-height: 1;
+      width: 22px; height: 22px; flex-shrink: 0;
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity .12s ease, background-color .12s ease, color .12s ease;
+    }
+    .card-delete { margin-right: .4rem; }
+    /* Hidden until you hover the card / the list's title row — not shown at rest. */
+    .list-header:hover .list-delete,
+    .card:hover .card-delete { opacity: .6; }
+    .list-header .list-delete:hover,
+    .card .card-delete:hover { opacity: 1; background: var(--border); color: #ed4245; }
+    .board-empty { color: var(--text-muted); font-size: .9rem; }
+    .add-card-form, .add-list-form { display: flex; }
+    .add-card-input, .add-list-input {
+      width: 100%; background: transparent;
+      border: 1px dashed var(--border); border-radius: 6px;
+      color: var(--text-muted); font: inherit; padding: .5rem .65rem;
+    }
+    .add-card-input:focus, .add-list-input:focus { outline: none; border-color: var(--accent); color: var(--text); }
+    .add-list-form { width: 16rem; flex-shrink: 0; }
   </style>
 </head>
 <body>
-  <div id="board-root"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <script>
+      // Blocking inline script (not a module — those defer until after parsing) so the
+      // "collapsed" class is applied before the sidebar ever paints open. sidebar.ts applies
+      // the same rule again once it runs (and owns the real STORAGE_KEY constant) — this copy
+      // only exists to win the race against the first paint.
+      (function () {
+        try {
+          if (localStorage.getItem("ft_sidebar_collapsed") !== "0") {
+            document.getElementById("sidebar").classList.add("collapsed");
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <div class="main-area">
+      <header class="topbar" id="topbar"></header>
+      <main id="board-root"></main>
+    </div>
+  </div>
   <script type="module" src="./main.ts"></script>
 </body>
 </html>

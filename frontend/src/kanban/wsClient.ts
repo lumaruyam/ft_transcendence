@@ -1,15 +1,28 @@
 // Owner: Track 2 (Person B — WebSocket layer)
-// Responsible for: the Kanban-specific Socket.IO message handler, built on the shared connection wrapper, updating the DOM to match incoming broadcasts.
+// Responsible for: the Kanban-specific Socket.IO connection, joins the project room and
+// forwards every event to boardView state patching logic
+//
+// uses socket io client directly instead of the shared ws wrapper since that module is still a stub
+import { io, Socket } from "socket.io-client";
 
-// connectKanbanSocket opens (or reuses) the Socket.IO connection for a project and wires up Kanban message handling.
-function connectKanbanSocket(projectId: string): void {
-  // TODO: open the connection via frontend/src/api/wsClientWrapper.ts's createSocketConnection
-  // TODO: emit "join_project" with projectId so the backend's hub.ts puts this socket in the matching Socket.IO room
-  // TODO: register onAny(handleKanbanEvent)
-}
+export type KanbanEventHandler = (event: string, payload: unknown) => void;
 
-// handleKanbanEvent applies an incoming "card_created"/"card_updated"/"card_moved"/"card_deleted" event to the DOM/state.
-function handleKanbanEvent(event: string, payload: unknown): void {
-  // TODO: switch on event and patch local board state accordingly, without a full re-fetch
-  // TODO: this must stay correct under concurrent multi-user edits per the mandatory multi-user requirement
+let socket: Socket | null = null;
+
+// joins the project room on connect, including after reconnects
+export function connectKanbanSocket(projectId: string, onEvent: KanbanEventHandler): void {
+  if (socket) {
+    socket.disconnect();
+  }
+
+  socket = io({
+    // TODO Track 1: use the real JWT once login exists, this dev token only unblocks testing
+    auth: { token: "dev" },
+  });
+
+  socket.on("connect", () => {
+    socket?.emit("join_project", projectId);
+  });
+
+  socket.onAny(onEvent);
 }

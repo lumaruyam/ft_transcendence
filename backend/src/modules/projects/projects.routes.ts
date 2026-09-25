@@ -9,7 +9,8 @@ import { addMember, removeMember, listMembers } from "./members.service.js";
 // The "/projects" sub-namespace belongs here, not to app.ts — paths stay relative to whatever
 // single boundary prefix app.ts registers this module with (currently "/api").
 export async function registerProjectsRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/projects", { preHandler: requireAuth }, listProjectsHandler);
+  // named my-projects instead of projects to avoid clashing with the public api list route
+  app.get("/my-projects", { preHandler: requireAuth }, listProjectsHandler);
   app.post("/projects", { preHandler: requireAuth }, createProjectHandler);
   app.get("/projects/:id", { preHandler: requireAuth }, getProjectHandler);
   app.put("/projects/:id", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, updateProjectHandler);
@@ -20,9 +21,13 @@ export async function registerProjectsRoutes(app: FastifyInstance): Promise<void
   app.delete("/projects/:id/members/:userId", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, removeMemberHandler);
 }
 
-// listProjectsHandler returns every project the caller belongs to.
+// TEMPORARY STUB: returns hardcoded projects until listProjectsForUser is implemented
+// real version also needs the caller role from project_members, not just the Project row
 async function listProjectsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: call listProjectsForUser(request.userId)
+  reply.send([
+    { id: "22222222-2222-2222-2222-222222222222", name: "Test Project", role: "admin" },
+    { id: "33333333-3333-3333-3333-333333333333", name: "Test Project 2", role: "member" },
+  ]);
 }
 
 // createProjectHandler creates a new project owned by the caller.

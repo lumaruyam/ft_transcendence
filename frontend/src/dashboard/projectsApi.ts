@@ -7,9 +7,11 @@ export interface ProjectSummary {
   role: string;
 }
 
-// listMyProjects loads every project the logged-in user belongs to.
+// note: the backend endpoint is itself a temporary stub with hardcoded data
 export async function listMyProjects(): Promise<ProjectSummary[]> {
-  // TODO: GET /api/projects via the shared apiClient once apiRequest is implemented —
-  // backend/src/modules/projects/projects.routes.ts's listProjectsHandler is also still a stub.
-  throw new Error("not implemented");
+  const res = await fetch("/api/my-projects");
+  if (!res.ok) {
+    throw new Error(`API error ${res.status} on /api/my-projects`);
+  }
+  return res.json();
 }

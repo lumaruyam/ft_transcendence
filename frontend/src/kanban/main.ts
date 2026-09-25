@@ -1,5 +1,8 @@
 import { fetchBoardForProject } from "./boardApi";
-import { renderBoard } from "./boardView";
+import { mountBoard } from "./boardView";
+import { renderSidebar } from "./sidebar";
+import { renderTopBar } from "./topBar";
+import { initTheme } from "./theme";
 
 function getProjectIdFromUrl(): string | null {
   const match = window.location.pathname.match(/^\/app\/([^/]+)$/);
@@ -7,16 +10,25 @@ function getProjectIdFromUrl(): string | null {
 }
 
 async function init(): Promise<void> {
-  const root = document.getElementById("board-root");
+  initTheme();
+
   const projectId = getProjectIdFromUrl();
-  if (!root || !projectId) return;
+  const sidebar = document.getElementById("sidebar");
+  const topbar = document.getElementById("topbar");
+  const boardRoot = document.getElementById("board-root");
+  if (!projectId || !sidebar || !topbar || !boardRoot) return;
+
+  // renders before the board request finishes so the sidebar does not flash open then close
+  renderSidebar(sidebar);
 
   try {
     const board = await fetchBoardForProject(projectId);
-    renderBoard(root, board);
+    const title = board.title || "Kanban";
+    renderTopBar(topbar, projectId, title);
+    await mountBoard(boardRoot, projectId, board);
   } catch {
-    // boardApi.ts's fetchBoardForProject is still a stub — show the empty state until it's wired.
-    renderBoard(root, { id: "", projectId, title: "", lists: [] });
+    renderTopBar(topbar, projectId, "Kanban");
+    boardRoot.textContent = "Impossible de charger le board pour le moment.";
   }
 }
 

@@ -37,15 +37,16 @@ export async function updateCard(id: string, input: Prisma.CardUncheckedUpdateIn
 	}
 }
 
+// returns the deleted row so callers can resolve its project room, null if not found
 export async function deleteCard(id: string) {
 	try {
-		await prisma.card.delete({ where: { id } });
-		return true;
+		const deleted = await prisma.card.delete({ where: { id } });
+		return deleted;
 	}
 	catch (err)
 	{
 		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025")
-			return false;
+			return null;
 		throw err;
 	}
 }

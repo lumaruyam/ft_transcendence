@@ -47,25 +47,25 @@ function registerPlugins(app: FastifyInstance, config: AppConfig): void {
 
 // Register all routes
 function registerRoutes(app: FastifyInstance): void {
-	// Every module below shares the same single "/api" boundary prefix — the one thing a
-	// reverse proxy would care about. Each module's own route file owns its sub-namespace
-	// (e.g. "/auth/...", "/projects/...") so moving the API's mount point never means editing
-	// every route file, just this one prefix.
-	app.register(registerHealthRoutes, { prefix: "/api" }); // Smoke test — no auth
-	app.register(registerAuthRoutes, { prefix: "/api" }); // Public routes (no auth required)
-	app.register(registerGitWebhookRoutes, { prefix: "/api"}); // Webhook routes (HMAC-signed, no JWT)
+	// The backend knows nothing about "/api" — nginx strips that prefix before forwarding
+	// (see infra/nginx/default.conf.template), so the reverse proxy is the only thing that
+	// owns the API's mount point. Each module's own route file owns its sub-namespace instead
+	// (e.g. "/auth/...", "/projects/...").
+	app.register(registerHealthRoutes); // Smoke test — no auth
+	app.register(registerAuthRoutes); // Public routes (no auth required)
+	app.register(registerGitWebhookRoutes); // Webhook routes (HMAC-signed, no JWT)
 
 	// Protected routes (require JWT)
 	// Each of these route modules applies requireAuth / requireRole itself as a preHandler
-	app.register(registerProjectsRoutes, { prefix: "/api" });
-	app.register(registerInviteRoutes, { prefix: "/api" });
-	app.register(registerKanbanRoutes, { prefix: "/api" });
-	app.register(registerNotesRoutes, { prefix: "/api" });
-	app.register(registerAttachmentsRoutes, { prefix: "/api" });
-	app.register(registerSearchRoutes, { prefix: "/api" });
-	app.register(registerNotificationsRoutes, { prefix: "/api" });
+	app.register(registerProjectsRoutes);
+	app.register(registerInviteRoutes);
+	app.register(registerKanbanRoutes);
+	app.register(registerNotesRoutes);
+	app.register(registerAttachmentsRoutes);
+	app.register(registerSearchRoutes);
+	app.register(registerNotificationsRoutes);
 
-	app.register(registerPublicApiRoutes, { prefix: "/api" }); // Public API routes (API-key auth, not JWT)
+	app.register(registerPublicApiRoutes); // Public API routes (API-key auth, not JWT)
 }
 
 // buildApp constructs a Fastify instance with every module's routes registered, but does not start listening.

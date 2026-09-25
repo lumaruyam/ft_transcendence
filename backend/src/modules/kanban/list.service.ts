@@ -42,17 +42,27 @@ export async function updateList(id: string, input:  Prisma.ListUncheckedUpdateI
 }
 
 
+// returns the deleted row so callers can resolve its project room, null if not found
 export async function deleteList(id: string) {
 	try {
-		await prisma.list.delete({ where: { id } });
-		return true;
+		const deleted = await prisma.list.delete({ where: { id } });
+		return deleted;
 	}
 	catch (err)
 	{
 		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025")
-			return false;
+			return null;
 		throw err;
 	}
+}
+
+// resolves a list id to its project id through its board, used to pick the broadcast room
+export async function getProjectIdForList(listId: string): Promise<string | null> {
+	const list = await prisma.list.findUnique({
+		where: { id: listId },
+		select: { board: { select: { projectId: true } } },
+	});
+	return list?.board.projectId ?? null;
 }
 
 export async function reorderLists(orderedListIds: string[]) {
