@@ -61,7 +61,24 @@ function renderLoginForm(container: HTMLElement): void {
   errorBox.style.cssText = "color:#f87171;font-size:.85rem;margin:.5rem 0 1rem;min-height:1.1em;";
   form.appendChild(errorBox);
   
-    
+  const submitButton = document.createElement("button");
+  submitButton.type = "submit";
+  submitButton.textContent = "Log in";
+  submitButton.style.cssText = buttonStyle(true);
+  form.appendChild(submitButton);
+
+  const divider = document.createElement("dev");
+  divider.textContent = "or";
+  divider.style.cssText = "text-align:center;color:#64748b;font-size:.8rem;margin:1rem 0;";
+  form.appendChild(divider);
+
+  const oauthButton = document.createElement("button");
+  oauthButton.type = "button";
+  oauthButton.textContent = "Continue with Github";
+  oauthButton.style.cssText = buttonStyle(false);
+
+                                             
+                                          
   // TODO: render email/password inputs and a submit button
   // TODO: wire submit to validateLoginForm then submitLogin
 }
