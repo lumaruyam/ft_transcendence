@@ -1,17 +1,32 @@
-// Owner: Track 4 (Whiteboard, notes, and supporting modules)
-// Responsible for: notes CRUD and the autosave endpoint, storing content as JSON with last-save-wins conflict resolution. TS equivalent of backend/internal/notes/notes.go (Go skeleton, removed).
-import type { Note } from "@prisma/client";
+//Owner: Track 4 (Whiteboard, notes, and supporting modules)
+//when user open a project, read the notes;
+//when user stop to  write, autosave the notes;
+import type { Note, Prisma } from "@prisma/client";
+import { prisma } from "../../db/prisma/client.js";
 
-// getLatestNote loads the current saved note for a project, for whoever opens the notes page.
+//give me a projectId, i will load the current saved note; 
 export async function getLatestNote(projectId: string): Promise<Note | null> {
-  // TODO: prisma.note.findFirst({ where: { projectId } }) (one shared note per project, per the plan's scope)
-  return null;
-}
+	return prisma.note.findUnique({ where: { projectId } });
+}//findUnique means find maximum one result
 
-// autosaveNote persists a debounced edit from the Tiptap editor.
-export async function autosaveNote(projectId: string, userId: string, contentJson: unknown): Promise<Note> {
-  // TODO: validate contentJson is well-formed structured data
-  // TODO: upsert the note's contentJson/updatedBy/updatedAt via prisma — last save wins, no conflict resolution by design
-  // TODO: fire a notification via Track 4's notifications.service.ts ("note updated")
-  throw new Error("not implemented");
+//Last save wins.
+export async function autosaveNote(
+	projectId: string,
+	userId: string,
+	contentJson: unknown,//note content to save
+): Promise<Note> {
+  //if note content is not a JSON object; verify what frontend send to backend 
+	if (typeof contentJson !== "object" || contentJson === null || Array.isArray(contentJson)) {
+		throw new Error("contentJson must be a JSON object");
+	}
+  //JSON object ok, now make it executable for Prisma
+	const content = contentJson as Prisma.InputJsonObject;
+
+	//one statement: update the project's note if it exists, otherwise create it.
+	//the database guarantees no second request can slip in between.
+	return prisma.note.upsert({
+		where: { projectId },
+		update: { contentJson: content, updatedBy: userId },
+		create: { projectId, contentJson: content, updatedBy: userId },
+	});
 }
