@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/09 20:34:29 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/09 21:31:17 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/26 16:23:55 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,16 +30,6 @@ export const ROLE_RANK: Record<Role, number> = {
 	member: 1,
 	admin: 2,
 };
-
-// assignRole sets or updates a user's role within a project
-// only an existing admin should be able to call this
-export async function assignRole(projectId: string, userId: string, role: Role): Promise<void> {
-	await prisma.projectMember.upsert({
-		where: { projectId_userId: { projectId, userId } },
-		create: { projectId, userId, role },
-		update: { role },
-	});
-}
 
 // getUserRole looks up a user's role within a project, used by requireRole and by frontend view-gating
 export async function getUserRole(projectId: string, userId: string): Promise<Role | null> {
