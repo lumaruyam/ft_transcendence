@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/14 22:20:51 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/20 15:41:08 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/26 15:14:02 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -54,7 +54,8 @@ async function deleteUserHandler(request: FastifyRequest, reply: FastifyReply): 
 			return;
 		}
 		if (err instanceof LastAdminOfMembershipError) {
-			reply.code(409).send({ error: "last_admin_of_membership", projectIds:err.projectIds })
+			reply.code(409).send({ error: "last_admin_of_membership", projectIds: err.projectIds });
+			return;
 		}
 		throw err;
 	}

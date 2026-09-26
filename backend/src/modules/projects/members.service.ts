@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/11 21:57:27 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/20 16:17:54 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/26 15:16:48 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,7 +14,7 @@
 // Responsible for: adding/removing members within a project, part of the Organization system major module
 import type { Prisma, ProjectMember, User } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
-import { assignRole, ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js"
+import { ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js"
 
 type DBClient = typeof prisma | Prisma.TransactionClient;
 
@@ -34,7 +34,7 @@ export class LastAdminError extends Error {
 
 export class OwnerRoleError extends Error {
 	constructor() {
-		super("the project owner's role cannot be chnaged or removed this way");
+		super("the project owner's role cannot be changed or removed this way");
 		this.name = "OwnerRoleError";
 	}
 }
@@ -45,11 +45,10 @@ export type MemberWithUser = ProjectMember & { user: SafeUser };
 
 // addMember adds a user to a project with a given role.
 export async function addMember(projectId: string, userId: string, role: Role, db: DBClient = prisma): Promise<void> {
-	const user = await prisma.user.findUnique({ where: { id: userId } });
+	const user = await db.user.findUnique({ where: { id: userId } });
 	if (!user) {
 		throw new UserNotFoundError();
 	}
-	await assignRole(projectId, userId, role);
 
 	const project = await db.project.findUnique({
 		where: { id: projectId },
