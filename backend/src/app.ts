@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   app.ts                                             :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
+/*   By: xzhen <xzhen@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/29 14:54:07 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/09 20:25:05 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/26 22:23:22 by xzhen            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -28,6 +28,7 @@ import { registerProjectsRoutes } from "./modules/projects/projects.routes.js"; 
 import { registerInviteRoutes } from "./modules/projects/invites.js";
 import { registerKanbanRoutes } from "./modules/kanban/kanban.routes.js"; // need to create new file
 import { registerNotesRoutes } from "./modules/notes/notes.routes.js"; // need new file
+import { registerWhiteboardRoutes } from "./modules/whiteboard/whiteboard.routes.js";
 import { registerAttachmentsRoutes } from "./modules/attachments/attachments.routes.js" // need new file
 import { registerSearchRoutes } from "./modules/search/search.routes.js"; // need new file
 import { registerNotificationsRoutes } from "./modules/notifications/notifications.routes.js";
@@ -58,6 +59,7 @@ function registerRoutes(app: FastifyInstance): void {
 	app.register(registerInviteRoutes, { prefix: "/api/projects" });
 	app.register(registerKanbanRoutes, { prefix: "/api" });
 	app.register(registerNotesRoutes, { prefix: "/api/notes" });
+	app.register(registerWhiteboardRoutes, { prefix: "/api/whiteboards" });
 	app.register(registerAttachmentsRoutes, { prefix: "/api/attachments" });
 	app.register(registerSearchRoutes, { prefix: "/api/search" });
 	app.register(registerNotificationsRoutes, { prefix: "/api/notifications" });

@@ -26,6 +26,7 @@ model User {
   ownedProjects  Project[]       @relation("ProjectOwner")
   memberships    ProjectMember[]
   updatedNotes   Note[]          @relation("NoteUpdatedBy")
+  updatedWhiteboards Whiteboard[]    @relation("WhiteboardUpdatedBy")
   uploads        Attachment[]    @relation("AttachmentUploadedBy")
   notifications  Notification[]
   createdInvites ProjectInvite[] @relation("InviteCreatedBy")
@@ -48,6 +49,7 @@ model Project {
   invites     ProjectInvite[]
   boards      Board[]
   notes       Note[]
+  whiteboard  Whiteboard?
   attachments Attachment[]
   apiKeys     ApiKey[]
   // tags        Tag[] // Add tags later ?
@@ -186,6 +188,21 @@ model Note {
     
   @@unique([projectId])
   @@map("notes")
+}
+
+// Whiteboard maps to `whiteboards` — one Excalidraw scene per project, autosaved from the
+// frontend. The scene (elements + view state) is stored as JSON so it stays re-editable.
+model Whiteboard {
+  id        String   @id @default(uuid())
+  projectId String   @unique @map("project_id")
+  sceneJson Json     @map("scene_json")
+  updatedBy String   @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  editor  User    @relation("WhiteboardUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@map("whiteboards")
 }
 
 // Attachment maps to `attachments` — covers regular file uploads and exported whiteboard images alike.
