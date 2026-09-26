@@ -68,7 +68,7 @@ services:
     command: sh -c "rm -rf /export/* && cp -r /usr/share/nginx/html/. /export/"
 
   nginx:
-    image: doxker.io/library/nginx:1.27
+    image: docker.io/library/nginx:1.27
     restart: unless-stopped
     environment:
       # all three consumed by the nginx image's entrypoint at startup:
