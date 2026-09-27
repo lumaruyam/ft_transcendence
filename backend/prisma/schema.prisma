@@ -23,13 +23,14 @@ model User {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  ownedProjects  Project[]        @relation("ProjectOwner")
+  ownedProjects  Project[]       @relation("ProjectOwner")
   memberships    ProjectMember[]
-  updatedNotes   Note[]           @relation("NoteUpdatedBy")
-  uploads        Attachment[]     @relation("AttachmentUploadedBy")
+  updatedNotes   Note[]          @relation("NoteUpdatedBy")
+  uploads        Attachment[]    @relation("AttachmentUploadedBy")
   notifications  Notification[]
-  createdInvites ProjectInvite[]  @relation("InviteCreatedBy")
-  revokedInvites ProjectInvite[]  @relation("InviteRevokedBy")
+  createdInvites ProjectInvite[] @relation("InviteCreatedBy")
+  revokedInvites ProjectInvite[] @relation("InviteRevokedBy")
+  apiKeys        ApiKey[]
 
   @@map("users")
 }
@@ -49,6 +50,7 @@ model Project {
   notes       Note[]
   attachments Attachment[]
   apiKeys     ApiKey[]
+  // tags        Tag[] // Add tags later ?
 
   @@map("projects")
 }
@@ -80,14 +82,14 @@ model ProjectInvite {
   maxUses   Int?      @map("max_uses")
   useCount  Int       @default(0) @map("use_count")
   expiresAt DateTime? @map("expires_at")
-  createdBy String    @map("created_by")
+  createdBy String?   @map("created_by")
   createdAt DateTime  @default(now()) @map("created_at")
   revokedBy String?   @map("revoked_by")
   revokedAt DateTime? @map("revoked_at")
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  creator User    @relation("InviteCreatedBy", fields: [createdBy], references: [id])
-  revoker User?   @relation("InviteRevokedBy", fields: [revokedBy], references: [id])
+  creator User?   @relation("InviteCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  revoker User?   @relation("InviteRevokedBy", fields: [revokedBy], references: [id], onDelete: SetNull)
 
   @@map("project_invites")
 }
@@ -134,20 +136,53 @@ model Card {
   list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
   gitLink     GitLink?
   attachments Attachment[]
+  // tags        CardTag[] // Add tags ?
 
   @@map("cards")
 }
+
+// Tag maps to `tags` — project-scoped labels (e.g. "bug", "urgent") applied to cards.
+// Scoped per-project (not global) so two projects can each have their own "bug" tag
+// with independent colors, and deleting a project cleans up its tags automatically.
+// model Tag {
+//  id        String   @id @default(uuid())
+//  projectId String   @map("project_id")
+//  name      String
+//  color     String?
+//  createdAt DateTime @default(now()) @map("created_at")
+//
+//  project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+//  cards   CardTag[]
+//
+//  @@unique([projectId, name])
+//  @@map("tags")
+//}
+
+// CardTag maps to `card_tags` — the many-to-many join between cards and tags. Explicit
+// join table (rather than an implicit Prisma m-n) to match the project's existing
+// convention (see ProjectMember) and leave room for future columns (e.g. added_by/added_at)
+// without a schema rewrite.
+//model CardTag {
+//  cardId String @map("card_id")
+//  tagId  String @map("tag_id")
+//
+//  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+//  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+//
+//  @@id([cardId, tagId])
+//  @@map("card_tags")
+//}
 
 // Note maps to `notes`: id, project_id, content_json, updated_by, updated_at. Autosaved on edit per Track 4's notes module.
 model Note {
   id          String   @id @default(uuid())
   projectId   String   @map("project_id")
   contentJson Json     @map("content_json")
-  updatedBy   String   @map("updated_by")
+  updatedBy   String?  @map("updated_by")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  editor  User    @relation("NoteUpdatedBy", fields: [updatedBy], references: [id])
+  editor  User?   @relation("NoteUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@map("notes")
 }
@@ -159,12 +194,12 @@ model Attachment {
   cardId     String?  @map("card_id")
   fileUrl    String   @map("file_url")
   fileType   String   @map("file_type")
-  uploadedBy String   @map("uploaded_by")
+  uploadedBy String?  @map("uploaded_by")
   uploadedAt DateTime @default(now()) @map("uploaded_at")
 
   project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   card     Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
-  uploader User    @relation("AttachmentUploadedBy", fields: [uploadedBy], references: [id])
+  uploader User?   @relation("AttachmentUploadedBy", fields: [uploadedBy], references: [id], onDelete: SetNull)
 
   @@map("attachments")
 }
@@ -218,6 +253,7 @@ model ApiKey {
   createdAt DateTime @default(now()) @map("created_at")
 
   project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("api_keys")
 }

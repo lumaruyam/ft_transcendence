@@ -3,7 +3,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
 // registerGitWebhookRoutes mounts the webhook receiver, called from app.ts. No JWT auth — HMAC signature verification instead.
-export function registerGitWebhookRoutes(app: FastifyInstance): void {
+export async function registerGitWebhookRoutes(app: FastifyInstance): Promise<void> {
   app.post("/webhooks/git", webhookReceiverHandler);
 }
 

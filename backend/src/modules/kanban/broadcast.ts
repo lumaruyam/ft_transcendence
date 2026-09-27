@@ -1,7 +1,7 @@
 // Owner: Track 2 (Person B — WebSocket layer)
 // Responsible for: broadcasting card/list/board mutation events to every other client in a project's room, after the mutation is saved to Postgres. TS equivalent of backend/internal/kanban/broadcast.go (Go skeleton, removed).
 import type { Card } from "@prisma/client";
-import { getIO } from "./hub";
+import { getIO } from "./hub.js";
 
 export interface KanbanEvent {
   type: string;
