@@ -53,8 +53,8 @@ async function safeLogWebhookEvent(input: LogWebhookEvent, logger?: FastifyBaseL
 
 
 // registerWebhook registers a webhook on the linked repository for push/pull_request/merge events.
-export function registerWebhookRoutes(app: FastifyInstance): void { //  app - server
-app.post('/api/webhooks/git', {config: { rawBody: true } as any}, async (request: FastifyRequest, reply: FastifyReply) => { //if post to address /api/..;
+export function registerGitWebhookRoutes(app: FastifyInstance): void { //  app - server
+app.post('/webhooks/git', {config: { rawBody: true } as any}, async (request: FastifyRequest, reply: FastifyReply) => { //if post to address /api/..;
 //async func(=>) run with every request; => - replace word "function"
 
 	//secret webhook
