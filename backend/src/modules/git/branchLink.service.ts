@@ -18,7 +18,7 @@ async function getGitHubToken(userId: string): Promise<string> {
   return user.oauthAccessToken;
 }
 //to find owner and repo
-function parseRepoUrl(repoUrl: string): { owner: string; repo: string } {
+export function parseRepoUrl(repoUrl: string): { owner: string; repo: string } {
   const cleaned = repoUrl
     .trim()
     .replace(/\.git$/, "")
@@ -78,6 +78,10 @@ export async function createBranch(userId: string, repoUrl: string, branchName: 
   }
 }
 
+export function normalizeRepoUrl(repoUrl: string) : string{
+  const { owner, repo } = parseRepoUrl(repoUrl);
+  return `https://github.com/${owner.toLowerCase()}/${repo.toLowerCase()}`;
+}
 // linkCardToBranch associates a Kanban card with a Git branch, creating the git_links row.
 export async function linkCardToBranch(
   cardId: string,
@@ -85,10 +89,11 @@ export async function linkCardToBranch(
   branchName: string
 ): Promise<GitLink> {
   //create or update note in gitLink
+  const normalizedUrl = normalizeRepoUrl(repoUrl);
   const [link] = await prisma.$transaction([
     prisma.gitLink.upsert({
     where: { cardId },
-    update: { repoUrl, branchName },
+    update: { repoUrl: normalizedUrl, branchName },
     create: { cardId, repoUrl, branchName, prStatus: 'none'},
     }),
 
@@ -110,12 +115,12 @@ export async function listBranches(userId: string, repoUrl: string): Promise<str
   const octokit = new Octokit({ auth: token });
   // TODO: Octokit repos.listBranches (GitHub) using the user's OAuth token
   try{
-    const response = await octokit.rest.repos.listBranches({
+    const response = await octokit.paginate(octokit.rest.repos.listBranches, {
     owner,
     repo,
     per_page: 100,
   });
-  return response.data.map((b) => b.name);
+  return response.map((b) => b.name);
   }
   catch(err: any){
     handleOctokitError(err, {repo: `${owner}/${repo}`});

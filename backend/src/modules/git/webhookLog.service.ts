@@ -27,16 +27,13 @@ export async function logWebhookEvent(input: LogWebhookEvent): Promise<WebhookEv
 }
 
 export async function markWebhookProcessed(eventId: string): Promise<void> {
-  try {
-    await prisma.webhookEvent.update({
-      where: { id: eventId },
-      data: {
-        processedAt: new Date(), // time succes
-      },
-    });
-  } catch (error) {
-    console.error(`Failed to update processedAt for webhook ${eventId}:`, error);
-  }}
+  await prisma.webhookEvent.update({
+    where: { id: eventId },
+    data: {
+      processedAt: new Date(), // time succes
+    },
+  });
+}
 
 // listWebhookEvents returns the audit log for a repo, for a debugging/admin view.
 export async function listWebhookEvents(repoUrl: string): Promise<WebhookEvent[]> {

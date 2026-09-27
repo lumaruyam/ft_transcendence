@@ -3,6 +3,7 @@
 
 import { prisma } from "../../db/prisma/client.js";
 import { updateCard } from "../kanban/cards.service.js";
+import { normalizeRepoUrl } from "./branchLink.service.js"
 
 export interface Commit {
     id: string;
@@ -97,8 +98,15 @@ export async function processMergeEvent(payload: GitHubPullRequestPayload): Prom
 export async function matchCardByGitLink(repoUrl: string, branchName: string): Promise<string | null> {
     // TODO: prisma.gitLink.findFirst({ where: { repoUrl, branchName } }), return the associated cardId
     const cleanBranch = branchName.replace(/^refs\/heads\//, '');
+    let targetUrl = repoUrl;
+    try{
+        targetUrl = normalizeRepoUrl(repoUrl);
+    }
+    catch(err){
+        return null;
+    }
     const link = await prisma.gitLink.findFirst({
-        where: { repoUrl,branchName : cleanBranch
+        where: { repoUrl: targetUrl,branchName : cleanBranch
         },
     });
     return link ? link.cardId : null;
