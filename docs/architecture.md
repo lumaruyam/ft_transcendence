@@ -264,5 +264,6 @@ duplicates or bypasses another table's job:
 | "Did we receive and process this webhook event?" | `webhook_events` | Audit/replay log; `git_links`/`cards.status` are the derived effect, not this table |
 | "Is this API key valid, and what's its quota?" | `api_keys` | `key_hash` only, like `project_invites.token_hash` — never plaintext at rest |
 | "Has this user seen this notification?" | `notifications.read_at` | Notifications are informational records, not an authorization or state-sync mechanism (that's Socket.IO, §6) |
+| "What GitHub token does the backend use to call GitHub on this user's behalf?" | `oauth_accounts.access_token` | Per-user OAuth token (not a GitHub App installation token), encrypted at rest via `modules/auth/tokenCrypto.ts`; read it through `getDecryptedAccessToken(userId)` in `oauth.service.ts`, never directly |
 
 <!-- TODO: expand §7 with a sequence diagram once webhook signature verification and OAuth token storage details are finalized -->
