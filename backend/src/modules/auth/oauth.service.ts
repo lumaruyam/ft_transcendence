@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/15 21:02:09 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/17 22:49:22 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/28 19:06:38 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -18,6 +18,9 @@ import { Prisma, type User } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 import type { OAuthProviderConfig } from "../../config/env.js";
 import { hashPassword } from "./password.service.js";
+import { encryptToken, decryptToken } from "./tokenCrypto.js";
+
+const PROVIDER = "github";
 
 // Set once via initOAuthService, called from app.ts's buildApp right after initJwtService —
 // same pattern, so this module doesn't reach into env.ts directly and app.ts stays the one
@@ -129,7 +132,7 @@ const TOKEN_URL = "https://github.com/login/oauth/access_token";
 
 const USER_URL = "https://api.github.com/user";
 
-// repo / api are what Track 3's git module needslater (via Octokit / @gitbeaker/rest) to link
+// repo / api are what Track 3's git module needslater (via Octokit) to link
 // branches and register webhooks on the user's behalf
 const SCOPE = "read:user user:email repo";
 
