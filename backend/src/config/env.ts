@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/02 19:02:56 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/17 21:40:06 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/28 21:18:19 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,6 +24,7 @@ export interface AppConfig {
 	databaseUrl: string;
 	jwtSecret: string;
 	oauthGithub: OAuthProviderConfig;
+	oauthTokennEncryptionKey: string;
 	gitWebhookSecret: string;
 	publicApiRateLimitDefault: number;
   // rateLimit configures the @fastify/rate-limit plugin registered globally in app.ts.
@@ -98,6 +99,7 @@ export function loadConfig(): AppConfig {
 		databaseUrl: requireEnv("DATABASE_URL"),
 		jwtSecret: requireEnv("JWT_SECRET"),
 		oauthGithub: loadGithubOAuthConfig(),
+		oauthTokennEncryptionKey: requireEnv("OAUTH_TOKEN_ENCRYPTION_KEY"),
 		gitWebhookSecret: requireEnv("GIT_WEBHOOK_SECRET"),
 		publicApiRateLimitDefault: optionalIntEnv("PUBLIC_API_RATE_LIMIT_DEFAULT", 100),
 		rateLimit: {
