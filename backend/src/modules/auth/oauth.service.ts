@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/15 21:02:09 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/28 19:06:38 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/28 21:13:30 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -222,7 +222,19 @@ async function randomUnusablePassword(): Promise<{ hash: string; salt: string }>
 	return hashPassword(randomBytes(32).toString("hex"));
 }
 
-// handleOAuthCallback exchanges the provider's auth code for a token, creates/links the User, and returns them.
+// upsertOAuthAccount stores (or refreshes) the encrypted GitHub token for a user's linked
+// identity. Uses upsert rather than a plain create so a concurrent re-login for the same GitHub
+// identity can never race against the (provider, providerId) unique constraint
+async function upsertOAuthAccount(userId: string, providerId: string, accessToken: string): Promise<void> {
+	const encrypted = encryptToken(accessToken);
+	await prisma.oAuthAccount.upsert({
+		where: { provider_providerId: { provider: PROVIDER, providerId }},
+		update: { accessToken: encrypted, scopes: SCOPE},
+		create: { userId, provider: PROVIDER, providerId, accessToken: encrypted, scopes: SCOPE},
+	});
+}
+
+// handleOAuthCallback exchanges the provider's auth code for a token, creates/links the User, and returns the User
 export async function handleOAuthCallback(code: string, state: string): Promise<User> {
 	verifyState(state);
 
@@ -230,44 +242,48 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
 	const profile = await fetchGitHubProfile(accessToken);
 
 	// 1. Already linked to this provider identity
-	const existingByIdentity = await prisma.user.findFirst({
-		where: { oauthProvider: "github", oauthId: profile.oauthId },
+	const existingAccount = await prisma.oAuthAccount.findUnique({
+		where: { provider_providerId: { provider: PROVIDER, providerId: profile.oauthId }},
+		include: { user: true },
 	});
-	if (existingByIdentity) {
-		return prisma.user.update({
-			where: { id: existingByIdentity.id },
-			data: { oauthAccessToken: accessToken,
-				   avatar: profile.avatar ?? existingByIdentity.avatar
-			},
+	if (existingAccount) {
+		const user = existingAccount.user.avatar || !profile.avatar
+		? existingAccount.user
+		: await prisma.user.update({
+			where: { id: existingAccount.userId },
+			data: { avatar: profile.avatar },
 		});
+		await upsertOAuthAccount(user.id, profile.oauthId, accessToken);
+		return user;
 	}
+
+	// 2. Not linked yet, but an account with this email already exists —> link onto it rather
+	// than creating a duplicate User
 	const existingByEmail = await prisma.user.findUnique({
 		where: { email: profile.email }
 	});
 	if (existingByEmail) {
-		return prisma.user.update({
+		const user = existingByEmail.avatar || !profile.avatar
+		? existingByEmail
+		: await prisma.user.update({
 			where: { id: existingByEmail.id },
-			data: {
-				oauthProvider: "github",
-				oauthId: profile.oauthId,
-				oauthAccessToken: accessToken,
-				avatar: profile.avatar ?? existingByEmail.avatar,
-			},
+			data: { avatar: profile.avatar },
 		});
+		await upsertOAuthAccount(user.id, profile.oauthId, accessToken);
+		return user;
 	}
 
+	// 3. Brand new user
 	const { hash, salt } = await randomUnusablePassword();
+	let user: User;
 	try {
-		return await prisma.user.create({
+		user = await prisma.user.create({
 			data: {
 				email: profile.email,
 				name: profile.name,
 				avatar: profile.avatar,
 				passwordHash: hash,
 				passwordSalt: salt,
-				oauthProvider: "github",
-				oauthId: profile.oauthId,
-				oauthAccessToken: accessToken,
 			},
 		});
 	} catch (err) {
@@ -276,9 +292,14 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
 		}
 		throw err;
 	}
+	await upsertOAuthAccount(user.id, profile.oauthId, accessToken);
+	return user;
 }
 
-// linkOAuthAccount attaches an OAuth identity to an already-authenticated user (adding OAuth on top of email/password)
+// linkOAuthAccount attaches a GitHub identity to an already-authenticated user (adding OAuth on top of email/password),
+// instead of going through handleOAuthCallback's find-or-create-by-email path
+// Guards against linking a GitHub identity that's already claimed by a different user
+// it's "one user per GitHub identity"
 export async function linkOAuthAccount(userId: string, code: string): Promise<void> {
 	const user = await prisma.user.findUnique({ where: { id: userId } });
 	if (!user) {
@@ -287,17 +308,33 @@ export async function linkOAuthAccount(userId: string, code: string): Promise<vo
 
 	const { accessToken } = await exchangeCodeForToken(code);
 	const profile = await fetchGitHubProfile(accessToken);
-
-	if (user.oauthProvider && (user.oauthProvider !== "github" || user.oauthId !== profile.oauthId)) {
-		throw new OAuthAccountConflictError(`user ${userId} already has a ${user.oauthProvider} identity linked, unlink it first`);
+	const existing = await prisma.oAuthAccount.findUnique({
+		where: { provider_providerId: { provider: PROVIDER, providerId: profile.oauthId }},
+	});
+	if (existing && existing.userId !== userId) {
+		throw new OAuthAccountConflictError("this GitHub account is already linked to a different user");
 	}
 
-	await prisma.user.update({
-		where: { id: userId },
-		data: {
-			oauthProvider: "github",
-			oauthId: profile.oauthId,
-			oauthAccessToken: accessToken
-		},
-	});
+	await upsertOAuthAccount(userId, profile.oauthId, accessToken);
+	if (profile.avatar && !user.avatar) {
+		await prisma.user.update({
+			where: { id: userId },
+			data: { avatar: profile.avatar }
+		});
+	}
 }
+
+// getDecryptedAccessToken is the integration point Track 3's branchLink.service.ts should call
+// (e.g. `getDecryptedAccessToken(userId)`) to get a usable GitHub token. There is no
+// User.oauthAccessToken field to read directly by design. Returns null if the user has never linked a GitHub account,
+// which Track 3 should surface as "connect your GitHub account" rather than a generic error
+export async function getDecryptedAccessToken(userId: string): Promise<string | null> {
+	const account = await prisma.oAuthAccount.findFirst({
+		where: { userId, provider: PROVIDER },
+	});
+	if (!account) {
+		return null;
+	}
+	return decryptToken(account.accessToken);
+}
+
