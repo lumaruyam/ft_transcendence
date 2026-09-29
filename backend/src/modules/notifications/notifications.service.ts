@@ -1,40 +1,25 @@
-//Owner: Track 4 (Whiteboard, notes, and supporting modules)
-//create, list, and mark notifications as read for a user
-import type { Notification, Prisma } from "@prisma/client";
-import { prisma } from "../../db/prisma/client.js";
+// Owner: Track 4 (Whiteboard, notes, and supporting modules)
+// Responsible for: the Notification minor module — fires on creation, update, and deletion actions across cards, notes, and files. TS equivalent of backend/internal/notifications/notifications.go (Go skeleton, removed).
+import type { Notification } from "@prisma/client";
 
-//create a notification for a user with prisma.notification.create
+// createNotification inserts a notification for a user, called by Kanban, notes, attachments, and git event processing.
 export async function createNotification(
-	userId: string,//the notification to whom
-	notifType: string,//card, note, file, etc.
-	payload: unknown,//the JSON payload of the notification
+  userId: string,
+  notifType: string,
+  payload: unknown
 ): Promise<Notification> {
-	if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
-		throw new Error("payload must be a JSON object");
-	}
-
-	return prisma.notification.create({
-		data: { 
-		userId, 
-		type: notifType, 
-		payload: payload as Prisma.InputJsonObject },
-	});
+  // TODO: prisma.notification.create
+  // TODO: consider also pushing this over the Kanban Socket.IO hub for instant delivery, distinct from the silent state-sync broadcasts
+  throw new Error("not implemented");
 }
 
-//returns all notifications with prisma.notification.findMany
+// listNotifications returns a user's notifications, most recent first, for the notification bell/inbox.
 export async function listNotifications(userId: string): Promise<Notification[]> {
-	return prisma.notification.findMany({
-		where: { userId },
-		orderBy: { createdAt: "desc" },
-	});
-}   
+  // TODO: prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: "desc" } })
+  return [];
+}
 
-//marks a notification as read, only if it belongs to this user
-//returns false if no such notification exists for this user
-export async function markNotificationRead(id: string, userId: string): Promise<boolean> {
-	const result = await prisma.notification.updateMany({
-		where: { id, userId },
-		data: { readAt: new Date() },
-	});
-	return result.count > 0;
+// markNotificationRead marks a single notification as read.
+export async function markNotificationRead(id: string): Promise<void> {
+  // TODO: prisma.notification.update({ where: { id }, data: { readAt: new Date() } })
 }

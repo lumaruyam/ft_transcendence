@@ -3,41 +3,16 @@
 import { Server as SocketIOServer } from "socket.io";
 import type { Server as HttpServer } from "http";
 
-// Expose the Socket.IO instance on the Fastify app (see server.ts) so route
-// handlers and the shutdown hook can reach it without importing this module.
-declare module "fastify" {
-  interface FastifyInstance {
-    io: SocketIOServer;
-  }
-}
-
 let io: SocketIOServer | null = null;
 
 // createKanbanHub attaches a Socket.IO server to the Node HTTP server Fastify created, called once from server.ts.
 export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
-  // Minimal real implementation so the process starts and rooms work.
-  // TODO: authenticate the socket (JWT passed via handshake auth) before allowing it to join a room
+  // TODO: instantiate `new SocketIOServer(httpServer, { cors: { origin: ... } })`
+  // TODO: on "connection", authenticate the socket (JWT passed via handshake auth) before allowing it to join a room
+  // TODO: on a "join_project" event, socket.join(projectId) — Socket.IO rooms replace the Go hub's `map[project_id]map[*Client]bool`
   // TODO: on "disconnect", trigger a "left" presence broadcast (see presence.ts)
-  io = new SocketIOServer(httpServer, {
-    // `||` not `??`: docker-compose passes CORS_ORIGIN through as "" when unset in .env
-    cors: { origin: process.env.CORS_ORIGIN || "*" },
-  });
-
-  io.on("connection", (socket) => {
-    // Socket.IO rooms replace the Go hub's `map[project_id]map[*Client]bool`
-    socket.on("join_project", (projectId: string) => {
-      if (typeof projectId === "string" && projectId.length > 0) {
-        socket.join(projectId);
-      }
-    });
-    socket.on("leave_project", (projectId: string) => {
-      if (typeof projectId === "string" && projectId.length > 0) {
-        socket.leave(projectId);
-      }
-    });
-  });
-
-  return io;
+  // TODO: store the io instance in the module-level `io` variable so broadcast.ts can reach it
+  throw new Error("not implemented");
 }
 
 // getIO returns the shared Socket.IO server instance for use by broadcast.ts and presence.ts.
