@@ -17,6 +17,7 @@ import { loadConfig } from "./config/env.js";
 import { buildApp } from "./app.js";
 import { connectDatabase, disconnectDatabase } from "./db/prisma/client.js";
 import { createKanbanHub } from "./modules/kanban/hub.js";
+import { seedDevData } from "./dev/seedDevData.js";
 
 async function main(): Promise<void> {
 	try {
@@ -27,6 +28,11 @@ async function main(): Promise<void> {
 		// Connect Database
 		await connectDatabase();
 		console.log("Database connected");
+
+		if (config.nodeEnv === "development") {
+			await seedDevData();
+			console.log("Dev seed data ready");
+		}
 
 		// Build Fastify app
 		const app = buildApp(config);

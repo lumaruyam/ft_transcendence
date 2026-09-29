@@ -6,8 +6,10 @@ import { searchAll } from "./search.service.js";
 //max length of search string=query
 const MAX_QUERY_LENGTH = 200;
 
+// The "/search" sub-namespace belongs here, not to app.ts — paths stay relative to whatever
+// single boundary prefix app.ts registers this module with (currently "/api").
 export async function registerSearchRoutes(app: FastifyInstance): Promise<void> {
-	app.get("/:projectId", { preHandler: [requireAuth, requireRole("viewer")] }, searchHandler);
+  app.get("/search", { preHandler: requireAuth }, searchHandler);
 }
 
 //runs a combined cards/notes/attachments search for a project.

@@ -2,13 +2,14 @@
 // Responsible for: the 5+ documented REST endpoints (GET/POST/PUT/DELETE) required by the Public API major module, wrapping Track 2/3/4's underlying entities. TS equivalent of backend/internal/publicapi/endpoints.go (Go skeleton, removed).
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
-// registerPublicApiRoutes mounts the documented /api/* public endpoints, called from app.ts behind API-key auth + rate limiting.
+// registerPublicApiRoutes mounts the documented public endpoints under whatever prefix app.ts
+// registers this module with (currently "/api") — paths here stay relative to that prefix.
 export async function registerPublicApiRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/api/projects/:projectId/cards", getCardsHandler);
-  app.post("/api/projects/:projectId/cards", createCardHandler);
-  app.put("/api/projects/:projectId/cards/:cardId", updateCardHandler);
-  app.delete("/api/projects/:projectId/cards/:cardId", deleteCardHandler);
-  app.get("/api/projects", getProjectsHandler);
+  app.get("/projects/:projectId/cards", getCardsHandler);
+  app.post("/projects/:projectId/cards", createCardHandler);
+  app.put("/projects/:projectId/cards/:cardId", updateCardHandler);
+  app.delete("/projects/:projectId/cards/:cardId", deleteCardHandler);
+  app.get("/projects", getProjectsHandler);
 }
 
 // getCardsHandler lists cards for a project — GET /api/projects/{id}/cards.

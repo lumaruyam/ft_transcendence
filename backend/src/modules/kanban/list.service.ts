@@ -1,0 +1,85 @@
+import { Prisma } from "@prisma/client";
+import { prisma } from "../../db/prisma/client.js";
+
+export async function createList(input: { boardId: string; title: string; position: number}) {
+	const list = await prisma.list.create({
+		data: {
+			boardId: input.boardId,
+			title: input.title,
+			position: input.position,
+		},
+	});
+	return list;
+}
+
+export async function getList(id: string) {
+	const list = await prisma.list.findUnique({
+		where: { id },
+		include: {
+			cards: {
+				orderBy: { position: "asc" },
+			},
+		},
+	});
+	return list;
+}
+
+export async function updateList(id: string, input:  Prisma.ListUncheckedUpdateInput) {
+	try 
+	{
+		const list = await prisma.list.update({
+			where: { id },
+			data: input,
+		});
+		return list;
+	}
+	catch (err)
+	{
+		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025")
+			return null;
+		throw err;
+	}
+}
+
+
+// returns the deleted row so callers can resolve its project room, null if not found
+export async function deleteList(id: string) {
+	try {
+		const deleted = await prisma.list.delete({ where: { id } });
+		return deleted;
+	}
+	catch (err)
+	{
+		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025")
+			return null;
+		throw err;
+	}
+}
+
+// resolves a list id to its project id through its board, used to pick the broadcast room
+export async function getProjectIdForList(listId: string): Promise<string | null> {
+	const list = await prisma.list.findUnique({
+		where: { id: listId },
+		select: { board: { select: { projectId: true } } },
+	});
+	return list?.board.projectId ?? null;
+}
+
+export async function reorderLists(orderedListIds: string[]) {
+	try {
+		const updates = orderedListIds.map((listId, index) =>
+			prisma.list.update({
+				where: { id: listId },
+				data: { position: index },
+			})
+		);
+		await prisma.$transaction(updates);
+		return true;
+	}
+	catch (err)
+	{
+		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025")
+			return false;
+		throw err;
+	}
+}

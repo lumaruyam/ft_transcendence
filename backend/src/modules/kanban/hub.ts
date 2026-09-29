@@ -1,10 +1,9 @@
 // Owner: Track 2 (Person B — WebSocket layer)
-// Responsible for: the Socket.IO server and per-project rooms — covering the Major "real-time features" module. TS equivalent of backend/internal/kanban/hub.go (Go skeleton, removed); Socket.IO's built-in room support replaces the hand-rolled gorilla/websocket client map.
+
 import { Server as SocketIOServer } from "socket.io";
 import type { Server as HttpServer } from "http";
+import { broadcastPresence, handleReconnect } from "./presence.js";
 
-// Expose the Socket.IO instance on the Fastify app (see server.ts) so route
-// handlers and the shutdown hook can reach it without importing this module.
 declare module "fastify" {
   interface FastifyInstance {
     io: SocketIOServer;
@@ -13,26 +12,46 @@ declare module "fastify" {
 
 let io: SocketIOServer | null = null;
 
-// createKanbanHub attaches a Socket.IO server to the Node HTTP server Fastify created, called once from server.ts.
 export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
-  // Minimal real implementation so the process starts and rooms work.
-  // TODO: authenticate the socket (JWT passed via handshake auth) before allowing it to join a room
-  // TODO: on "disconnect", trigger a "left" presence broadcast (see presence.ts)
   io = new SocketIOServer(httpServer, {
     // `||` not `??`: docker-compose passes CORS_ORIGIN through as "" when unset in .env
     cors: { origin: process.env.CORS_ORIGIN || "*" },
   });
 
+  // TEMPORARY: only checks a token was sent, doesn't verify it.
+  // TODO(Track 1): call validateJwt here once auth/jwt.service.ts implements it.
+  io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (typeof token !== "string" || token.length === 0) {
+      next(new Error("unauthorized"));
+      return;
+    }
+    socket.data.userId = token;
+    next();
+  });
+
   io.on("connection", (socket) => {
-    // Socket.IO rooms replace the Go hub's `map[project_id]map[*Client]bool`
     socket.on("join_project", (projectId: string) => {
-      if (typeof projectId === "string" && projectId.length > 0) {
-        socket.join(projectId);
+      if (typeof projectId !== "string" || projectId.length === 0) return;
+      // TODO(permissions): verify socket.data.userId is a member of projectId — any
+      // authenticated socket can currently join any project's room.
+      socket.data.projectId = projectId;
+      socket.join(projectId);
+      handleReconnect(socket.id, projectId, socket.data.userId);
+    });
+
+    socket.on("leave_project", (projectId: string) => {
+      if (typeof projectId !== "string" || projectId.length === 0) return;
+      socket.leave(projectId);
+      broadcastPresence(projectId, socket.data.userId, "left");
+      if (socket.data.projectId === projectId) {
+        socket.data.projectId = undefined;
       }
     });
-    socket.on("leave_project", (projectId: string) => {
-      if (typeof projectId === "string" && projectId.length > 0) {
-        socket.leave(projectId);
+
+    socket.on("disconnect", () => {
+      if (socket.data.projectId) {
+        broadcastPresence(socket.data.projectId, socket.data.userId, "left");
       }
     });
   });
@@ -40,7 +59,6 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
   return io;
 }
 
-// getIO returns the shared Socket.IO server instance for use by broadcast.ts and presence.ts.
 export function getIO(): SocketIOServer {
   if (!io) {
     throw new Error("Socket.IO server not initialized — call createKanbanHub first");

@@ -48,21 +48,25 @@ function registerPlugins(app: FastifyInstance, config: AppConfig): void {
 
 // Register all routes
 function registerRoutes(app: FastifyInstance): void {
-	app.register(registerHealthRoutes, { prefix: "/api" }); // Smoke test — no auth
-	app.register(registerAuthRoutes, { prefix: "/api/auth" }); // Public routes (no auth required)
-	app.register(registerGitWebhookRoutes, { prefix: "/api"}); // Webhook routes (HMAC-signed, no JWT)
+	// The backend knows nothing about "/api" — nginx strips that prefix before forwarding
+	// (see infra/nginx/default.conf.template), so the reverse proxy is the only thing that
+	// owns the API's mount point. Each module's own route file owns its sub-namespace instead
+	// (e.g. "/auth/...", "/projects/...").
+	app.register(registerHealthRoutes); // Smoke test — no auth
+	app.register(registerAuthRoutes); // Public routes (no auth required)
+	app.register(registerGitWebhookRoutes); // Webhook routes (HMAC-signed, no JWT)
 
 	// Protected routes (require JWT)
 	// Each of these route modules applies requireAuth / requireRole itself as a preHandler
-	app.register(registerProjectsRoutes, { prefix: "/api/projects" });
-	app.register(registerInviteRoutes, { prefix: "/api/projects" });
-	app.register(registerKanbanRoutes, { prefix: "/api" });
-	app.register(registerNotesRoutes, { prefix: "/api/notes" });
-	app.register(registerAttachmentsRoutes, { prefix: "/api/attachments" });
-	app.register(registerSearchRoutes, { prefix: "/api/search" });
-	app.register(registerNotificationsRoutes, { prefix: "/api/notifications" });
+	app.register(registerProjectsRoutes);
+	app.register(registerInviteRoutes);
+	app.register(registerKanbanRoutes);
+	app.register(registerNotesRoutes);
+	app.register(registerAttachmentsRoutes);
+	app.register(registerSearchRoutes);
+	app.register(registerNotificationsRoutes);
 
-	app.register(registerPublicApiRoutes, { prefix: "/api" }); // Public API routes (API-key auth, not JWT)
+	app.register(registerPublicApiRoutes); // Public API routes (API-key auth, not JWT)
 }
 
 // buildApp constructs a Fastify instance with every module's routes registered, but does not start listening.

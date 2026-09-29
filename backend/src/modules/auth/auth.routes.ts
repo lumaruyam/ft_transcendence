@@ -20,18 +20,13 @@ import { validateSignupInput, type SignupInput } from "./auth.validation.js";
 import { hashPassword, verifyPassword } from "./password.service.js";
 import { generateJwt } from "./jwt.service.js";
 
-// registerAuthRoutes mounts /api/auth/signup, /api/auth/login, /api/auth/logout on the given
-// Fastify instance, called from app.ts. Canonical API base path is /api — matches
-// frontend/src/auth/{loginForm,signupForm}.ts, which already call these under /api/auth/*
+// registerAuthRoutes mounts /auth/signup, /auth/login, /auth/logout under whatever prefix
+// app.ts registers this module with (currently "/api", the one boundary the reverse proxy
+// cares about) — the "/auth" sub-namespace belongs here, not to app.ts.
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
-	app.post("/signup", signupHandler);
-	app.post("/login", loginHandler);
-	app.post("/logout", logoutHandler);
-}
-
-interface LoginInput {
-	email: string;
-	password: string;
+  app.post("/auth/signup", signupHandler);
+  app.post("/auth/login", loginHandler);
+  app.post("/auth/logout", logoutHandler);
 }
 
 function toAuthResponse(user: User, token: string) {
