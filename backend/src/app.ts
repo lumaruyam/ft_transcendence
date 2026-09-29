@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/29 14:54:07 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/28 21:25:31 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/29 20:46:18 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,7 +26,7 @@ import { registerHealthRoutes } from "./modules/health/health.routes.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { initJwtService } from "./modules/auth/jwt.service.js";
 import { initOAuthService } from "./modules/auth/oauth.service.js";
-import { initTokenCrypto } from "./modules/auth/tokenCrypt.js";
+import { initTokenCrypto } from "./modules/auth/tokenCrypto.js";
 import { registerProjectsRoutes } from "./modules/projects/projects.routes.js";
 import { registerInviteRoutes } from "./modules/projects/invites.js";
 import { registerUserRoutes } from "./modules/permissions/users.routes.js";
@@ -83,7 +83,7 @@ export function buildApp(config: AppConfig): FastifyInstance {
 
 	initJwtService(config.jwtSecret);
 	initOAuthService({ github: config.oauthGithub, stateSecret: config.jwtSecret });
-	initTokenCrypto(config.oauthTokennEncryptionKey);
+	initTokenCrypto(config.oauthTokenEncryptionKey);
 	registerPlugins(app, config);
 	registerRoutes(app);
 
