@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/09 21:34:46 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/20 16:06:43 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/30 21:06:40 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,7 +32,7 @@ export async function getUser(id: string): Promise<User | null> {
 	return prisma.user.findUnique({ where: { id }});
 }
 
-// updateUser applies an admin edit to a user's account (role changes go through assignRole, not here)
+// updateUser applies an admin edit to a user's account
 export async function updateUser(id: string, input: UpdateUserInput): Promise<User> {
 	return prisma.user.update({ where: { id }, data: input });
 }

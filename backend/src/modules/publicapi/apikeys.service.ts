@@ -1,6 +1,5 @@
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
-// Responsible for: API key issuance/validation for the Public API major module. TS equivalent of backend/internal/publicapi/apikeys.go (Go skeleton, removed).
-import type { ApiKey } from "@prisma/client";
+// Responsible for: API key issuance/validation for the Public API major module
 
 // issueApiKey generates a new API key scoped to a project, for external/script access to the public endpoints.
 export async function issueApiKey(projectId: string): Promise<{ apiKey: ApiKey; plaintextKey: string }> {
