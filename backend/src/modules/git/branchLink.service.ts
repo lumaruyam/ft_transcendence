@@ -19,10 +19,7 @@ async function getGitHubToken(userId: string): Promise<string> {
 }
 //to find owner and repo
 export function parseRepoUrl(repoUrl: string): { owner: string; repo: string } {
-  const cleaned = repoUrl
-    .trim()
-    .replace(/\.git$/, "")
-    .replace(/^(https?:\/\/github\.com\/|git@github\.com:)/, "");
+  const cleaned = repoUrl.trim().replace(/\.git$/, "").replace(/^(https?:\/\/github\.com\/|git@github\.com:)/, "");
   const [owner, repo] = cleaned.split("/");
   if (!owner || !repo) {
     throw new Error(`Invalid GitHub repository URL: ${repoUrl}`);
@@ -46,8 +43,6 @@ function  handleOctokitError(err: any, context?: {repo: string; entity?: string}
 
 // createBranch creates a new branch on the linked repository via the provider's API.
 export async function createBranch(userId: string, repoUrl: string, branchName: string): Promise<void> {
-  // TODO: fetch the user's stored OAuth access token (from Track 1's oauth.service.ts linkOAuthAccount flow)
-  // TODO: branch the implementation on the repo's provider (derive from repoUrl or a stored provider field)
   const token = await getGitHubToken(userId);
   const { owner, repo } = parseRepoUrl(repoUrl);
   const octokit = new Octokit({ auth: token });
@@ -65,7 +60,6 @@ export async function createBranch(userId: string, repoUrl: string, branchName: 
     });
     const latestCommitSha = branchData.commit.sha;
   //branch with duplicate protecrion
-  // TODO: GitHub — use Octokit (`new Octokit({ auth: token })`) to create the branch (git.createRef) from the repo's default branch
     await octokit.rest.git.createRef({
       owner,
       repo,
@@ -104,16 +98,12 @@ export async function linkCardToBranch(
     }),
   ]);
   return link;
-  // TODO: prisma.gitLink.upsert for this card
-  // TODO: populate the card's linkedBranch field (Track 2 Person A's cards.service.ts owns the Card row itself)
 }
 
-// listBranches lists existing branches on a repo, for the "pick an existing branch" UI option.
 export async function listBranches(userId: string, repoUrl: string): Promise<string[]> {
   const token = await getGitHubToken(userId);
   const { owner, repo } = parseRepoUrl(repoUrl);
   const octokit = new Octokit({ auth: token });
-  // TODO: Octokit repos.listBranches (GitHub) using the user's OAuth token
   try{
     const response = await octokit.paginate(octokit.rest.repos.listBranches, {
     owner,

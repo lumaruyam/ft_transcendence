@@ -25,7 +25,6 @@ interface BaseGitHubPayload{
 
 	// verifyWebhookSignature validates the provider's HMAC signature header against the configured webhook secret.
 export function verifyWebhookSignature(payload: string, signature: string | undefined, secret: string): boolean {
-// TODO: compute HMAC-SHA256 of payload with secret (Node's `crypto` module), constant-time compare against signature (crypto.timingSafeEqual)
 if(!signature)
 	return false;
 const hmac = crypto.createHmac('sha256', secret); //create object-generator with algo sha-256
@@ -101,10 +100,10 @@ app.post('/webhooks/git', {config: { rawBody: true } as any}, async (request: Fa
 		return reply.status(200).send({status: 'ok'});
 	}
 	catch (error) {
-	  // Ловим всё, что прилетело из eventProcessor (например, отвалившуюся базу)
+	  //from eventProcessor (par ex db not worked)
 	  request.log.error({ error, event: githubEvent }, 'Failed to process webhook payload');
 
-	  // Отвечаем 500, чтобы GitHub знал, что доставка не удалась и нужно попробовать позже
+	  // reponse 500, for GitHub can repeat later
 	  return reply.status(500).send({ error: 'Internal processing error' });
 	}
 });

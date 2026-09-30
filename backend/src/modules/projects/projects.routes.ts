@@ -15,11 +15,10 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
 import { ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js";
-import { createProject, getProject, updateProject, deleteProject, listProjectsForUser, transferProjectOwnership,
-		InvalidProjectInputError, NotAProjectMemberError, type CreateProjectInput, type UpdateProjectInput, } from "./projects.service.js";
+import { createProject, getProject, updateProject, deleteProject, listProjectsForUser, transferProjectOwnership, InvalidProjectInputError, NotAProjectMemberError, type CreateProjectInput, type UpdateProjectInput, } from "./projects.service.js";
 import { addMember, removeMember, listMembers, UserNotFoundError, LastAdminError, OwnerRoleError } from "./members.service.js";
 
-// A role coming from the request body is untrusted input. ROLE_RANK is a plain object 	// Every path below that carries a project ID uses :projectId
+// A role coming from the request body is untrusted input. ROLE_RANK is a plain object
 // Object.hasOwn only matches keys we actually defined on ROLE_RANK
 function isKnownRole(role: unknown): role is Role {
 	return typeof role === "string" && Object.hasOwn(ROLE_RANK, role);
