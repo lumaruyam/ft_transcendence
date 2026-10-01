@@ -5,9 +5,14 @@ import { Octokit } from "octokit";
 import { prisma} from '../../db/prisma/client.js';
 import { getDecryptedAccessToken } from "../auth/oauth.service.js";
 
-//autorise acces to github
+//autorise access to github
 async function getGitHubToken(userId: string): Promise<string> {
-  const token = await getDecryptedAccessToken(userId);
+  let token: string | null = null;
+  try{
+    token = await getDecryptedAccessToken(userId);
+  } catch{
+    throw new Error("Failed to decrypt GitHub access token. Check your encryption key");
+  }
   if (!token) {
     throw new Error(`GitHub account is not linked for user ${userId}`);
   }
