@@ -39,16 +39,38 @@ async function getProjectsHandler(request: FastifyRequest, reply: FastifyReply):
 	reply.code(200).send({ projects });
 }
 
-// getCardsHandler lists cards for a project — GET /api/projects/{id}/cards.
+// getCardsHandler lists cards for a project — GET /api/projects/{id}/cards
 async function getCardsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: API key + rate limit validated by preHandler chain
-  // TODO: delegate to kanban's cards.service listing function, serialize as documented JSON response
+	const { projectId } = request.params as { projectId: string };
+
+	const query = validateListCardQuery(request.query);
+	if (!query.ok) {
+		reply.code(400).send({ error: "invalid_input", details: query.errors });
+		return;
+	}
+
+	const { cards, total } = await listProjectCards(projectId, query.value);
+	reply.code(200).send({ cards, total, limit: query.value.limit, offert: query.value.offert });
 }
 
-// createCardHandler creates a card via the public API — POST /api/projects/{id}/cards.
+// createCardHandler creates a card via the public API — POST /api/projects/{id}/cards
 async function createCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: validate request body against the documented schema
-  // TODO: delegate to kanban's createCard; broadcasting still happens via Track 2 Person B's Socket.IO hub
+	const { projectId } = request.params as { projectId: string };
+
+	const body = validateCreateCardBody(request.body);
+	if (!body.ok) {
+		reply.code(400).send({ error: "invalid_input", details: body.errors });
+		return;
+	}
+
+	if (!(await listBelongToProject(body.value.listId, projectId))) {
+		reply.code(404).send({ error: "list_not_found" });
+		return;
+	}
+
+	// Broadcasting to the project's Socket.IO room happens inside kanban's createCard
+	const card = await createCard(body.value);
+	reply.code(201).send({ card: toPublicCard(card, projectId) );
 }
 
 // updateCardHandler updates a card via the public API — PUT /api/projects/{id}/cards/{cardId}.
