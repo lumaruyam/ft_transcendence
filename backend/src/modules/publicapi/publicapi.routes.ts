@@ -14,18 +14,18 @@ import { createCard, updateCard, deleteCard } from "../kanban/cards.service.js";
 import { requireApiKey, enforceKeyProjectScope, API_KEY_ROUTE_CONSTRAINT } from "./apikey.middleware.js";
 import { rateLimitMiddleware } from "./ratelimit.middleware.js";
 import { registerApiKeyManagementRoutes } from "./apikeys.routes.js";
-import { listProjectForKey, listProjectCards, listBelongsToProject, cardBelongsToProject, toPublicCard, } from "./publicapi.service.js";
+import { listProjectsForKey, listProjectCards, listBelongsToProject, cardBelongsToProject, toPublicCard, } from "./publicapi.service.js";
 import { validateCreateCardBody, validateUpdateCardBody, validateListCardsQuery, } from "./publicapi.validation.js";
 
 const authChain = [requireApiKey, rateLimitMiddleware];
-const projectChain = (minRole typeof ROLES[keyof typeof ROLES]) => [...authChain, enforceKeyProjectScope, requireRole(minRole), ];
+const projectChain = (minRole: typeof ROLES[keyof typeof ROLES]) => [...authChain, enforceKeyProjectScope, requireRole(minRole), ];
 
 // registerPublicApiRoutes mounts the documented /api/* public endpoints, called from app.ts behind API-key auth + rate limiting
 export async function registerPublicApiRoutes(app: FastifyInstance): Promise<void> {
 	app.get("/projects", { constraints: API_KEY_ROUTE_CONSTRAINT, preHandler: authChain }, getProjectsHandler);
 	app.get("/projects/:projectId/cards", { preHandler: projectChain(ROLES.VIEWER) }, getCardsHandler);
 	app.post("/projects/:projectId/cards", { preHandler: projectChain(ROLES.MEMBER) }, createCardHandler);
-	app.put("/projects/:projectId/cards/:cardId", {preHandler: projectChain(ROLES.MEMBER) }, updateCardHandler);
+	app.put("/projects/:projectId/cards/:cardId", { preHandler: projectChain(ROLES.MEMBER) }, updateCardHandler);
 	app.delete("/projects/:projectId/cards/:cardId", { preHandler: projectChain(ROLES.MEMBER) }, deleteCardHandler);
 
 	// JWT-authenticated key management (issue/list/revoke)
@@ -35,7 +35,7 @@ export async function registerPublicApiRoutes(app: FastifyInstance): Promise<voi
 // getProjectsHandler lists the caller's projects — GET /api/projects
 async function getProjectsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const apiKey = request.apiKey!;
-	const projects = await listProjectForKey(apiKey.userId as string, apiKey.projectId);
+	const projects = await listProjectsForKey(apiKey.userId as string, apiKey.projectId);
 	reply.code(200).send({ projects });
 }
 
@@ -43,14 +43,14 @@ async function getProjectsHandler(request: FastifyRequest, reply: FastifyReply):
 async function getCardsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId } = request.params as { projectId: string };
 
-	const query = validateListCardQuery(request.query);
+	const query = validateListCardsQuery(request.query);
 	if (!query.ok) {
 		reply.code(400).send({ error: "invalid_input", details: query.errors });
 		return;
 	}
 
 	const { cards, total } = await listProjectCards(projectId, query.value);
-	reply.code(200).send({ cards, total, limit: query.value.limit, offert: query.value.offert });
+	reply.code(200).send({ cards, total, limit: query.value.limit, offset: query.value.offset });
 }
 
 // createCardHandler creates a card via the public API — POST /api/projects/{id}/cards
@@ -63,19 +63,19 @@ async function createCardHandler(request: FastifyRequest, reply: FastifyReply): 
 		return;
 	}
 
-	if (!(await listBelongToProject(body.value.listId, projectId))) {
+	if (!(await listBelongsToProject(body.value.listId, projectId))) {
 		reply.code(404).send({ error: "list_not_found" });
 		return;
 	}
 
 	// Broadcasting to the project's Socket.IO room happens inside kanban's createCard
 	const card = await createCard(body.value);
-	reply.code(201).send({ card: toPublicCard(card, projectId) );
+	reply.code(201).send({ card: toPublicCard(card, projectId) });
 }
 
 // updateCardHandler updates a card via the public API — PUT /api/projects/{id}/cards/{cardId}
 async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-	const { projectId, cardId } = request.params as { projectId: string, cardId: string };
+	const { projectId, cardId } = request.params as { projectId: string; cardId: string };
 
 	const body = validateUpdateCardBody(request.body);
 	if (!body.ok) {
@@ -83,17 +83,26 @@ async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): 
 		return;
 	}
 
-	if (!(await cardBelongToProject(cardId, projectId))) {
+	if (!(await cardBelongsToProject(cardId, projectId))) {
 		reply.code(404).send({ error: "card_not_found" });
 		return;
 	}
-		
-  // TODO: validate request body, delegate to kanban's updateCard
+
+	const card = await updateCard(cardId, body.value);
+	reply.code(200).send({ card: toPublicCard(card, projectId) });
 }
 
-// deleteCardHandler deletes a card via the public API — DELETE /api/projects/{id}/cards/{cardId}.
+// deleteCardHandler deletes a card via the public API — DELETE /api/projects/{id}/cards/{cardId}
 async function deleteCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: delegate to kanban's deleteCard
+	const { projectId, cardId } = request.params as { projectId: string; cardId: string };
+
+	if (!(await cardBelongsToProject(cardId, projectId))) {
+		reply.code(404).send({ error: "card_not_found" });
+		return;
+	}
+
+	await deleteCard(cardId);
+	reply.code(204).send();
 }
 
 
