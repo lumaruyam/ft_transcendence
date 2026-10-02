@@ -73,8 +73,21 @@ async function createCardHandler(request: FastifyRequest, reply: FastifyReply): 
 	reply.code(201).send({ card: toPublicCard(card, projectId) );
 }
 
-// updateCardHandler updates a card via the public API — PUT /api/projects/{id}/cards/{cardId}.
+// updateCardHandler updates a card via the public API — PUT /api/projects/{id}/cards/{cardId}
 async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const { projectId, cardId } = request.params as { projectId: string, cardId: string };
+
+	const body = validateUpdateCardBody(request.body);
+	if (!body.ok) {
+		reply.code(400).send({ error: "invalid_input", details: body.errors });
+		return;
+	}
+
+	if (!(await cardBelongToProject(cardId, projectId))) {
+		reply.code(404).send({ error: "card_not_found" });
+		return;
+	}
+		
   // TODO: validate request body, delegate to kanban's updateCard
 }
 
