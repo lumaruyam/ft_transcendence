@@ -1,21 +1,104 @@
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: API key issuance/validation for the Public API major module
 
-// issueApiKey generates a new API key scoped to a project, for external/script access to the public endpoints.
-export async function issueApiKey(projectId: string): Promise<{ apiKey: ApiKey; plaintextKey: string }> {
-  // TODO: generate a cryptographically random key (crypto.randomBytes), store only its hash (keyHash) via prisma
-  // TODO: return the plaintext key exactly once to the caller — it can't be recovered later
-  throw new Error("not implemented");
+import { randomBytes, createHash } from "crypto";
+import type { ApiKey } from "@prisma/client";
+import { prisma } from "../../db/prisma/client.js";
+
+// API_KEY_PREFIX makes keys recognizable
+export const API_KEY_PREFIX = "tk_";
+
+// MAX_RATE_LIMIT caps what an admin can request for a single key (requests per minute)
+export const MAX_RATE_LIMIT = 10_000;
+
+const MAX_PRESENTED_KEY_LENGTH = 128;
+
+let defaultRateLimit = 100;
+
+// initApiKeys is called once from app.ts with config.publicApiRateLimitDefault
+export function initApiKeys(options: { defaultRateLimit: number }): void {
+	if (!Number.isInteger(options.defaultRateLimit) || options.defaultRateLimit <= 0) {
+		throw new Error("PUBLIC_API_RATE_LIMIT_DEFAULT must be a positive integer");
+	}
+	defaultRateLimit = options.defaultRateLimit;
 }
 
-// revokeApiKey disables a previously issued key.
-export async function revokeApiKey(keyId: string): Promise<void> {
-  // TODO: delete or mark the api_keys row revoked via prisma
+export interface IssueApiKeyInput {
+	userId: string;
+	projectId?: string;
+	rateLimit?: number;
 }
 
-// validateApiKey checks an incoming request's API key header against stored key hashes.
+export class InvalidApiKeyInputError extends Error {
+	constructor(public readonly details: string[]) {
+		super("invalid api key input");
+		this.name = "InvalidApiKeyInputError";
+	}
+}
+
+export class ApiKeyNotFoundError extends Error {
+	constructor() {
+		super("api key not found");
+		this.name = "ApiKeyNotFoundError";
+	}
+}
+
+function hashKey(key: string): string {
+	return createHash("sha256").update(key).digest("hex");
+}
+
+export function stripKeyHash(apiKey: ApiKey): Omit<ApiKey, "keyHash"> {
+	const { keyHash: _keyHash, ...safe } = apiKey;
+	return safe;
+}
+
+// issueApiKey generates a new API key for external/script access to the public endpoints
+// The plaintext key is returned exactly once to the caller, it can't be recovered later
+export async function issueApiKey(input: IssueApiKeyInput): Promise<{ apiKey: ApiKey; plaintextKey: string }> {
+	const rateLimit = input.rateLimit ?? defaultRateLimit;
+	if (!Number.isInteger(rateLimit) || rateLimit <= 0 || rateLimit > MAX_RATE_LIMIT) {
+		throw new InvalidApiKeyInputError([`rateLimit must be an integer between 1 and ${MAX_RATE_LIMIT}`]);
+	}
+
+	const plaintextKey = API_KEY_PREFIX + randomBytes(32).toString("base64url");
+	const apiKey = await prisma.apiKey.create({
+		data: {
+			userId: input.userId,
+			projectId: input.projectId ?? null,
+			keyHash: hashKey(plaintextKey),
+			rateLimit,
+		},
+	});
+	return { apiKey, plaintextKey };
+}
+
+// revokeApiKey disables a previously issued key
+export async function revokeApiKey(keyId: string, projectId?: string): Promise<void> {
+	const existing = await prisma.apiKey.findUnique({ where: { id: keyId } });
+	if (!existing || (projectId !== undefined && existing.projectId !== projectId)) {
+		throw new ApiKeyNotFoundError();
+	}
+	await prisma.apiKey.deleteMany({ where: { id: keyId } });
+}
+
+// listApiKeys returns a project's keys (hash stripped) for the admin management view
+export async function listApiKeys(projectId: string): Promise<Omit<ApiKey, "keyHash">[]> {
+	const keys = await prisma.apiKey.findMany({
+		where: { projectId },
+		orderBy: { createdAt: "desc" },
+	});
+	return keys.map(stripKeyHash);
+}
+
+// validateApiKey checks an incoming request's API key header against stored key hashes
 export async function validateApiKey(presentedKey: string): Promise<ApiKey | null> {
-  // TODO: hash presentedKey and look up a matching api_keys row via prisma
-  // TODO: return null if not found/revoked, used by the public API auth middleware
-  return null;
+	if (!presentedKey.startsWith(API_KEY_PREFIX) || presentedKey.length > MAX_PRESENTED_KEY_LENGTH) {
+		return null;
+	}
+
+	const apiKey = await prisma.apiKey.findFirst({ where: { keyHash: hashKey(presentedKey) } });
+	if (!apiKey || apiKey.userId === null) {
+		return null;
+	}
+	return apiKey;
 }
