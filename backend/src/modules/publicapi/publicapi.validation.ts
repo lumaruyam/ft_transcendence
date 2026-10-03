@@ -37,7 +37,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function checkTitle(title: unknown, errors: string[]): string | undefined {
 	if (typeof title !== "string" || title.trim() === "") {
-		errors.push("title is required and msut be a non-empty string");
+		errors.push("title is required and must be a non-empty string");
 		return undefined;
 	}
 	if (title.trim().length > MAX_CARD_TITLE_LENGTH) {
@@ -49,10 +49,33 @@ function checkTitle(title: unknown, errors: string[]): string | undefined {
 
 function checkDescription(description: unknown, errors: string[]): string | undefined {
 	if (typeof description !== "string") {
+		errors.push("description must be a string");
+		return undefined;
+	}
+	if (description.length > MAX_CARD_DESCRIPTION_LENGTH) {
 		errors.push(`description must be at most ${MAX_CARD_DESCRIPTION_LENGTH} characters`);
 		return undefined;
 	}
 	return description;
+}
+
+//  validateCreateCardBody checks POST /projects/:projectId/cards. Unknown fields are ignored
+export function validateCreateCardBody(body: unknown): Result<CreateCardBody> {
+	const errors: string[] = [];
+	if (!isRecord(body)) {
+		return { ok: false, errors: ["request body must be a JSON object"] };
+	}
+
+	if (typeof body.listId !== "string" || body.listId.trim() === "") {
+		errors.push("listId is required and must be a non-empty string");
+	}
+	const title = checkTitle(body.title, errors);
+	const description = body.description === undefined ? undefined : checkDescription(body.description, errors);
+
+	if (errors.length > 0) {
+		return { ok: false, errors };
+	}
+	return { ok: true, value: { listId: (body.listId as string).trim(), title: title as string, description }};
 }
 
 // validateUpdateCardBody checks PUT /projects/:projectId/cards/:cardId
@@ -62,12 +85,12 @@ export function validateUpdateCardBody(body: unknown): Result<UpdateCardBody> {
 		return { ok: false, errors: ["request body must be a JSON object"] };
 	}
 	if (body.title === undefined && body.description === undefined) {
-		return { ok: false, errors: ["at least one of title or description is required"]};
+		return { ok: false, errors: ["at least one of title or description is required"] };
 	}
 
-	const value: UpdateCardBody = [];
+	const value: UpdateCardBody = {};
 	if (body.title !== undefined) {
-		value.title = checkTitle(body.checkDescription, errors);
+		value.title = checkTitle(body.title, errors);
 	}
 	if (body.description !== undefined) {
 		value.description = checkDescription(body.description, errors);
@@ -83,7 +106,7 @@ function parseIntParam(raw: unknown, name: string, min: number, max: number, fal
 	if (raw === undefined) {
 		return fallback;
 	}
-	const parsed = typeof raw === "string" && /^\d+$/.test(raw) ? Number.parseInt(raw, 10): NaN;
+	const parsed = typeof raw === "string" && /^\d+$/.test(raw) ? Number.parseInt(raw, 10) : NaN;
 	if (Number.isNaN(parsed) || parsed < min || parsed > max) {
 		errors.push(`${name} must be an integer between ${min} and ${max}`);
 		return fallback;
@@ -91,6 +114,7 @@ function parseIntParam(raw: unknown, name: string, min: number, max: number, fal
 	return parsed;
 }
 
+// validateListCardsQuery checks GET /projects/:projectId/cards query params (listId, status, limit, offset)
 export function validateListCardsQuery(query: unknown): Result<ListCardsQuery> {
 	const q = isRecord(query) ? query : {};
 	const errors: string[] = [];
@@ -100,7 +124,7 @@ export function validateListCardsQuery(query: unknown): Result<ListCardsQuery> {
 
 	for (const name of ["listId", "status"] as const) {
 		if (q[name] !== undefined && (typeof q[name] !== "string" || (q[name] as string).trim() === "")) {
-			errors.push(`{name} must be a non-empty string`);
+			errors.push(`${name} must be a non-empty string`);
 		}
 	}
 
@@ -118,12 +142,13 @@ export function validateListCardsQuery(query: unknown): Result<ListCardsQuery> {
 	};
 }
 
+// validateIssueApiKeyBody checks POST /projects/:projectId/api-keys
 export function validateIssueApiKeyBody(body: unknown): Result<{ rateLimit?: number }> {
 	if (body === undefined || body === null) {
-		return { ok: true, value: {}};
+		return { ok: true, value: {} };
 	}
 	if (!isRecord(body)) {
-		return { ok: true, value: {} };
+		return { ok: false, errors: ["request body must be a JSON object"] };
 	}
 	if (body.rateLimit === undefined) {
 		return { ok: true, value: {} };
