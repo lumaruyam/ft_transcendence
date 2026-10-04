@@ -34,3 +34,41 @@ export async function requireApiKey(request: FastifyRequest, reply: FastifyReply
 	request.apiKey = apiKey;
 	request.userId = apiKey.userId as string;
 }
+
+// enforceKeyProjectScope rejects a project-scoped key used against another project
+export async function enforceKeyProjectScope(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const scope = request.apiKey?.projectId;
+	if (!scope) {
+		return;
+	}
+	const params = request.params as Record<string, string | undefined> | undefined;
+	if (params?.projectId !== scope) {
+		reply.code(403).send({ error: "api_key_project_mismatch" });
+	}
+}
+
+// apiKeyRouteConstraint is a Fastify custom constraint strategy (passed via Fastify({ constraints }) in app.ts)
+export const apiKeyRouteConstraint: NonNullable<FastifyServerOptions["constraints"]>[string] = {
+	name: "apiAuth",
+	storage() {
+		const handlers = new Map<string, unknown>();
+		return {
+			get: (value: string) => handlers.get(value) ?? null,
+			set: (value: string, handler: unknown) => {
+				handlers.set(value, handler);
+			},
+		};
+	},
+	deriveConstraint(req) {
+		return req.headers[PUBLIC_API_KEY_HEADER] !== undefined ? "apikey" : undefined;
+	},
+	validate(value: unknown) {
+		if (value !== "apikey") {
+			throw new Error(`apiAuth constraint must be apikey, got ${String(value)}`);
+		}
+	},
+	mustMatchWhenDerived: false,
+} as NonNullable<FastifyServerOptions["constraints"]>[string];
+
+// API_KEY_ROUTE_CONSTRAINT is the constraints value public routes that share a path with a JWT route declare
+export const API_KEY_ROUTE_CONSTRAINT = { apiAuth: "apikey" } as const;
