@@ -1,15 +1,3 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   app.ts                                             :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2026/08/29 14:54:07 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/29 20:46:18 by lulmaruy         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: building and configuring the Fastify application instance — route registration, plugins, and middleware wiring.
 import Fastify, { FastifyInstance } from "fastify";
@@ -37,6 +25,9 @@ import { registerSearchRoutes } from "./modules/search/search.routes.js";
 import { registerNotificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { registerGitWebhookRoutes } from "./modules/git/webhook.routes.js";
 import { registerPublicApiRoutes } from "./modules/publicapi/publicapi.routes.js";
+import { initApiKeys } from "./modules/publicapi/apikeys.service.js";
+import { apiKeyRouteConstraint } from "./modules/publicapi/apikey.middleware.js";
+
 
 // Register plugins
 function registerPlugins(app: FastifyInstance, config: AppConfig): void {
@@ -79,11 +70,12 @@ function registerRoutes(app: FastifyInstance): void {
 
 // buildApp constructs a Fastify instance with every module's routes registered, but does not start listening.
 export function buildApp(config: AppConfig): FastifyInstance {
-	const app = Fastify({ logger: true, });
+	const app = Fastify({ logger: true, constraints: { apiAuth: apiKeyRouteConstraint } });
 
 	initJwtService(config.jwtSecret);
 	initOAuthService({ github: config.oauthGithub, stateSecret: config.jwtSecret });
 	initTokenCrypto(config.oauthTokenEncryptionKey);
+	initApiKeys({ defaultRateLimit: config.publicApiRateLimitDefault });
 	registerPlugins(app, config);
 	registerRoutes(app);
 
