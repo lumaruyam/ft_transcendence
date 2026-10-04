@@ -49,6 +49,7 @@ server {
 
     # API -> Node.js backend
     location /api/ {
+        client_max_body_size 20M;
         proxy_pass         $backend_api;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
