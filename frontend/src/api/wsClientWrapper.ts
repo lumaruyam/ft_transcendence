@@ -7,7 +7,7 @@ type MessageHandler = (event: string, data: unknown) => void;
 
 export interface SocketConnection {
 	emit: (event: string, data: unknown) => void;
-	onAny: (habdler: MessageHandler) => void;// onAny receives every server event as (eventName, firstPayloadArgument)
+	onAny: (handler: MessageHandler) => void;// onAny receives every server event as (eventName, firstPayloadArgument)
 	// onConnect fires on the first connect AND on every automatic reconnect. Socket.IO rooms live on the
 	// server-side socket, so a reconnect lands in no room: feature clients must re-emit their join event
 	// (e.g. kanban's "join_project") from this callback, not just once after creating the connection
@@ -20,7 +20,7 @@ export interface SocketConnection {
 // url is the server origin (pass window.location.origin).
 // The JWT travels in the handshake auth payload (socket.handshake.auth.token); hub.ts does not verify it
 // yet (TODO there), so until it does, the backend accepts any connection.
-function createSocketConnection(url: string, authToken: string): SocketConnection {
+export function createSocketConnection(url: string, authToken: string): SocketConnection {
 	// Socket.IO's built-in reconnection (with backoff) replaces the manual reconnect logic a raw WebSocket wrapper would need
 	const socket = io(url, { auth: { token: authToken }});
 
