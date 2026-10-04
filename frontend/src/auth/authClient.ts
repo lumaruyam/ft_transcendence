@@ -1,15 +1,3 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   authClient.ts                                      :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2026/09/20 18:38:13 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/20 19:56:43 by lulmaruy         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: auth-specific HTTP calls (signup/login/logout) and the client-side session
 // (JWT + user profile) that loginForm.ts, signupForm.ts, and oauthFlow.ts all read/write.
@@ -100,7 +88,7 @@ export function login(input: LoginInput): Promise<AuthResponse> {
 }
 
 // logout calls POST /api/auth/logout
-export function logout(): Promise<void> {
+export async function logout(): Promise<void> {
 	const token = getStoredToken();
 	try {
 		await authRequest<void>("/logout", undefined, token ?? undefined);
@@ -150,6 +138,14 @@ export function storeToken(token: string): void {
 		localStorage.setItem(TOKEN_STORAGE_KEY, token);
 	} catch {
 		// nothing more we can do client-side
+	}
+}
+
+// storeUser persists just the profile — used when the token arrived on its own (GitHub OAuth)
+export function storeUser(user: AuthUser): void {
+	try {
+		localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+	} catch {
 	}
 }
 
