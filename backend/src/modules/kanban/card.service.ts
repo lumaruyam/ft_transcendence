@@ -26,6 +26,15 @@ export async function createCard(input: { listId: string; title: string; descrip
 	return card;
 }
 
+// resolves a card id to its project id through its list and board, used for permission checks
+export async function getProjectIdForCard(cardId: string): Promise<string | null> {
+	const card = await prisma.card.findUnique({
+		where: { id: cardId },
+		select: { list: { select: { board: { select: { projectId: true } } } } },
+	});
+	return card?.list.board.projectId ?? null;
+}
+
 export async function getCard(id: string) {
 	const card = await prisma.card.findUnique({
 		where: { id },

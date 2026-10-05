@@ -3,6 +3,8 @@
 // clients (Socket.IO) are done by the services themselves, so every caller of a mutation gets them.
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../permissions/permissions.middleware.js";
+import { ROLES } from "../permissions/roles.service.js";
+import { requireProjectRole, projectOf } from "./kanban.permissions.js";
 import {
   createBoard,
   getBoard,
@@ -30,71 +32,116 @@ import {
   updateCardSchema,
 } from "./kanban.schemas.js";
 
+// Every route runs requireAuth, then checks the caller's role in the project the entity belongs to:
+// viewer to read, member to edit, admin to delete a whole board.
 export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Body: { projectId: string; title: string } }>(
     "/boards",
-    { preHandler: requireAuth, schema: createBoardSchema },
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.projectBody)],
+      schema: createBoardSchema,
+    },
     createBoardHandler
   );
   app.get<{ Params: { id: string } }>(
     "/boards/:id",
-    { preHandler: requireAuth, schema: boardIdParamSchema },
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.VIEWER, projectOf.boardParam)],
+      schema: boardIdParamSchema,
+    },
     getBoardHandler
   );
   app.delete<{ Params: { id: string } }>(
     "/boards/:id",
-    { preHandler: requireAuth, schema: boardIdParamSchema },
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.ADMIN, projectOf.boardParam)],
+      schema: boardIdParamSchema,
+    },
     deleteBoardHandler
   );
   app.get<{ Params: { projectId: string } }>(
     "/projects/:projectId/board",
-    { preHandler: requireAuth, schema: projectIdParamSchema },
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.VIEWER, projectOf.projectParam)],
+      schema: projectIdParamSchema,
+    },
     getBoardForProjectHandler
   );
 
   app.post<{ Body: { boardId: string; title: string; position: number } }>(
     "/lists",
-    { preHandler: requireAuth, schema: createListSchema },
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.boardBody)],
+      schema: createListSchema,
+    },
     createListHandler
   );
   app.get<{ Params: { id: string } }>(
     "/lists/:id",
-    { preHandler: requireAuth, schema: listIdParamSchema },
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.VIEWER, projectOf.listParam)],
+      schema: listIdParamSchema,
+    },
     getListHandler
   );
   app.put<{ Params: { id: string }; Body: { title?: string; position?: number } }>(
     "/lists/:id",
-    { preHandler: requireAuth, schema: updateListSchema },
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.listParam)],
+      schema: updateListSchema,
+    },
     updateListHandler
   );
   app.delete<{ Params: { id: string } }>(
     "/lists/:id",
-    { preHandler: requireAuth, schema: listIdParamSchema },
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.listParam)],
+      schema: listIdParamSchema,
+    },
     deleteListHandler
   );
   app.put<{ Params: { boardId: string }; Body: { orderedListIds: string[] } }>(
     "/boards/:boardId/lists/reorder",
-    { preHandler: requireAuth, schema: reorderListsSchema },
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.boardIdParam)],
+      schema: reorderListsSchema,
+    },
     reorderListsHandler
   );
 
   app.post<{ Body: { listId: string; title: string; description?: string; position: number } }>(
     "/cards",
-    { preHandler: requireAuth, schema: createCardSchema },
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.listBody)],
+      schema: createCardSchema,
+    },
     createCardHandler
   );
   app.get<{ Params: { id: string } }>(
     "/cards/:id",
-    { preHandler: requireAuth, schema: cardIdParamSchema },
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.VIEWER, projectOf.cardParam)],
+      schema: cardIdParamSchema,
+    },
     getCardHandler
   );
   app.put<{
     Params: { id: string };
     Body: { title?: string; description?: string; position?: number };
-  }>("/cards/:id", { preHandler: requireAuth, schema: updateCardSchema }, updateCardHandler);
+  }>(
+    "/cards/:id",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.cardParam)],
+      schema: updateCardSchema,
+    },
+    updateCardHandler
+  );
   app.delete<{ Params: { id: string } }>(
     "/cards/:id",
-    { preHandler: requireAuth, schema: cardIdParamSchema },
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.cardParam)],
+      schema: cardIdParamSchema,
+    },
     deleteCardHandler
   );
 }
