@@ -4,12 +4,10 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../permissions/permissions.middleware.js";
 import { uploadAttachment, getAttachment, deleteAttachment } from "./attachments.service.js";
 
-// The "/attachments" sub-namespace belongs here, not to app.ts — paths stay relative to
-// whatever single boundary prefix app.ts registers this module with (currently "/api").
 export async function registerAttachmentsRoutes(app: FastifyInstance): Promise<void> {
-  app.post("/attachments", { preHandler: requireAuth }, uploadAttachmentHandler);
-  app.get("/attachments/:id", { preHandler: requireAuth }, getAttachmentHandler);
-  app.delete("/attachments/:id", { preHandler: requireAuth }, deleteAttachmentHandler);
+  app.post("/", { preHandler: requireAuth }, uploadAttachmentHandler);
+  app.get("/:id", { preHandler: requireAuth }, getAttachmentHandler);
+  app.delete("/:id", { preHandler: requireAuth }, deleteAttachmentHandler);
 }
 
 // uploadAttachmentHandler stores an uploaded file (multipart) and records it.

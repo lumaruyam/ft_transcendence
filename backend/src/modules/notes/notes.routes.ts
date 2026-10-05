@@ -4,11 +4,9 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
 import { getLatestNote, autosaveNote } from "./notes.service.js";
 
-// The "/notes" sub-namespace belongs here, not to app.ts — paths stay relative to whatever
-// single boundary prefix app.ts registers this module with (currently "/api").
 export async function registerNotesRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/notes/:projectId", { preHandler: requireAuth }, getNoteHandler);
-  app.put("/notes/:projectId", { preHandler: requireAuth }, autosaveNoteHandler);
+	app.get("/:projectId", { preHandler: [requireAuth, requireRole("viewer")] }, getNoteHandler);
+	app.put("/:projectId", { preHandler: [requireAuth, requireRole("member")] }, autosaveNoteHandler);
 }
 
 //async means this func returns a promise, await means wait for the promise to resolve, then return the result
