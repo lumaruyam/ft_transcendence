@@ -105,6 +105,20 @@ export const createCardSchema: FastifySchema = {
 
 export const cardIdParamSchema: FastifySchema = { params: idParamSchema };
 
+// moveCardSchema: position is the index the card should end up at in the destination list
+export const moveCardSchema: FastifySchema = {
+  params: idParamSchema,
+  body: {
+    type: "object",
+    required: ["listId", "position"],
+    additionalProperties: false,
+    properties: {
+      listId: { type: "string", format: "uuid" },
+      position: { type: "integer", minimum: 0 },
+    },
+  },
+};
+
 export const updateCardSchema: FastifySchema = {
   params: idParamSchema,
   body: {

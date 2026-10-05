@@ -28,7 +28,7 @@ export async function getList(id: string) {
 		where: { id },
 		include: {
 			cards: {
-				orderBy: { position: "asc" },
+				orderBy: [{ position: "asc" }, { id: "asc" }],
 			},
 		},
 	});

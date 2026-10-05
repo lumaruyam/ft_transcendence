@@ -18,7 +18,7 @@ import {
   deleteList,
   reorderLists,
 } from "./list.service.js";
-import { createCard, getCard, updateCard, deleteCard } from "./card.service.js";
+import { createCard, getCard, updateCard, moveCard, deleteCard } from "./card.service.js";
 import {
   createBoardSchema,
   boardIdParamSchema,
@@ -30,6 +30,7 @@ import {
   createCardSchema,
   cardIdParamSchema,
   updateCardSchema,
+  moveCardSchema,
 } from "./kanban.schemas.js";
 
 // Every route runs requireAuth, then checks the caller's role in the project the entity belongs to:
@@ -135,6 +136,14 @@ export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> 
       schema: updateCardSchema,
     },
     updateCardHandler
+  );
+  app.put<{ Params: { id: string }; Body: { listId: string; position: number } }>(
+    "/cards/:id/move",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.cardParam)],
+      schema: moveCardSchema,
+    },
+    moveCardHandler
   );
   app.delete<{ Params: { id: string } }>(
     "/cards/:id",
@@ -313,6 +322,22 @@ async function updateCardHandler(
     return;
   }
   reply.send(card);
+}
+
+// moveCardHandler moves a card to a position in a list (possibly another one of the same project) after drag-and-drop.
+async function moveCardHandler(
+  request: FastifyRequest<{ Params: { id: string }; Body: { listId: string; position: number } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
+  const { listId, position } = request.body;
+
+  const moved = await moveCard(id, listId, position);
+  if (!moved) {
+    reply.code(404).send({ error: "Card or destination list not found in this project" });
+    return;
+  }
+  reply.send(moved);
 }
 
 // deleteCardHandler removes a card.

@@ -16,10 +16,10 @@ export async function createBoard(input: { projectId: string; title: string}) {
 
 const BOARD_WITH_LISTS_AND_CARDS = {
 	lists: {
-		orderBy: { position: "asc" as const },
+		orderBy: [{ position: "asc" as const }, { id: "asc" as const }],
 		include: {
 			cards: {
-				orderBy: { position: "asc" as const },
+				orderBy: [{ position: "asc" as const }, { id: "asc" as const }],
 			},
 		},
 	},
@@ -54,10 +54,10 @@ export async function getBoard(id: string) {
 		where: { id },
 		include: {
 			lists: {
-				orderBy: { position: "asc" },
+				orderBy: [{ position: "asc" }, { id: "asc" }],
 				include: {
 					cards: {
-						orderBy: { position: "asc" },
+						orderBy: [{ position: "asc" }, { id: "asc" }],
 					},
 				},
 			},
