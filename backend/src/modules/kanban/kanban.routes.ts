@@ -1,6 +1,6 @@
 // Owner: Track 2 (Person A — Kanban CRUD and UI)
-// Responsible for: Fastify route handlers for boards/lists/cards CRUD. Calls into Track 2 Person B's
-// broadcast.ts after each mutation to notify connected clients over Socket.IO.
+// Responsible for: Fastify route handlers for boards/lists/cards CRUD. The broadcasts to connected
+// clients (Socket.IO) are done by the services themselves, so every caller of a mutation gets them.
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../permissions/permissions.middleware.js";
 import {
@@ -8,7 +8,6 @@ import {
   getBoard,
   getOrCreateBoardForProject,
   deleteBoard,
-  getProjectIdForBoard,
 } from "./board.service.js";
 import {
   createList,
@@ -16,10 +15,8 @@ import {
   updateList,
   deleteList,
   reorderLists,
-  getProjectIdForList,
 } from "./list.service.js";
 import { createCard, getCard, updateCard, deleteCard } from "./card.service.js";
-import { broadcastToProject } from "./broadcast.js";
 import {
   createBoardSchema,
   boardIdParamSchema,
@@ -108,7 +105,6 @@ async function createBoardHandler(
   reply: FastifyReply
 ): Promise<void> {
   const board = await createBoard(request.body);
-  broadcastToProject(board.projectId, { type: "board_created", payload: board });
   reply.code(201).send(board);
 }
 
@@ -154,7 +150,6 @@ async function deleteBoardHandler(
     reply.code(404).send({ error: "Board not found" });
     return;
   }
-  broadcastToProject(deleted.projectId, { type: "board_deleted", payload: { id } });
   reply.code(204).send();
 }
 
@@ -164,10 +159,6 @@ async function createListHandler(
   reply: FastifyReply
 ): Promise<void> {
   const list = await createList(request.body);
-  const projectId = await getProjectIdForBoard(list.boardId);
-  if (projectId) {
-    broadcastToProject(projectId, { type: "list_created", payload: list });
-  }
   reply.code(201).send(list);
 }
 
@@ -199,10 +190,6 @@ async function updateListHandler(
     reply.code(404).send({ error: "List not found" });
     return;
   }
-  const projectId = await getProjectIdForBoard(list.boardId);
-  if (projectId) {
-    broadcastToProject(projectId, { type: "list_updated", payload: list });
-  }
   reply.send(list);
 }
 
@@ -218,10 +205,6 @@ async function deleteListHandler(
     reply.code(404).send({ error: "List not found" });
     return;
   }
-  const projectId = await getProjectIdForBoard(deleted.boardId);
-  if (projectId) {
-    broadcastToProject(projectId, { type: "list_deleted", payload: { id } });
-  }
   reply.code(204).send();
 }
 
@@ -232,18 +215,11 @@ async function reorderListsHandler(
 ): Promise<void> {
   const { boardId } = request.params;
 
-  const success = await reorderLists(request.body.orderedListIds);
+  const success = await reorderLists(boardId, request.body.orderedListIds);
 
   if (!success) {
-    reply.code(404).send({ error: "One or more lists not found" });
+    reply.code(404).send({ error: "One or more lists not found on this board" });
     return;
-  }
-  const projectId = await getProjectIdForBoard(boardId);
-  if (projectId) {
-    broadcastToProject(projectId, {
-      type: "lists_reordered",
-      payload: { boardId, orderedListIds: request.body.orderedListIds },
-    });
   }
   reply.code(204).send();
 }
@@ -256,10 +232,6 @@ async function createCardHandler(
   reply: FastifyReply
 ): Promise<void> {
   const card = await createCard(request.body);
-  const projectId = await getProjectIdForList(card.listId);
-  if (projectId) {
-    broadcastToProject(projectId, { type: "card_created", payload: card });
-  }
   reply.code(201).send(card);
 }
 
@@ -293,10 +265,6 @@ async function updateCardHandler(
     reply.code(404).send({ error: "Card not found" });
     return;
   }
-  const projectId = await getProjectIdForList(card.listId);
-  if (projectId) {
-    broadcastToProject(projectId, { type: "card_updated", payload: card });
-  }
   reply.send(card);
 }
 
@@ -311,10 +279,6 @@ async function deleteCardHandler(
   if (!deleted) {
     reply.code(404).send({ error: "Card not found" });
     return;
-  }
-  const projectId = await getProjectIdForList(deleted.listId);
-  if (projectId) {
-    broadcastToProject(projectId, { type: "card_deleted", payload: { id } });
   }
   reply.code(204).send();
 }

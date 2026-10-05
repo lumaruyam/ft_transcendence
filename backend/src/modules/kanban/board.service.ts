@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
+import { broadcastToProject } from "./broadcast.js";
 
 export async function createBoard(input: { projectId: string; title: string}) {
 	const board = await prisma.board.create({
@@ -8,6 +9,7 @@ export async function createBoard(input: { projectId: string; title: string}) {
 			title: input.title,
 		},
 	});
+	broadcastToProject(board.projectId, { type: "board_created", payload: board });
 	return board;
 }
 
@@ -65,10 +67,11 @@ export async function getBoard(id: string) {
 }
 
 
-// returns the deleted row so callers can broadcast to its project room, null if not found
+// returns the deleted row, null if not found. Broadcasts "board_deleted" to the project room
 export async function deleteBoard(id: string) {
 	try {
 		const deleted = await prisma.board.delete({ where: { id } });
+		broadcastToProject(deleted.projectId, { type: "board_deleted", payload: { id } });
 		return deleted;
 	}
 	catch (err)

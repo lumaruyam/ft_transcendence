@@ -59,6 +59,11 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
   return io;
 }
 
+// getIOIfReady returns null instead of throwing when the hub isn't running (sandbox server, scripts)
+export function getIOIfReady(): SocketIOServer | null {
+  return io;
+}
+
 export function getIO(): SocketIOServer {
   if (!io) {
     throw new Error("Socket.IO server not initialized — call createKanbanHub first");

@@ -1,5 +1,15 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
+import { broadcastToProject } from "./broadcast.js";
+import { getProjectIdForBoard } from "./board.service.js";
+
+// broadcastToBoardProject resolves a board to its project and broadcasts to that project's room
+async function broadcastToBoardProject(boardId: string, type: string, payload: unknown): Promise<void> {
+	const projectId = await getProjectIdForBoard(boardId);
+	if (projectId) {
+		broadcastToProject(projectId, { type, payload });
+	}
+}
 
 export async function createList(input: { boardId: string; title: string; position: number}) {
 	const list = await prisma.list.create({
@@ -9,6 +19,7 @@ export async function createList(input: { boardId: string; title: string; positi
 			position: input.position,
 		},
 	});
+	await broadcastToBoardProject(list.boardId, "list_created", list);
 	return list;
 }
 
@@ -31,6 +42,7 @@ export async function updateList(id: string, input:  Prisma.ListUncheckedUpdateI
 			where: { id },
 			data: input,
 		});
+		await broadcastToBoardProject(list.boardId, "list_updated", list);
 		return list;
 	}
 	catch (err)
@@ -42,10 +54,11 @@ export async function updateList(id: string, input:  Prisma.ListUncheckedUpdateI
 }
 
 
-// returns the deleted row so callers can resolve its project room, null if not found
+// returns the deleted row, null if not found. Broadcasts "list_deleted" to the project room
 export async function deleteList(id: string) {
 	try {
 		const deleted = await prisma.list.delete({ where: { id } });
+		await broadcastToBoardProject(deleted.boardId, "list_deleted", { id });
 		return deleted;
 	}
 	catch (err)
@@ -65,15 +78,17 @@ export async function getProjectIdForList(listId: string): Promise<string | null
 	return list?.board.projectId ?? null;
 }
 
-export async function reorderLists(orderedListIds: string[]) {
+// false means one of the lists doesn't exist or doesn't belong to boardId, in which case nothing is changed
+export async function reorderLists(boardId: string, orderedListIds: string[]) {
 	try {
 		const updates = orderedListIds.map((listId, index) =>
 			prisma.list.update({
-				where: { id: listId },
+				where: { id: listId, boardId },
 				data: { position: index },
 			})
 		);
 		await prisma.$transaction(updates);
+		await broadcastToBoardProject(boardId, "lists_reordered", { boardId, orderedListIds });
 		return true;
 	}
 	catch (err)
