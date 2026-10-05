@@ -17,7 +17,7 @@
 | `/login` | `frontend/src/login/` | Email/password login |
 | `/signup` | `frontend/src/signup/` | Account creation |
 | `/forgot-password` | `frontend/src/forgot-password/` | Password reset request |
-| `/auth/callback` | `frontend/src/auth-callback/` | OAuth2 redirect handler (GitHub/GitLab) |
+| `/auth/callback` | `frontend/src/auth-callback/` | OAuth2 redirect handler (GitHub) |
 | `/invite/:token` | `frontend/src/invite/` | Invite link acceptance |
 | `/settings` | `frontend/src/settings/` | User profile & account settings |
 | `/app` | `frontend/src/dashboard/` | Project list (requires auth) |

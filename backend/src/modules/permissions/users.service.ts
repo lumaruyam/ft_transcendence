@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/09 21:34:46 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/26 16:23:03 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/30 21:06:40 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,7 +32,7 @@ export async function getUser(id: string): Promise<User | null> {
 	return prisma.user.findUnique({ where: { id }});
 }
 
-// updateUser applies an admin edit to a user's account (role changes go through assignRole, not here)
+// updateUser applies an admin edit to a user's account
 export async function updateUser(id: string, input: UpdateUserInput): Promise<User> {
 	return prisma.user.update({ where: { id }, data: input });
 }
@@ -60,9 +60,8 @@ export class TransferTargetIsSelfError extends Error {
 
 export class LastAdminOfMembershipError extends Error {
 	constructor(public readonly projectIds: string[]) {
-		super(`You are the last admin of ${projectIds.length === 1 ? "a project" : "projects"} you do not own ` +
-				`(project ID${projectIds.length === 1 ? "" : "s"}: ${projectIds.join(", ")}). ` +
-				"Ask the project owner to promote another member to admin, or promote one yourself, before deleting your account.");
+		super("user is the last remaining admin of one or more projects they do not own");
+		this.name = "LastAdminOfMembershipError";
 	}
 }
 
@@ -113,7 +112,6 @@ export async function deleteUser(id: string, options: DeleteUserOptions = {}): P
 					.filter((m) => m.project.members.filter((member) => member.role === "admin").length <= 1)
 					.map((m) => m.projectId);
 				if (lastAdminOf.length > 0) {
-					// Currently unreachable: the owner of a project is always an admin memberany remaining project has >= 2 admins
 					throw new LastAdminOfMembershipError(lastAdminOf);
 				}
 

@@ -28,14 +28,13 @@ calls in `frontend/src/api/` and `frontend/src/auth/`.
                                    │ HTTP webhook                 │ Prisma (SQL)
                                    │ (push/PR/merge events)       ▼
                           ┌──────────────────┐          ┌──────────────────┐
-                          │  GitHub / GitLab  │          │    PostgreSQL     │
+                          │  GitHub          │          │    PostgreSQL     │
                           │ (external, OAuth  │          │  (docker-compose  │
                           │  + webhooks)      │          │   `db` service)   │
                           └──────────────────┘          └──────────────────┘
 ```
 
-- **Frontend** — vanilla TypeScript (or Svelte if drag-and-drop/reactivity gets
-  unwieldy in plain DOM code). Talks to the backend over HTTPS through Nginx: plain
+- **Frontend** — Svelte as main framework. Talks to the backend over HTTPS through Nginx: plain
   REST calls via `frontend/src/api/apiClient.ts`, and the Kanban real-time layer via
   `socket.io-client` (`frontend/src/api/wsClientWrapper.ts`, `frontend/src/kanban/wsClient.ts`).
 - **Backend** — Node.js + TypeScript, one process, hosting two protocols on the same
@@ -53,7 +52,7 @@ calls in `frontend/src/api/` and `frontend/src/auth/`.
   HTTPS) and proxies both plain HTTP routes and the `/socket.io/` WebSocket-upgrade
   path to the backend container. Container-to-container traffic (backend ↔ Postgres)
   does not need TLS.
-- **External Git providers** — GitHub and GitLab are the only systems outside the
+- **External Git providers** — GitHub is the only systems outside the
   Docker Compose network. The backend talks *out* to them (Octokit / `@gitbeaker/rest`,
   using OAuth tokens from `modules/auth/oauth.service.ts`) to link branches, and they
   talk *in* to the backend's webhook receiver (`modules/git/webhook.routes.ts`) to push
@@ -70,7 +69,7 @@ internal service mesh, this is a single deployable.
 
 | Module | Owns | Depended on by |
 |---|---|---|
-| `auth/` | Signup/login/logout, password hashing, JWT issuance/validation, OAuth2 (GitHub/GitLab) | Every protected route, via `permissions/` |
+| `auth/` | Signup/login/logout, password hashing, JWT issuance/validation, OAuth2 (GitHub) | Every protected route, via `permissions/` |
 | `permissions/` | `requireAuth`/`requireRole` preHandlers, role definitions, `project_members` reads | Every protected route across every module |
 | `projects/` | Projects (organizations) CRUD, `project_members` add/remove/list, **invite-link joins** (`invites.ts`) | `kanban/`, `notes/`, `attachments/`, `search/`, `publicapi/` (all scope data by project) |
 | `kanban/` | Boards/lists/cards CRUD, the Socket.IO hub, broadcast, presence | `git/` (drives card status), `publicapi/` (wraps card CRUD) |
@@ -180,18 +179,27 @@ all.
 ## 6. WebSocket real-time Kanban flow
 
 1. A client calls a Fastify route in `backend/src/modules/kanban/` (e.g. `POST /api/cards`
-   via `cards.service.ts`'s `createCard`), going through the same `requireAuth` +
+   via `card.service.ts`'s `createCard`), going through the same `requireAuth` +
    `requireRole` chain as any other project-scoped route (§3, §5).
 2. The mutation is written to Postgres via Prisma.
-3. `broadcast.ts` emits the resulting event to every other client in the project's
-   Socket.IO room (`io.to(projectId).emit(...)`), replacing the former Go skeleton's
-   hand-rolled `map[project_id]map[*Client]bool` hub with Socket.IO's built-in room
-   support (`backend/src/modules/kanban/hub.ts`).
+3. The kanban service that made the mutation (`board.service.ts`, `list.service.ts`,
+   `card.service.ts`) calls `broadcast.ts`, which emits the resulting event to every client
+   in the project's Socket.IO room (`io.to(projectId).emit(...)`), replacing the former Go
+   skeleton's hand-rolled `map[project_id]map[*Client]bool` hub with Socket.IO's built-in
+   room support (`backend/src/modules/kanban/hub.ts`). Broadcasting from the services, not
+   the route handlers, means a card created through the public API or moved by a Git
+   webhook reaches the room exactly like one created in the UI. Events: `board_created`,
+   `board_deleted`, `list_created`, `list_updated`, `list_deleted`, `lists_reordered`,
+   `card_created`, `card_updated`, `card_deleted` and `card_moved` (carries the new card
+   order of both lists, sent by `PUT /api/cards/:id/move`, a serializable transaction).
 4. Presence ("joined"/"left") is broadcast the same way on Socket.IO `connection`/
-   `disconnect` events (`presence.ts`). A client joins a project's room only after
-   authenticating the socket connection (same JWT, validated once at connect time) —
-   room membership on the socket side mirrors `project_members`, it isn't a separate
-   permission system.
+   `disconnect` events (`presence.ts`), and a client that joins first gets a
+   `presence_snapshot` of who is already there. The socket handshake is authenticated with
+   the same JWT as HTTP (`validateJwt` in `hub.ts`), and `join_project` is only accepted
+   for members of the project (`join_denied` otherwise) — room membership on the socket
+   side mirrors `project_members`, it isn't a separate permission system. The kanban HTTP
+   routes enforce the same rule with `requireProjectRole` (`kanban.permissions.ts`):
+   viewer to read, member to edit, admin to delete a board.
 5. This is silent state sync — not a user-facing notification (see `notifications/`
    for that, triggered separately by the mutation itself, not by the broadcast).
 
@@ -199,18 +207,17 @@ all.
 
 1. A user links a card to a branch (`backend/src/modules/git/branchLink.service.ts`),
    using the OAuth token captured by `backend/src/modules/auth/oauth.service.ts`.
-   GitHub calls go through **Octokit**; GitLab calls go through a GitLab REST client
-   (e.g. `@gitbeaker/rest`).
+   GitHub calls go through **Octokit**
 2. A webhook is registered on the linked repository for push/pull_request/merge
    events (`registerWebhook` in `webhook.routes.ts`).
 3. On webhook receipt (`webhookReceiverHandler`): this route is **not** JWT-authenticated
-   (GitHub/GitLab aren't logged-in users) — instead its signature is verified via an
+   (GitHub isn't logged-in users) — instead its signature is verified via an
    HMAC check against `GIT_WEBHOOK_SECRET`, rejecting anything that doesn't match
    before the payload is trusted.
 4. The event is logged to `webhook_events` (`webhookLog.service.ts`) for audit/replay,
    then `eventProcessor.service.ts` matches the payload to a card via `git_links` and
    drives the status transition (PR opened → "PR pending", merged to main → "Done"),
-   calling back into `kanban/cards.service.ts` so the move also broadcasts over
+   calling back into `kanban/card.service.ts` so the move also broadcasts over
    Socket.IO exactly like a user-driven move would (§6) — clients don't need to know
    the difference.
 5. A notification fires via `notifications.service.ts` once the card moves.
@@ -265,5 +272,6 @@ duplicates or bypasses another table's job:
 | "Did we receive and process this webhook event?" | `webhook_events` | Audit/replay log; `git_links`/`cards.status` are the derived effect, not this table |
 | "Is this API key valid, and what's its quota?" | `api_keys` | `key_hash` only, like `project_invites.token_hash` — never plaintext at rest |
 | "Has this user seen this notification?" | `notifications.read_at` | Notifications are informational records, not an authorization or state-sync mechanism (that's Socket.IO, §6) |
+| "What GitHub token does the backend use to call GitHub on this user's behalf?" | `oauth_accounts.access_token` | Per-user OAuth token (not a GitHub App installation token), encrypted at rest via `modules/auth/tokenCrypto.ts`; read it through `getDecryptedAccessToken(userId)` in `oauth.service.ts`, never directly |
 
 <!-- TODO: expand §7 with a sequence diagram once webhook signature verification and OAuth token storage details are finalized -->

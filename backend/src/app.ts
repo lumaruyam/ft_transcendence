@@ -1,15 +1,3 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   app.ts                                             :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: xzhen <xzhen@student.42.fr>                +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2026/08/29 14:54:07 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/10/04 23:30:21 by xzhen            ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: building and configuring the Fastify application instance — route registration, plugins, and middleware wiring.
 import Fastify, { FastifyInstance } from "fastify";
@@ -19,11 +7,14 @@ import type { AppConfig } from "./config/env.js";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import fastifyRawBody from "fastify-raw-body";
 
 // Import route handlers
 import { registerHealthRoutes } from "./modules/health/health.routes.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { initJwtService } from "./modules/auth/jwt.service.js";
+import { initOAuthService } from "./modules/auth/oauth.service.js";
+import { initTokenCrypto } from "./modules/auth/tokenCrypto.js";
 import { registerProjectsRoutes } from "./modules/projects/projects.routes.js";
 import { registerInviteRoutes } from "./modules/projects/invites.js";
 import { registerUserRoutes } from "./modules/permissions/users.routes.js";
@@ -35,6 +26,9 @@ import { registerSearchRoutes } from "./modules/search/search.routes.js";
 import { registerNotificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { registerGitWebhookRoutes } from "./modules/git/webhook.routes.js";
 import { registerPublicApiRoutes } from "./modules/publicapi/publicapi.routes.js";
+import { initApiKeys } from "./modules/publicapi/apikeys.service.js";
+import { apiKeyRouteConstraint } from "./modules/publicapi/apikey.middleware.js";
+
 
 // Register plugins
 function registerPlugins(app: FastifyInstance, config: AppConfig): void {
@@ -45,6 +39,13 @@ function registerPlugins(app: FastifyInstance, config: AppConfig): void {
 	app.register(rateLimit, {
 		max: config.rateLimit.globalMax,
 		timeWindow: config.rateLimit.globalWindowMs
+	});
+
+	app.register(fastifyRawBody, {
+		field: "rawBody",
+		global: false,
+		encoding: "utf8",
+		runFirst: true,
 	});
 }
 
@@ -71,9 +72,12 @@ function registerRoutes(app: FastifyInstance): void {
 
 // buildApp constructs a Fastify instance with every module's routes registered, but does not start listening.
 export function buildApp(config: AppConfig): FastifyInstance {
-	const app = Fastify({ logger: true, });
+	const app = Fastify({ logger: true, constraints: { apiAuth: apiKeyRouteConstraint } });
 
 	initJwtService(config.jwtSecret);
+	initOAuthService({ github: config.oauthGithub, stateSecret: config.jwtSecret });
+	initTokenCrypto(config.oauthTokenEncryptionKey);
+	initApiKeys({ defaultRateLimit: config.publicApiRateLimitDefault });
 	registerPlugins(app, config);
 	registerRoutes(app);
 
