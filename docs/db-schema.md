@@ -14,7 +14,8 @@ documented here regardless of which ORM reads it.
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `users` | id, email, password_hash, password_salt, name, avatar, oauth_provider, oauth_id | Mandatory email/password baseline + OAuth minor module |
+| `users` | id, email, password_hash, password_salt, name, avatar | Mandatory email/password baseline. OAuth identity/token lives in `oauth_accounts`, not here |
+| `oauth_accounts` | id, user_id, provider, provider_id, access_token, refresh_token (nullable), scopes (nullable), expires_at (nullable), created_at, updated_at | OAuth minor module + credential source for Track 3's Octokit calls (create/list branches on the user's behalf). Looked up by `(provider, provider_id)`, not `user_id`, so re-authenticating with the same GitHub account resolves to the same row. `provider` is always `"github"` (GitLab is out of scope). `access_token`/`refresh_token` are ciphertext (AES-256-GCM, application-level, see `backend/src/modules/auth/tokenCrypto.ts`) |
 | `projects` | id, name, owner_id | Organization system major module |
 | `project_members` | project_id, user_id, role | **Sole source of truth for authorization.** Backbone of the Advanced permissions module; composite primary key. Every access-control check (`requireRole`/`getUserRole`) reads this table, regardless of whether the row was created by project creation (owner) or by an invite join — see `project_invites` below |
 | `project_invites` | id, project_id, token_hash (unique), role, max_uses (nullable), use_count, expires_at (nullable), created_by, created_at, revoked_by (nullable, FK `users.id`), revoked_at (nullable) | Invite-link membership flow (`backend/src/modules/projects/invites.ts`). `token_hash` stores a hash of the invite token — the plaintext is returned once at creation and never persisted. An invite **does not replace or duplicate `project_members`**: joining an invite is the *action* that inserts a `project_members` row; the invite row itself is never consulted for authorization afterwards, only for join-time validity (not expired, not revoked, under `max_uses`) |
@@ -30,6 +31,7 @@ documented here regardless of which ORM reads it.
 
 ## Relations
 
+- `oauth_accounts.user_id -> users.id` (cascade delete: deleting a user drops their linked OAuth tokens)
 - `projects.owner_id -> users.id`
 - `project_members.(project_id, user_id) -> projects.id, users.id` (composite key)
 - `project_invites.project_id -> projects.id`, `project_invites.created_by -> users.id`,

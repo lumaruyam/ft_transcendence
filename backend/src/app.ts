@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/29 14:54:07 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/14 22:41:32 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/29 20:46:18 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,11 +19,14 @@ import type { AppConfig } from "./config/env.js";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import fastifyRawBody from "fastify-raw-body";
 
 // Import route handlers
 import { registerHealthRoutes } from "./modules/health/health.routes.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { initJwtService } from "./modules/auth/jwt.service.js";
+import { initOAuthService } from "./modules/auth/oauth.service.js";
+import { initTokenCrypto } from "./modules/auth/tokenCrypto.js";
 import { registerProjectsRoutes } from "./modules/projects/projects.routes.js";
 import { registerInviteRoutes } from "./modules/projects/invites.js";
 import { registerUserRoutes } from "./modules/permissions/users.routes.js";
@@ -44,6 +47,13 @@ function registerPlugins(app: FastifyInstance, config: AppConfig): void {
 	app.register(rateLimit, {
 		max: config.rateLimit.globalMax,
 		timeWindow: config.rateLimit.globalWindowMs
+	});
+
+	app.register(fastifyRawBody, {
+		field: "rawBody",
+		global: false,
+		encoding: "utf8",
+		runFirst: true,
 	});
 }
 
@@ -72,6 +82,8 @@ export function buildApp(config: AppConfig): FastifyInstance {
 	const app = Fastify({ logger: true, });
 
 	initJwtService(config.jwtSecret);
+	initOAuthService({ github: config.oauthGithub, stateSecret: config.jwtSecret });
+	initTokenCrypto(config.oauthTokenEncryptionKey);
 	registerPlugins(app, config);
 	registerRoutes(app);
 

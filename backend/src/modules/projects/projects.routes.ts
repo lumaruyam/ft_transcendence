@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/12 15:44:50 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/20 16:19:46 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/20 17:41:50 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -138,7 +138,6 @@ async function addMemberHandler(request: FastifyRequest, reply: FastifyReply): P
 		}
 		throw err;
 	}
-
 }
 
 // removeMemberHandler removes a user from the project (admin only).
