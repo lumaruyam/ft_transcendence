@@ -6,7 +6,7 @@
 /*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/11 21:57:27 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/20 16:17:54 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/09/30 21:06:11 by lulmaruy         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,7 +14,7 @@
 // Responsible for: adding/removing members within a project, part of the Organization system major module
 import type { Prisma, ProjectMember, User } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
-import { assignRole, ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js"
+import { ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js"
 
 type DBClient = typeof prisma | Prisma.TransactionClient;
 

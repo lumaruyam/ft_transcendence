@@ -1,39 +1,108 @@
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: the 5+ documented REST endpoints (GET/POST/PUT/DELETE) required by the Public API major module, wrapping Track 2/3/4's underlying entities. TS equivalent of backend/internal/publicapi/endpoints.go (Go skeleton, removed).
+
+// Every route runs the same preHandler chain:
+// requireApiKey          401 — valid X-API-Key, sets request.apiKey + request.userId
+// rateLimitMiddleware    429 — per-key quota (api_keys.rate_limit), sets X-RateLimit-* headers
+// enforceKeyProjectScope 403 — a project-scoped key can't reach another project
+// requireRole            403 — the key's user must hold the role in project_members (docs/architecture.md §5)
+
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { requireRole } from "../permissions/permissions.middleware.js";
+import { ROLES } from "../permissions/roles.service.js";
+import { createCard, updateCard, deleteCard } from "../kanban/cards.service.js";
+import { requireApiKey, enforceKeyProjectScope, API_KEY_ROUTE_CONSTRAINT } from "./apikey.middleware.js";
+import { rateLimitMiddleware } from "./ratelimit.middleware.js";
+import { registerApiKeyManagementRoutes } from "./apikeys.routes.js";
+import { listProjectsForKey, listProjectCards, listBelongsToProject, cardBelongsToProject, toPublicCard, } from "./publicapi.service.js";
+import { validateCreateCardBody, validateUpdateCardBody, validateListCardsQuery, } from "./publicapi.validation.js";
 
-// registerPublicApiRoutes mounts the documented /api/* public endpoints, called from app.ts behind API-key auth + rate limiting.
+const authChain = [requireApiKey, rateLimitMiddleware];
+const projectChain = (minRole: typeof ROLES[keyof typeof ROLES]) => [...authChain, enforceKeyProjectScope, requireRole(minRole), ];
+
+// registerPublicApiRoutes mounts the documented /api/* public endpoints, called from app.ts behind API-key auth + rate limiting
 export async function registerPublicApiRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/api/projects/:projectId/cards", getCardsHandler);
-  app.post("/api/projects/:projectId/cards", createCardHandler);
-  app.put("/api/projects/:projectId/cards/:cardId", updateCardHandler);
-  app.delete("/api/projects/:projectId/cards/:cardId", deleteCardHandler);
-  app.get("/api/projects", getProjectsHandler);
+	app.get("/projects", { constraints: API_KEY_ROUTE_CONSTRAINT, preHandler: authChain }, getProjectsHandler);
+	app.get("/projects/:projectId/cards", { preHandler: projectChain(ROLES.VIEWER) }, getCardsHandler);
+	app.post("/projects/:projectId/cards", { preHandler: projectChain(ROLES.MEMBER) }, createCardHandler);
+	app.put("/projects/:projectId/cards/:cardId", { preHandler: projectChain(ROLES.MEMBER) }, updateCardHandler);
+	app.delete("/projects/:projectId/cards/:cardId", { preHandler: projectChain(ROLES.MEMBER) }, deleteCardHandler);
+
+	// JWT-authenticated key management (issue/list/revoke)
+	await app.register(registerApiKeyManagementRoutes);
 }
 
-// getCardsHandler lists cards for a project — GET /api/projects/{id}/cards.
-async function getCardsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: API key + rate limit validated by preHandler chain
-  // TODO: delegate to kanban's cards.service listing function, serialize as documented JSON response
-}
-
-// createCardHandler creates a card via the public API — POST /api/projects/{id}/cards.
-async function createCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: validate request body against the documented schema
-  // TODO: delegate to kanban's createCard; broadcasting still happens via Track 2 Person B's Socket.IO hub
-}
-
-// updateCardHandler updates a card via the public API — PUT /api/projects/{id}/cards/{cardId}.
-async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: validate request body, delegate to kanban's updateCard
-}
-
-// deleteCardHandler deletes a card via the public API — DELETE /api/projects/{id}/cards/{cardId}.
-async function deleteCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: delegate to kanban's deleteCard
-}
-
-// getProjectsHandler lists the caller's projects — GET /api/projects, the 5th documented endpoint.
+// getProjectsHandler lists the caller's projects — GET /api/projects
 async function getProjectsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: delegate to projects' listProjectsForUser
+	const apiKey = request.apiKey!;
+	const projects = await listProjectsForKey(apiKey.userId as string, apiKey.projectId);
+	reply.code(200).send({ projects });
 }
+
+// getCardsHandler lists cards for a project — GET /api/projects/{id}/cards
+async function getCardsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const { projectId } = request.params as { projectId: string };
+
+	const query = validateListCardsQuery(request.query);
+	if (!query.ok) {
+		reply.code(400).send({ error: "invalid_input", details: query.errors });
+		return;
+	}
+
+	const { cards, total } = await listProjectCards(projectId, query.value);
+	reply.code(200).send({ cards, total, limit: query.value.limit, offset: query.value.offset });
+}
+
+// createCardHandler creates a card via the public API — POST /api/projects/{id}/cards
+async function createCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const { projectId } = request.params as { projectId: string };
+
+	const body = validateCreateCardBody(request.body);
+	if (!body.ok) {
+		reply.code(400).send({ error: "invalid_input", details: body.errors });
+		return;
+	}
+
+	if (!(await listBelongsToProject(body.value.listId, projectId))) {
+		reply.code(404).send({ error: "list_not_found" });
+		return;
+	}
+
+	// Broadcasting to the project's Socket.IO room happens inside kanban's createCard
+	const card = await createCard(body.value);
+	reply.code(201).send({ card: toPublicCard(card, projectId) });
+}
+
+// updateCardHandler updates a card via the public API — PUT /api/projects/{id}/cards/{cardId}
+async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const { projectId, cardId } = request.params as { projectId: string; cardId: string };
+
+	const body = validateUpdateCardBody(request.body);
+	if (!body.ok) {
+		reply.code(400).send({ error: "invalid_input", details: body.errors });
+		return;
+	}
+
+	if (!(await cardBelongsToProject(cardId, projectId))) {
+		reply.code(404).send({ error: "card_not_found" });
+		return;
+	}
+
+	const card = await updateCard(cardId, body.value);
+	reply.code(200).send({ card: toPublicCard(card, projectId) });
+}
+
+// deleteCardHandler deletes a card via the public API — DELETE /api/projects/{id}/cards/{cardId}
+async function deleteCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const { projectId, cardId } = request.params as { projectId: string; cardId: string };
+
+	if (!(await cardBelongsToProject(cardId, projectId))) {
+		reply.code(404).send({ error: "card_not_found" });
+		return;
+	}
+
+	await deleteCard(cardId);
+	reply.code(204).send();
+}
+
+

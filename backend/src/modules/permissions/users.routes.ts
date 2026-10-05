@@ -1,27 +1,27 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   users.routes.ts                                    :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2026/09/14 22:20:51 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/20 15:41:08 by lulmaruy         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: Fastify route handlers for user account deletion (deleteUser), part of the
 // Advanced permissions major module.
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "./permissions.middleware.js";
-import { deleteUser, UserNotFoundError, TransferTargetRequiredError, TransferTargetIsSelfError, LastAdminOfMembershipError } from "./users.service.js";
+import { getUser, deleteUser, UserNotFoundError, TransferTargetRequiredError, TransferTargetIsSelfError, LastAdminOfMembershipError } from "./users.service.js";
 import { NotAProjectMemberError } from "../projects/projects.service.js";
 
 
 export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
+	app.get("/me", { preHandler: requireAuth }, getMeHandler);
 	app.delete("/:userId", { preHandler: requireAuth }, deleteUserHandler);
+}
+
+// getMeHandler returns the caller's own profile — GET /api/users/me. Same public shape as the `user`
+// object in signup/login responses (never the password hash/salt). Used by frontend apiClient.getCurrentUser()
+async function getMeHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const user = await getUser(request.userId as string);
+	if (!user) {
+		reply.code(404).send({ error: "user_not_found" });
+		return;
+	}
+	reply.code(200).send({ id: user.id, email: user.email, name: user.name });
 }
 
 async function deleteUserHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
