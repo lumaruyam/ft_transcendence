@@ -1,6 +1,6 @@
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: the read/scoping queries and response serializers behind the public endpoints in publicapi.routes.ts
-// Mutations are not done in here -> go kanban/cards.service.ts
+// Mutations are not done in here -> go kanban/card.service.ts
 
 import type { Card, Project } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";

@@ -34,8 +34,7 @@ calls in `frontend/src/api/` and `frontend/src/auth/`.
                           └──────────────────┘          └──────────────────┘
 ```
 
-- **Frontend** — vanilla TypeScript (or Svelte if drag-and-drop/reactivity gets
-  unwieldy in plain DOM code). Talks to the backend over HTTPS through Nginx: plain
+- **Frontend** — Svelte as main framework. Talks to the backend over HTTPS through Nginx: plain
   REST calls via `frontend/src/api/apiClient.ts`, and the Kanban real-time layer via
   `socket.io-client` (`frontend/src/api/wsClientWrapper.ts`, `frontend/src/kanban/wsClient.ts`).
 - **Backend** — Node.js + TypeScript, one process, hosting two protocols on the same
@@ -180,18 +179,27 @@ all.
 ## 6. WebSocket real-time Kanban flow
 
 1. A client calls a Fastify route in `backend/src/modules/kanban/` (e.g. `POST /api/cards`
-   via `cards.service.ts`'s `createCard`), going through the same `requireAuth` +
+   via `card.service.ts`'s `createCard`), going through the same `requireAuth` +
    `requireRole` chain as any other project-scoped route (§3, §5).
 2. The mutation is written to Postgres via Prisma.
-3. `broadcast.ts` emits the resulting event to every other client in the project's
-   Socket.IO room (`io.to(projectId).emit(...)`), replacing the former Go skeleton's
-   hand-rolled `map[project_id]map[*Client]bool` hub with Socket.IO's built-in room
-   support (`backend/src/modules/kanban/hub.ts`).
+3. The kanban service that made the mutation (`board.service.ts`, `list.service.ts`,
+   `card.service.ts`) calls `broadcast.ts`, which emits the resulting event to every client
+   in the project's Socket.IO room (`io.to(projectId).emit(...)`), replacing the former Go
+   skeleton's hand-rolled `map[project_id]map[*Client]bool` hub with Socket.IO's built-in
+   room support (`backend/src/modules/kanban/hub.ts`). Broadcasting from the services, not
+   the route handlers, means a card created through the public API or moved by a Git
+   webhook reaches the room exactly like one created in the UI. Events: `board_created`,
+   `board_deleted`, `list_created`, `list_updated`, `list_deleted`, `lists_reordered`,
+   `card_created`, `card_updated`, `card_deleted` and `card_moved` (carries the new card
+   order of both lists, sent by `PUT /api/cards/:id/move`, a serializable transaction).
 4. Presence ("joined"/"left") is broadcast the same way on Socket.IO `connection`/
-   `disconnect` events (`presence.ts`). A client joins a project's room only after
-   authenticating the socket connection (same JWT, validated once at connect time) —
-   room membership on the socket side mirrors `project_members`, it isn't a separate
-   permission system.
+   `disconnect` events (`presence.ts`), and a client that joins first gets a
+   `presence_snapshot` of who is already there. The socket handshake is authenticated with
+   the same JWT as HTTP (`validateJwt` in `hub.ts`), and `join_project` is only accepted
+   for members of the project (`join_denied` otherwise) — room membership on the socket
+   side mirrors `project_members`, it isn't a separate permission system. The kanban HTTP
+   routes enforce the same rule with `requireProjectRole` (`kanban.permissions.ts`):
+   viewer to read, member to edit, admin to delete a board.
 5. This is silent state sync — not a user-facing notification (see `notifications/`
    for that, triggered separately by the mutation itself, not by the broadcast).
 
@@ -209,7 +217,7 @@ all.
 4. The event is logged to `webhook_events` (`webhookLog.service.ts`) for audit/replay,
    then `eventProcessor.service.ts` matches the payload to a card via `git_links` and
    drives the status transition (PR opened → "PR pending", merged to main → "Done"),
-   calling back into `kanban/cards.service.ts` so the move also broadcasts over
+   calling back into `kanban/card.service.ts` so the move also broadcasts over
    Socket.IO exactly like a user-driven move would (§6) — clients don't need to know
    the difference.
 5. A notification fires via `notifications.service.ts` once the card moves.

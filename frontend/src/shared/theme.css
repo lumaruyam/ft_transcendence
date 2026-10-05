@@ -1,0 +1,73 @@
+/* Owner: Track 2 (Person A — Kanban CRUD and UI)
+   Shared design tokens + base reset, imported once by each page's entry (kanban, dashboard, ...)
+   instead of being copied into every index.html. Theme switching is done by shared/theme.ts,
+   which sets data-theme="dark" | "light" on <html>; without it the OS preference wins. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  color-scheme: dark;
+  --bg-app: #1e1f22;
+  --bg-sidebar: #2b2d31;
+  --bg-topbar: #313338;
+  --bg-main: #313338;
+  --bg-elevated: #383a40;
+  --bg-input: #1e1f22;
+  --text: #f2f3f5;
+  --text-muted: #949ba4;
+  --border: #26282c;
+  --accent: #5865f2;
+  --accent-hover: #4752c4;
+  --danger: #ed4245;
+  --online: #23a55a;
+  --offline: #80848e;
+  --shadow: 0 6px 18px rgba(0, 0, 0, .22);
+  --shadow-lg: 0 14px 34px rgba(0, 0, 0, .2);
+  --shadow-inset: inset 0 1px 4px rgba(0, 0, 0, .28);
+  --highlight: rgba(255, 255, 255, .035);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    /* Softer than pure white — reduces glare compared to stark #fff panels. */
+    --bg-app: #e7e9ec;
+    --bg-sidebar: #f4f5f7;
+    --bg-topbar: #f4f5f7;
+    --bg-main: #eceef1;
+    --bg-elevated: #fafafb;
+    --bg-input: #e9ebee;
+    --text: #23252a;
+    --text-muted: #62656c;
+    --border: #dadce0;
+    --offline: #a9adb4;
+    --shadow: 0 6px 18px rgba(30, 34, 42, .08);
+    --shadow-lg: 0 14px 34px rgba(30, 34, 42, .09);
+    --shadow-inset: inset 0 1px 3px rgba(30, 34, 42, .08);
+    --highlight: rgba(255, 255, 255, .1);
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg-app: #e7e9ec;
+  --bg-sidebar: #f4f5f7;
+  --bg-topbar: #f4f5f7;
+  --bg-main: #eceef1;
+  --bg-elevated: #fafafb;
+  --bg-input: #e9ebee;
+  --text: #23252a;
+  --text-muted: #62656c;
+  --border: #dadce0;
+  --offline: #a9adb4;
+  --shadow: 0 6px 18px rgba(30, 34, 42, .08);
+  --shadow-lg: 0 14px 34px rgba(30, 34, 42, .09);
+  --shadow-inset: inset 0 1px 3px rgba(30, 34, 42, .08);
+  --highlight: rgba(255, 255, 255, .1);
+}
+
+body {
+  font-family: "gg sans", "Segoe UI", system-ui, sans-serif;
+  background: var(--bg-app);
+  color: var(--text);
+}

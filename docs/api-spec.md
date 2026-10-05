@@ -78,7 +78,7 @@ Errors are always `{ "error": "<code>", "details"?: [...] }`.
 | `DELETE /api/projects/{projectId}/cards/{cardId}` | — | `204` | 401, 403, 404 `card_not_found`, 429 |
 
 Lists/cards from another project are reported as `404`, never `403`, so ids can't be probed.
-Create/update/delete delegate to `kanban/cards.service.ts`, so validation, Socket.IO broadcast
+Create/update/delete delegate to `kanban/card.service.ts`, so validation, Socket.IO broadcast
 and notifications behave as for the frontend. `assignee` is not exposed (no column in `cards`).
 
 ## Rate limiting

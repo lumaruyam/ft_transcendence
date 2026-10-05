@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "_owner": "Track 1 (Foundation, Auth, and API infrastructure) — package manifest; each src/ subfolder below has its own per-file ownership comments",
-  "_description": "Frontend: Vanilla TypeScript + Vite MPA (React used only for whiteboard/Excalidraw)",
+  "_description": "Frontend: Svelte 5 + TypeScript + Vite MPA (React used only for whiteboard/Excalidraw)",
   "_note_react": "React is pinned to ^18 — @excalidraw/excalidraw 0.17.x declares peer react@^17||^18 and breaks with React 19. Do NOT upgrade react/react-dom past 18.x without first checking Excalidraw compatibility.",
   "scripts": {
     "dev": "vite",
@@ -17,9 +17,11 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^6.1.1",
+    "svelte": "^5.57.0",
     "typescript": "^7.0.2",
     "vite": "^8.2.2"
   }
