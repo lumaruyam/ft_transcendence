@@ -1,12 +1,14 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
-     Responsible for: one column of the board — editable title, delete button, its cards and the
-     "add a card" input. The header is the drag handle to reorder lists; the column accepts dropped
-     cards, with a line showing where the card will land. -->
+     Responsible for: one column: title, count, menu, cards and "add a card". The grip drags the list, cards can be dropped here. -->
 <script lang="ts">
-  import AddForm from "./AddForm.svelte";
+  import { tick } from "svelte";
+  import { confirmDialog } from "../shared/confirm.svelte";
+  import Icon from "../shared/ui/Icon.svelte";
+  import Popover from "../shared/ui/Popover.svelte";
   import CardItem from "./CardItem.svelte";
-  import InlineTitle from "./InlineTitle.svelte";
+  import Composer from "./Composer.svelte";
   import { insertionIndex, othersBefore } from "./dnd";
+  import InlineTitle from "./InlineTitle.svelte";
   import type { BoardStore } from "./boardStore.svelte";
   import type { List } from "./types";
 
@@ -14,18 +16,25 @@
 
   let column: HTMLElement;
   let cardsEl: HTMLElement;
-  // index (among the cards without the dragged one) where a dragged card would land, null when none is over us
+  let title: ReturnType<typeof InlineTitle> | undefined = $state();
+  // where a dragged card would land (null when none is over)
   let dropIndex = $state<number | null>(null);
 
+  const filter = $derived(store.filter.trim().toLowerCase());
+  const shown = $derived(
+    filter
+      ? list.cards.filter((c) => `${c.title} ${c.description ?? ""}`.toLowerCase().includes(filter))
+      : list.cards
+  );
   const cardIds = $derived(list.cards.map((c) => c.id));
   const othersCount = $derived(cardIds.filter((id) => id !== store.drag?.id).length);
 
-  function onHeaderDragStart(event: DragEvent): void {
+  function onGripDragStart(event: DragEvent): void {
     if (!event.dataTransfer) return;
     event.dataTransfer.setData("text/plain", list.id);
     event.dataTransfer.effectAllowed = "move";
-    // drag the whole column, not just its header
-    event.dataTransfer.setDragImage(column, 20, 20);
+    // drag the whole column
+    event.dataTransfer.setDragImage(column, 24, 24);
     store.drag = { kind: "list", id: list.id };
   }
 
@@ -37,7 +46,7 @@
   }
 
   function onDragLeave(event: DragEvent): void {
-    // only reset when the pointer leaves the column, not when it moves between its children
+    // ignore moves between children
     if (!column.contains(event.relatedTarget as Node | null)) dropIndex = null;
   }
 
@@ -50,48 +59,111 @@
     store.drag = null;
     void store.moveCard(cardId, list.id, index);
   }
+
+  async function addCard(text: string): Promise<boolean> {
+    const ok = await store.addCard(list.id, text);
+    if (ok) {
+      await tick();
+      cardsEl.scrollTo({ top: cardsEl.scrollHeight, behavior: "smooth" });
+    }
+    return ok;
+  }
+
+  async function onDelete(): Promise<void> {
+    if (list.cards.length > 0) {
+      const n = list.cards.length;
+      const ok = await confirmDialog({
+        title: `Supprimer « ${list.title} » ?`,
+        message: `${n === 1 ? "La carte" : `Les ${n} cartes`} qu'elle contient ${n === 1 ? "sera supprimée" : "seront supprimées"} définitivement.`,
+        confirmLabel: "Supprimer la liste",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    await store.removeList(list.id);
+  }
 </script>
 
-<!-- the column is a drop zone for cards: dragging has no keyboard equivalent here, the card dialog
-     offers a "move to list" menu for that -->
+<!-- drop zone for cards; without a mouse, use Alt+arrows or the card dialog -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <section
   class="column"
   class:dragging={store.drag?.kind === "list" && store.drag.id === list.id}
+  class:over={dropIndex !== null}
   data-id={list.id}
+  aria-label={list.title}
   bind:this={column}
   ondragover={onDragOver}
   ondragleave={onDragLeave}
   ondrop={onDrop}
 >
-  <header draggable={store.canEdit} ondragstart={onHeaderDragStart} ondragend={() => (store.drag = null)}>
-    <InlineTitle
-      value={list.title}
-      editable={store.canEdit}
-      label="Titre de la liste"
-      onsave={(title) => store.renameList(list.id, title)}
-    />
+  <header>
+    <InlineTitle bind:this={title} value={list.title} editable={store.canEdit} label="Titre de la liste" onsave={(t) => store.renameList(list.id, t)} />
+    <span class="count" title={`${list.cards.length} carte${list.cards.length > 1 ? "s" : ""}`}>
+      {filter ? `${shown.length}/${list.cards.length}` : list.cards.length}
+    </span>
     {#if store.canEdit}
-      <button type="button" class="delete" aria-label="Supprimer la liste" onclick={() => store.removeList(list.id)}>
-        ×
-      </button>
+      <span
+        class="icon-btn grip"
+        role="presentation"
+        draggable="true"
+        title="Glisser pour déplacer la liste"
+        ondragstart={onGripDragStart}
+        ondragend={() => (store.drag = null)}
+      >
+        <Icon name="grip" size={17} />
+      </span>
+      <Popover width={200}>
+        {#snippet trigger({ open, toggle })}
+          <button type="button" class="icon-btn menu" aria-label="Options de la liste" aria-expanded={open} onclick={toggle}>
+            <Icon name="more" size={17} />
+          </button>
+        {/snippet}
+        {#snippet children({ close })}
+          <button
+            type="button"
+            class="item"
+            onclick={() => {
+              close();
+              title?.focus();
+            }}
+          >
+            <Icon name="pencil" size={15} /> Renommer
+          </button>
+          <button
+            type="button"
+            class="item danger"
+            onclick={() => {
+              close();
+              void onDelete();
+            }}
+          >
+            <Icon name="trash" size={15} /> Supprimer la liste
+          </button>
+        {/snippet}
+      </Popover>
     {/if}
   </header>
 
   <div class="cards" role="list" bind:this={cardsEl}>
-    {#each list.cards as card, i (card.id)}
+    {#each shown as card, i (card.id)}
       {#if dropIndex !== null && card.id !== store.drag?.id && othersBefore(cardIds, i, store.drag?.id) === dropIndex}
         <div class="drop-line"></div>
       {/if}
-      <CardItem {store} {card} />
+      <CardItem {store} {card} index={i} />
     {/each}
     {#if dropIndex !== null && dropIndex >= othersCount}
       <div class="drop-line"></div>
     {/if}
+    {#if list.cards.length === 0 && dropIndex === null}
+      <p class="empty">{store.canEdit ? "Déposez une carte ici" : "Aucune carte"}</p>
+    {:else if filter && shown.length === 0}
+      <p class="empty">Aucune carte ne correspond</p>
+    {/if}
   </div>
 
   {#if store.canEdit}
-    <AddForm placeholder="+ Ajouter une carte" onadd={(title) => store.addCard(list.id, title)} />
+    <Composer label="Ajouter une carte" placeholder="Titre de la carte…" multiline onadd={addCard} />
   {/if}
 </section>
 
@@ -99,67 +171,126 @@
   .column {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    width: 16rem;
-    flex-shrink: 0;
+    gap: 6px;
+    width: 300px;
     max-height: 100%;
-    background: linear-gradient(180deg, var(--highlight), transparent 40%), var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.75rem;
-    /* Soft, large-radius shadow — an ambient "panel floats a little" cue, not a hard contact shadow. */
-    box-shadow: var(--shadow-lg);
-    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.12s ease;
+    flex-shrink: 0;
+    padding: 10px 8px 8px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-sunken);
+    border: 1px solid transparent;
+    transition: opacity 0.12s, border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+  /* entrance animation */
+  :global(.reveal) .column {
+    animation: reveal-in 0.5s var(--ease) backwards;
+    animation-delay: calc(var(--reveal-base, 0ms) + var(--col, 0) * 70ms);
+  }
+  .column.over {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent-soft) 45%, var(--bg-sunken));
   }
   .column.dragging {
-    opacity: 0.45;
+    opacity: 0.4;
   }
   header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    font-weight: 600;
-    font-size: 0.95rem;
+    gap: 4px;
+    min-height: 30px;
+    padding: 0 2px 0 6px;
+    font-family: var(--font-serif);
+    font-size: 1.02rem;
   }
-  header[draggable="true"] {
+  .grip {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    opacity: 0;
     cursor: grab;
+    transition: opacity 0.12s, background-color 0.15s var(--ease), color 0.15s var(--ease);
+  }
+  header:hover .grip,
+  .grip:focus-visible {
+    opacity: 1;
+  }
+  .count {
+    flex-shrink: 0;
+    min-width: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text) 8%, transparent);
+    color: var(--text-soft);
+    font-family: var(--font-sans);
+    font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+  }
+  .menu {
+    width: 30px;
+    height: 30px;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+  header:hover .menu,
+  .menu:focus-visible,
+  .menu[aria-expanded="true"] {
+    opacity: 1;
   }
   .cards {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 8px;
+    min-height: 36px;
+    padding: 2px;
     overflow-y: auto;
-    /* keeps an empty list droppable */
-    min-height: 2rem;
   }
   .drop-line {
     height: 3px;
+    flex-shrink: 0;
     border-radius: 2px;
     background: var(--accent);
-    flex-shrink: 0;
   }
-  .delete {
-    background: transparent;
+  .empty {
+    padding: 14px 8px;
+    border: 1.5px dashed var(--line-strong);
+    border-radius: var(--radius);
+    color: var(--text-faint);
+    font-size: 0.84rem;
+    text-align: center;
+  }
+  .item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 10px;
     border: none;
-    cursor: pointer;
-    color: var(--text-muted);
-    opacity: 0;
-    font-size: 1rem;
-    line-height: 1;
-    width: 22px;
-    height: 22px;
-    flex-shrink: 0;
-    border-radius: 5px;
-    transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+    border-radius: 8px;
+    background: none;
+    color: var(--text);
+    font-size: 0.9rem;
+    text-align: left;
   }
-  header:hover .delete,
-  .delete:focus-visible {
-    opacity: 0.6;
+  .item:hover {
+    background: var(--bg-sunken);
   }
-  .delete:hover {
-    opacity: 1;
-    background: var(--border);
+  .item.danger {
     color: var(--danger);
+  }
+  .item.danger:hover {
+    background: var(--danger-soft);
+  }
+  @media (hover: none) {
+    .grip,
+    .menu {
+      opacity: 1;
+    }
+  }
+  @media (max-width: 600px) {
+    .column {
+      width: min(300px, 84vw);
+    }
   }
 </style>

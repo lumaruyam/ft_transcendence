@@ -7,6 +7,7 @@
 
 import { getStoredToken, clearAuthSession } from "../auth/authClient";
 import type { AuthUser } from "../auth/authClient";
+import { loginUrl } from "../shared/session";
 
 // API_PREFIX is the single place the backend route prefix lives. nginx proxies `/api/` to the backend
 export const API_PREFIX = "/api";
@@ -18,6 +19,8 @@ interface ApiRequestOptions {
 	method: "GET" | "POST" | "PUT" | "DELETE";
 	path: string;
 	body?: unknown;
+	// lets the request finish after the page closes
+	keepalive?: boolean;
 }
 
 export class ApiError extends Error {
@@ -54,6 +57,7 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
 			method: options.method,
 			headers,
 			body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+			keepalive: options.keepalive,
 		});
 	} catch {
 		throw new ApiError(0, "network_error", [], {}, "Could not reach the server. Check your connection.");
@@ -87,7 +91,7 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
 function handleSessionExpired(): void {
 	clearAuthSession();
 	if (window.location.pathname !== LOGIN_PATH) {
-		window.location.href = LOGIN_PATH;
+		window.location.href = loginUrl();
 	}
 }
 

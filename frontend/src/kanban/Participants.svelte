@@ -1,168 +1,167 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
-     Responsible for: the top bar participants widget — a stack of avatars with the first few project
-     members, expanding into the full list with who is online right now (live, from the socket). -->
+     Responsible for: the header list of participants with live online status. -->
 <script lang="ts">
-  import Dropdown from "../shared/ui/Dropdown.svelte";
-  import { initials } from "../shared/initials";
+  import Avatar from "../shared/ui/Avatar.svelte";
+  import Icon from "../shared/ui/Icon.svelte";
+  import Popover from "../shared/ui/Popover.svelte";
+  import { ROLE_LABEL } from "../shared/format";
   import type { BoardStore } from "./boardStore.svelte";
 
   let { store }: { store: BoardStore } = $props();
 
-  const VISIBLE = 3;
-  const COLORS = ["#5865f2", "#eb459e", "#23a55a", "#f0b132", "#e8590c", "#1098ad"];
+  const VISIBLE = 4;
 
-  let open = $state(false);
-
-  // the same user always gets the same color
-  function colorFor(userId: string): string {
-    let hash = 0;
-    for (const char of userId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-    return COLORS[hash % COLORS.length];
-  }
-
-  // online members first, then alphabetical
+  // online first, then by name
   const sorted = $derived(
     [...store.members].sort(
       (a, b) =>
-        Number(store.online.has(b.userId)) - Number(store.online.has(a.userId)) ||
-        a.user.name.localeCompare(b.user.name)
+        Number(store.online.has(b.userId)) - Number(store.online.has(a.userId)) || a.user.name.localeCompare(b.user.name)
     )
   );
+  const onlineCount = $derived(store.members.filter((m) => store.online.has(m.userId)).length);
 </script>
 
-<svelte:window onclick={() => (open = false)} />
-
-<div class="participants">
-  <button
-    type="button"
-    class="stack"
-    aria-label={`${store.members.length} participants`}
-    aria-expanded={open}
-    onclick={(e) => {
-      e.stopPropagation();
-      open = !open;
-    }}
-  >
-    {#each sorted.slice(0, VISIBLE) as member (member.userId)}
-      {@render avatar(member.user.name, member.userId)}
-    {/each}
-    {#if sorted.length > VISIBLE}
-      <span class="more">+{sorted.length - VISIBLE}</span>
-    {/if}
-  </button>
-
-  <Dropdown {open}>
-    <div role="presentation" onclick={(e) => e.stopPropagation()}>
-      <div class="section-title">{store.members.length} participants</div>
-      {#each sorted as member (member.userId)}
-        <div class="item">
-          {@render avatar(member.user.name, member.userId)}
-          <div class="info">
-            <div>{member.user.name}</div>
-            <div class="status">{store.online.has(member.userId) ? "En ligne" : "Hors ligne"} · {member.role}</div>
-          </div>
-        </div>
-      {/each}
+<Popover width={300}>
+  {#snippet trigger({ open, toggle })}
+    <button
+      type="button"
+      class="stack"
+      aria-expanded={open}
+      aria-label={`${store.members.length} participants, ${onlineCount} en ligne`}
+      onclick={toggle}
+    >
+      <span class="avatars">
+        {#each sorted.slice(0, VISIBLE) as member (member.userId)}
+          <Avatar name={member.user.name} id={member.userId} src={member.user.avatar} size={28} online={store.online.has(member.userId)} ring />
+        {/each}
+        {#if sorted.length > VISIBLE}<span class="more">+{sorted.length - VISIBLE}</span>{/if}
+      </span>
+    </button>
+  {/snippet}
+  {#snippet children()}
+    <div class="title">
+      <span>{store.members.length} participant{store.members.length > 1 ? "s" : ""}</span>
+      <span class="online"><span class="dot"></span>{onlineCount} en ligne</span>
     </div>
-  </Dropdown>
-</div>
-
-{#snippet avatar(name: string, userId: string)}
-  <span class="avatar" style:background={colorFor(userId)} title={name}>
-    {initials(name)}
-    <span class="dot" class:online={store.online.has(userId)}></span>
-  </span>
-{/snippet}
+    <ul>
+      {#each sorted as member (member.userId)}
+        <li>
+          <Avatar name={member.user.name} id={member.userId} src={member.user.avatar} size={32} online={store.online.has(member.userId)} />
+          <div class="info">
+            <div class="name selectable">{member.user.name}</div>
+            <div class="role">{ROLE_LABEL[member.role]}{store.online.has(member.userId) ? " · en ligne" : ""}</div>
+          </div>
+        </li>
+      {/each}
+    </ul>
+    {#if store.myRole === "admin" && store.project}
+      <a class="invite" href={`/app/${store.project.id}/settings#invitations`}><Icon name="plus" size={15} /> Inviter quelqu'un</a>
+    {/if}
+  {/snippet}
+</Popover>
 
 <style>
-  .participants {
-    position: relative;
-  }
   .stack {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    padding: 4px 10px 4px 4px;
+    padding: 3px 6px 3px 3px;
     border: none;
-    border-radius: 20px;
-    background: var(--bg-elevated);
-    cursor: pointer;
-    transition: background-color 0.15s ease;
+    border-radius: 999px;
+    background: transparent;
   }
   .stack:hover {
-    background: var(--border);
+    background: var(--bg-sunken);
   }
-  .avatar {
-    position: relative;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.65rem;
-    font-weight: 700;
-    color: #fff;
-    border: 2px solid var(--bg-topbar);
-    margin-left: -8px;
+  .avatars {
+    display: inline-flex;
   }
-  .stack .avatar:first-child {
-    margin-left: 0;
+  .avatars > :global(* + *) {
+    margin-left: -6px;
   }
-  .dot {
-    position: absolute;
-    bottom: -1px;
-    right: -1px;
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    border: 2px solid var(--bg-topbar);
-    background: var(--offline);
-  }
-  .dot.online {
-    background: var(--online);
+  @media (max-width: 520px) {
+    /* keep two avatars on phones */
+    .avatars > :global(:nth-child(n + 3)) {
+      display: none;
+    }
   }
   .more {
-    width: 28px;
-    height: 28px;
-    margin-left: -8px;
-    border-radius: 50%;
-    background: var(--border);
-    color: var(--text-muted);
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.6rem;
-    font-weight: 700;
-    border: 2px solid var(--bg-topbar);
-  }
-  .section-title {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bg-sunken);
+    color: var(--text-soft);
     font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-muted);
-    padding: 6px 8px 4px;
+    font-weight: 700;
+    box-shadow: 0 0 0 2px var(--surface);
   }
-  .item {
+  .title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .online {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 600;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--online);
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  li {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-  }
-  .item:hover {
-    background: var(--border);
-  }
-  .item .avatar {
-    margin-left: 0;
-    border-color: var(--bg-elevated);
+    padding: 7px 10px;
+    border-radius: 8px;
   }
   .info {
-    display: flex;
-    flex-direction: column;
+    min-width: 0;
   }
-  .status {
-    font-size: 0.7rem;
-    color: var(--text-muted);
+  .name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .role {
+    font-size: 0.76rem;
+    color: var(--text-faint);
+  }
+  .invite {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    padding: 9px 10px;
+    border-top: 1px solid var(--line);
+    border-radius: 0 0 8px 8px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .invite:hover {
+    background: var(--accent-soft);
   }
 </style>
