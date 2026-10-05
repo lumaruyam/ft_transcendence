@@ -1,82 +1,53 @@
 // Owner: Track 2 (Person A — Kanban CRUD and UI)
-// Responsible for: frontend API calls backing the /app/:id kanban board.
-//
-// uses fetch directly instead of the shared api client since that module is still a stub
+// Responsible for: frontend API calls backing the /app/:id kanban board. Everything goes through
+// apiRequest (api/apiClient.ts), which adds the JWT and logs the user out on an expired session.
+import { apiRequest } from "../api/apiClient";
+import type { Board, Card, CardMoved, List, Member, Project } from "./types";
 
-export interface Card {
-  id: string;
-  listId: string;
-  title: string;
-  description: string | null;
-  position: number;
+type ListRow = Omit<List, "cards">;
+
+export async function fetchProject(projectId: string): Promise<Project> {
+  const { project } = await apiRequest<{ project: Project }>({ method: "GET", path: `/projects/${projectId}` });
+  return project;
 }
 
-export interface List {
-  id: string;
-  boardId: string;
-  title: string;
-  position: number;
-  cards: Card[];
+export function fetchBoardForProject(projectId: string): Promise<Board> {
+  return apiRequest<Board>({ method: "GET", path: `/projects/${projectId}/board` });
 }
 
-export interface Board {
-  id: string;
-  projectId: string;
-  title: string;
-  lists: List[];
+export async function fetchMembers(projectId: string): Promise<Member[]> {
+  const { members } = await apiRequest<{ members: Member[] }>({ method: "GET", path: `/projects/${projectId}/members` });
+  return members;
 }
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
-  if (!res.ok) {
-    throw new Error(`API error ${res.status} on ${path}`);
-  }
-  if (res.status === 204) {
-    return undefined as T;
-  }
-  return res.json() as Promise<T>;
+export function createList(boardId: string, title: string, position: number): Promise<ListRow> {
+  return apiRequest<ListRow>({ method: "POST", path: "/lists", body: { boardId, title, position } });
 }
 
-export async function fetchBoardForProject(projectId: string): Promise<Board> {
-  return apiFetch<Board>(`/api/projects/${projectId}/board`);
+export function renameList(listId: string, title: string): Promise<ListRow> {
+  return apiRequest<ListRow>({ method: "PUT", path: `/lists/${listId}`, body: { title } });
 }
 
-export async function createList(boardId: string, title: string, position: number): Promise<List> {
-  const list = await apiFetch<Omit<List, "cards">>("/api/lists", {
-    method: "POST",
-    body: JSON.stringify({ boardId, title, position }),
-  });
-  return { ...list, cards: [] };
+export function deleteList(listId: string): Promise<void> {
+  return apiRequest<void>({ method: "DELETE", path: `/lists/${listId}` });
 }
 
-export async function createCard(listId: string, title: string, position: number): Promise<Card> {
-  return apiFetch<Card>("/api/cards", {
-    method: "POST",
-    body: JSON.stringify({ listId, title, position }),
-  });
+export function reorderLists(boardId: string, orderedListIds: string[]): Promise<void> {
+  return apiRequest<void>({ method: "PUT", path: `/boards/${boardId}/lists/reorder`, body: { orderedListIds } });
 }
 
-export async function updateCardTitle(cardId: string, title: string): Promise<Card> {
-  return apiFetch<Card>(`/api/cards/${cardId}`, {
-    method: "PUT",
-    body: JSON.stringify({ title }),
-  });
+export function createCard(listId: string, title: string, position: number): Promise<Card> {
+  return apiRequest<Card>({ method: "POST", path: "/cards", body: { listId, title, position } });
 }
 
-export async function updateListTitle(listId: string, title: string): Promise<Omit<List, "cards">> {
-  return apiFetch<Omit<List, "cards">>(`/api/lists/${listId}`, {
-    method: "PUT",
-    body: JSON.stringify({ title }),
-  });
+export function updateCard(cardId: string, patch: { title?: string; description?: string }): Promise<Card> {
+  return apiRequest<Card>({ method: "PUT", path: `/cards/${cardId}`, body: patch });
 }
 
-export async function deleteCard(cardId: string): Promise<void> {
-  await apiFetch<void>(`/api/cards/${cardId}`, { method: "DELETE" });
+export function moveCard(cardId: string, listId: string, position: number): Promise<CardMoved> {
+  return apiRequest<CardMoved>({ method: "PUT", path: `/cards/${cardId}/move`, body: { listId, position } });
 }
 
-export async function deleteList(listId: string): Promise<void> {
-  await apiFetch<void>(`/api/lists/${listId}`, { method: "DELETE" });
+export function deleteCard(cardId: string): Promise<void> {
+  return apiRequest<void>({ method: "DELETE", path: `/cards/${cardId}` });
 }

@@ -1,28 +1,49 @@
 // Owner: Track 2 (Person B — WebSocket layer)
-// Responsible for: the Kanban-specific Socket.IO connection, joins the project room and
-// forwards every event to boardView state patching logic
-//
-// uses socket io client directly instead of the shared ws wrapper since that module is still a stub
-import { io, Socket } from "socket.io-client";
+// Responsible for: the Kanban-specific Socket.IO connection — authenticates with the session JWT, joins
+// the project room (again after every reconnect, since rooms live on the server-side socket) and forwards
+// every server event to the board store.
+import { createSocketConnection } from "../api/wsClientWrapper";
+import { getStoredToken, clearAuthSession } from "../auth/authClient";
 
-export type KanbanEventHandler = (event: string, payload: unknown) => void;
+export interface KanbanSocketHandlers {
+  // every event the server emits (card_created, list_updated, presence, ...)
+  onEvent: (event: string, payload: unknown) => void;
+  // the connection came back after a drop: events were missed in between, the caller must refetch
+  onReconnect: () => void;
+}
 
-let socket: Socket | null = null;
-
-// joins the project room on connect, including after reconnects
-export function connectKanbanSocket(projectId: string, onEvent: KanbanEventHandler): void {
-  if (socket) {
-    socket.disconnect();
+// connectKanbanSocket returns a function that closes the connection
+export function connectKanbanSocket(projectId: string, handlers: KanbanSocketHandlers): () => void {
+  const token = getStoredToken();
+  if (!token) {
+    redirectToLogin();
+    return () => {};
   }
 
-  socket = io({
-    // TODO Track 1: use the real JWT once login exists, this dev token only unblocks testing
-    auth: { token: "dev" },
+  const socket = createSocketConnection(window.location.origin, token);
+  let connectedBefore = false;
+
+  socket.onConnect(() => {
+    socket.emit("join_project", projectId);
+    if (connectedBefore) {
+      handlers.onReconnect();
+    }
+    connectedBefore = true;
   });
 
-  socket.on("connect", () => {
-    socket?.emit("join_project", projectId);
+  // hub.ts rejects the handshake with these messages when the JWT is missing, invalid or expired
+  socket.onConnectError((error) => {
+    if (error.message === "unauthorized" || error.message === "token_expired") {
+      redirectToLogin();
+    }
   });
 
-  socket.onAny(onEvent);
+  socket.onAny(handlers.onEvent);
+
+  return socket.disconnect;
+}
+
+function redirectToLogin(): void {
+  clearAuthSession();
+  window.location.href = "/login";
 }

@@ -1,35 +1,24 @@
-import { fetchBoardForProject } from "./boardApi";
-import { mountBoard } from "./boardView";
-import { renderSidebar } from "./sidebar";
-import { renderTopBar } from "./topBar";
+// Owner: Track 2 (Person A — Kanban CRUD and UI)
+// Responsible for: the /app/:id entry point — checks there is a session and a project id in the URL,
+// then mounts the Svelte kanban app.
+import { mount } from "svelte";
+import "../shared/theme.css";
 import { initTheme } from "../shared/theme";
+import { isAuthenticated } from "../auth/authClient";
+import App from "./App.svelte";
+import { BoardStore } from "./boardStore.svelte";
 
-function getProjectIdFromUrl(): string | null {
-  const match = window.location.pathname.match(/^\/app\/([^/]+)$/);
-  return match ? match[1] : null;
+initTheme();
+
+const projectId = window.location.pathname.match(/^\/app\/([^/]+)\/?$/)?.[1];
+
+if (!isAuthenticated()) {
+  window.location.replace("/login");
+} else if (!projectId) {
+  window.location.replace("/app");
+} else {
+  mount(App, {
+    target: document.getElementById("app") as HTMLElement,
+    props: { store: new BoardStore(projectId) },
+  });
 }
-
-async function init(): Promise<void> {
-  initTheme();
-
-  const projectId = getProjectIdFromUrl();
-  const sidebar = document.getElementById("sidebar");
-  const topbar = document.getElementById("topbar");
-  const boardRoot = document.getElementById("board-root");
-  if (!projectId || !sidebar || !topbar || !boardRoot) return;
-
-  // renders before the board request finishes so the sidebar does not flash open then close
-  renderSidebar(sidebar);
-
-  try {
-    const board = await fetchBoardForProject(projectId);
-    const title = board.title || "Kanban";
-    renderTopBar(topbar, projectId, title);
-    await mountBoard(boardRoot, projectId, board);
-  } catch {
-    renderTopBar(topbar, projectId, "Kanban");
-    boardRoot.textContent = "Impossible de charger le board pour le moment.";
-  }
-}
-
-init();
