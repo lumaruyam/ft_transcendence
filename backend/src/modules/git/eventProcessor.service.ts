@@ -2,7 +2,7 @@
 // Responsible for: matching incoming webhook payloads to the correct card and driving PR-lifecycle status transitions (PR pending → Done). TS equivalent of backend/internal/git/eventProcessor.go (Go skeleton, removed).
 
 import { prisma } from "../../db/prisma/client.js";
-import { updateCard } from "../kanban/cards.service.js";
+import { updateCard } from "../kanban/card.service.js";
 import { normalizeRepoUrl } from "./branchLink.service.js"
 import { createNotification } from "../notifications/notifications.service.js";
 import { Prisma } from "@prisma/client";

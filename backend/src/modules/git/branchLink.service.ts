@@ -7,15 +7,13 @@ import { getDecryptedAccessToken } from "../auth/oauth.service.js";
 
 //autorise access to github
 async function getGitHubToken(userId: string): Promise<string> {
-  let token: string | null = null;
-  try{
-    token = await getDecryptedAccessToken(userId);
-  } catch{
-    throw new Error("Failed to decrypt GitHub access token. Check your encryption key");
-  }
+  // the token lives in the oauth_accounts table (encrypted), not on the user row
+  const token = await getDecryptedAccessToken(userId);
+
   if (!token) {
     throw new Error(`GitHub account is not linked for user ${userId}`);
   }
+
   return token;
 }
 //to find owner and repo

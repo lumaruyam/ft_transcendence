@@ -1,79 +1,356 @@
 // Owner: Track 2 (Person A — Kanban CRUD and UI)
-// Responsible for: Fastify route handlers for boards/lists/cards CRUD. Calls into Track 2 Person B's
-// broadcast.ts after each mutation to notify connected clients over Socket.IO.
+// Responsible for: Fastify route handlers for boards/lists/cards CRUD. The broadcasts to connected
+// clients (Socket.IO) are done by the services themselves, so every caller of a mutation gets them.
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../permissions/permissions.middleware.js";
-import { createBoard, getBoard, deleteBoard } from "./boards.service.js";
-import { createList, updateList, deleteList, reorderLists } from "./lists.service.js";
-import { createCard, updateCard, moveCard, deleteCard } from "./cards.service.js";
+import { ROLES } from "../permissions/roles.service.js";
+import { requireProjectRole, projectOf } from "./kanban.permissions.js";
+import {
+  createBoard,
+  getBoard,
+  getOrCreateBoardForProject,
+  deleteBoard,
+} from "./board.service.js";
+import {
+  createList,
+  getList,
+  updateList,
+  deleteList,
+  reorderLists,
+} from "./list.service.js";
+import { createCard, getCard, updateCard, moveCard, deleteCard } from "./card.service.js";
+import {
+  createBoardSchema,
+  boardIdParamSchema,
+  projectIdParamSchema,
+  createListSchema,
+  listIdParamSchema,
+  updateListSchema,
+  reorderListsSchema,
+  createCardSchema,
+  cardIdParamSchema,
+  updateCardSchema,
+  moveCardSchema,
+} from "./kanban.schemas.js";
 
+// Every route runs requireAuth, then checks the caller's role in the project the entity belongs to:
+// viewer to read, member to edit, admin to delete a whole board.
 export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> {
-  app.post("/boards", { preHandler: requireAuth }, createBoardHandler);
-  app.get("/boards/:id", { preHandler: requireAuth }, getBoardHandler);
-  app.delete("/boards/:id", { preHandler: requireAuth }, deleteBoardHandler);
+  app.post<{ Body: { projectId: string; title: string } }>(
+    "/boards",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.projectBody)],
+      schema: createBoardSchema,
+    },
+    createBoardHandler
+  );
+  app.get<{ Params: { id: string } }>(
+    "/boards/:id",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.VIEWER, projectOf.boardParam)],
+      schema: boardIdParamSchema,
+    },
+    getBoardHandler
+  );
+  app.delete<{ Params: { id: string } }>(
+    "/boards/:id",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.ADMIN, projectOf.boardParam)],
+      schema: boardIdParamSchema,
+    },
+    deleteBoardHandler
+  );
+  app.get<{ Params: { projectId: string } }>(
+    "/projects/:projectId/board",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.VIEWER, projectOf.projectParam)],
+      schema: projectIdParamSchema,
+    },
+    getBoardForProjectHandler
+  );
 
-  app.post("/lists", { preHandler: requireAuth }, createListHandler);
-  app.put("/lists/:id", { preHandler: requireAuth }, updateListHandler);
-  app.delete("/lists/:id", { preHandler: requireAuth }, deleteListHandler);
-  app.put("/boards/:boardId/lists/reorder", { preHandler: requireAuth }, reorderListsHandler);
+  app.post<{ Body: { boardId: string; title: string; position: number } }>(
+    "/lists",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.boardBody)],
+      schema: createListSchema,
+    },
+    createListHandler
+  );
+  app.get<{ Params: { id: string } }>(
+    "/lists/:id",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.VIEWER, projectOf.listParam)],
+      schema: listIdParamSchema,
+    },
+    getListHandler
+  );
+  app.put<{ Params: { id: string }; Body: { title?: string; position?: number } }>(
+    "/lists/:id",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.listParam)],
+      schema: updateListSchema,
+    },
+    updateListHandler
+  );
+  app.delete<{ Params: { id: string } }>(
+    "/lists/:id",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.listParam)],
+      schema: listIdParamSchema,
+    },
+    deleteListHandler
+  );
+  app.put<{ Params: { boardId: string }; Body: { orderedListIds: string[] } }>(
+    "/boards/:boardId/lists/reorder",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.boardIdParam)],
+      schema: reorderListsSchema,
+    },
+    reorderListsHandler
+  );
 
-  app.post("/cards", { preHandler: requireAuth }, createCardHandler);
-  app.put("/cards/:id", { preHandler: requireAuth }, updateCardHandler);
-  app.put("/cards/:id/move", { preHandler: requireAuth }, moveCardHandler);
-  app.delete("/cards/:id", { preHandler: requireAuth }, deleteCardHandler);
+  app.post<{ Body: { listId: string; title: string; description?: string; position: number } }>(
+    "/cards",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.listBody)],
+      schema: createCardSchema,
+    },
+    createCardHandler
+  );
+  app.get<{ Params: { id: string } }>(
+    "/cards/:id",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.VIEWER, projectOf.cardParam)],
+      schema: cardIdParamSchema,
+    },
+    getCardHandler
+  );
+  app.put<{
+    Params: { id: string };
+    Body: { title?: string; description?: string; position?: number };
+  }>(
+    "/cards/:id",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.cardParam)],
+      schema: updateCardSchema,
+    },
+    updateCardHandler
+  );
+  app.put<{ Params: { id: string }; Body: { listId: string; position: number } }>(
+    "/cards/:id/move",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.cardParam)],
+      schema: moveCardSchema,
+    },
+    moveCardHandler
+  );
+  app.delete<{ Params: { id: string } }>(
+    "/cards/:id",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.cardParam)],
+      schema: cardIdParamSchema,
+    },
+    deleteCardHandler
+  );
 }
 
 // createBoardHandler creates a board within a project.
-async function createBoardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { projectId, title } → call createBoard(input)
+async function createBoardHandler(
+  request: FastifyRequest<{ Body: { projectId: string; title: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const board = await createBoard(request.body);
+  reply.code(201).send(board);
 }
 
 // getBoardHandler fetches a board with its lists/cards for initial render.
-async function getBoardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: call getBoard(request.params.id); 404 if null
+async function getBoardHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
+  const board = await getBoard(id);
+
+  if (!board) {
+    reply.code(404).send({ error: "Board not found" });
+    return;
+  }
+  reply.send(board);
+}
+
+// fetches or creates the project board, the url only carries a project id not a board id
+async function getBoardForProjectHandler(
+  request: FastifyRequest<{ Params: { projectId: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { projectId } = request.params;
+  const board = await getOrCreateBoardForProject(projectId);
+
+  if (!board) {
+    reply.code(404).send({ error: "Project not found" });
+    return;
+  }
+  reply.send(board);
 }
 
 // deleteBoardHandler deletes a board.
-async function deleteBoardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: call deleteBoard(request.params.id) (broadcasts "board_deleted" internally)
+async function deleteBoardHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
+  const deleted = await deleteBoard(id);
+
+  if (!deleted) {
+    reply.code(404).send({ error: "Board not found" });
+    return;
+  }
+  reply.code(204).send();
 }
 
 // createListHandler creates a new list/column on a board.
-async function createListHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { boardId, title } → call createList(input); broadcast "list_created"
+async function createListHandler(
+  request: FastifyRequest<{ Body: { boardId: string; title: string; position: number } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const list = await createList(request.body);
+  reply.code(201).send(list);
+}
+
+// getListHandler fetches a list with its cards for additionnal info.
+async function getListHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
+  const list = await getList(id);
+
+  if (!list) {
+    reply.code(404).send({ error: "List not found" });
+    return;
+  }
+  reply.send(list);
 }
 
 // updateListHandler renames/repositions a list.
-async function updateListHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { title?, position? } → call updateList(request.params.id, input); broadcast "list_updated"
+async function updateListHandler(
+  request: FastifyRequest<{ Params: { id: string }; Body: { title?: string; position?: number } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
+
+  const list = await updateList(id, request.body);
+  if (!list)
+  {
+    reply.code(404).send({ error: "List not found" });
+    return;
+  }
+  reply.send(list);
 }
 
 // deleteListHandler removes a list.
-async function deleteListHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: call deleteList(request.params.id) (broadcasts "list_deleted" internally)
+async function deleteListHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
+  const deleted = await deleteList(id);
+
+  if (!deleted) {
+    reply.code(404).send({ error: "List not found" });
+    return;
+  }
+  reply.code(204).send();
 }
 
 // reorderListsHandler persists a new list order after drag-and-drop.
-async function reorderListsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { orderedListIds: string[] } → call reorderLists(request.params.boardId, orderedListIds)
+async function reorderListsHandler(
+  request: FastifyRequest<{ Params: { boardId: string }; Body: { orderedListIds: string[] } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { boardId } = request.params;
+
+  const success = await reorderLists(boardId, request.body.orderedListIds);
+
+  if (!success) {
+    reply.code(404).send({ error: "One or more lists not found on this board" });
+    return;
+  }
+  reply.code(204).send();
 }
 
 // createCardHandler creates a card in a list.
-async function createCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { listId, title, description?, assignee? } → call createCard(input); broadcasts "card_created" internally
+async function createCardHandler(
+  request: FastifyRequest<{
+    Body: { listId: string; title: string; description?: string; position: number };
+  }>,
+  reply: FastifyReply
+): Promise<void> {
+  const card = await createCard(request.body);
+  reply.code(201).send(card);
+}
+
+// getCardHandler fetches a card for additionnal info.
+async function getCardHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
+  const card = await getCard(id);
+
+  if (!card) {
+    reply.code(404).send({ error: "Card not found" });
+    return;
+  }
+  reply.send(card);
 }
 
 // updateCardHandler edits a card's fields.
-async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { title?, description?, assignee? } → call updateCard(request.params.id, input)
+async function updateCardHandler(
+  request: FastifyRequest<{
+    Params: { id: string };
+    Body: { title?: string; description?: string; position?: number };
+  }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
+
+  const card = await updateCard(id, request.body);
+  if (!card) {
+    reply.code(404).send({ error: "Card not found" });
+    return;
+  }
+  reply.send(card);
 }
 
-// moveCardHandler relocates a card to a new list/position (drag-and-drop).
-async function moveCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: decode body { newListId, newPosition } → call moveCard(request.params.id, newListId, newPosition)
+// moveCardHandler moves a card to a position in a list (possibly another one of the same project) after drag-and-drop.
+async function moveCardHandler(
+  request: FastifyRequest<{ Params: { id: string }; Body: { listId: string; position: number } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
+  const { listId, position } = request.body;
+
+  const moved = await moveCard(id, listId, position);
+  if (!moved) {
+    reply.code(404).send({ error: "Card or destination list not found in this project" });
+    return;
+  }
+  reply.send(moved);
 }
 
 // deleteCardHandler removes a card.
-async function deleteCardHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  // TODO: call deleteCard(request.params.id) (broadcasts "card_deleted" internally)
+async function deleteCardHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params;
+  const deleted = await deleteCard(id);
+
+  if (!deleted) {
+    reply.code(404).send({ error: "Card not found" });
+    return;
+  }
+  reply.code(204).send();
 }

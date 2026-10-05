@@ -1,15 +1,3 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   app.ts                                             :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2026/08/29 14:54:07 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/09 20:25:05 by lulmaruy         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: building and configuring the Fastify application instance — route registration, plugins, and middleware wiring.
 import Fastify, { FastifyInstance } from "fastify";
@@ -19,20 +7,27 @@ import type { AppConfig } from "./config/env.js";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import fastifyRawBody from "fastify-raw-body";
 
 // Import route handlers
 import { registerHealthRoutes } from "./modules/health/health.routes.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { initJwtService } from "./modules/auth/jwt.service.js";
-import { registerProjectsRoutes } from "./modules/projects/projects.routes.js"; // need new file
+import { initOAuthService } from "./modules/auth/oauth.service.js";
+import { initTokenCrypto } from "./modules/auth/tokenCrypto.js";
+import { registerProjectsRoutes } from "./modules/projects/projects.routes.js";
 import { registerInviteRoutes } from "./modules/projects/invites.js";
-import { registerKanbanRoutes } from "./modules/kanban/kanban.routes.js"; // need to create new file
-import { registerNotesRoutes } from "./modules/notes/notes.routes.js"; // need new file
-import { registerAttachmentsRoutes } from "./modules/attachments/attachments.routes.js" // need new file
-import { registerSearchRoutes } from "./modules/search/search.routes.js"; // need new file
+import { registerUserRoutes } from "./modules/permissions/users.routes.js";
+import { registerKanbanRoutes } from "./modules/kanban/kanban.routes.js";
+import { registerNotesRoutes } from "./modules/notes/notes.routes.js";
+import { registerAttachmentsRoutes } from "./modules/attachments/attachments.routes.js";
+import { registerSearchRoutes } from "./modules/search/search.routes.js";
 import { registerNotificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { registerGitWebhookRoutes } from "./modules/git/webhook.routes.js";
 import { registerPublicApiRoutes } from "./modules/publicapi/publicapi.routes.js";
+import { initApiKeys } from "./modules/publicapi/apikeys.service.js";
+import { apiKeyRouteConstraint } from "./modules/publicapi/apikey.middleware.js";
+
 
 // Register plugins
 function registerPlugins(app: FastifyInstance, config: AppConfig): void {
@@ -43,6 +38,13 @@ function registerPlugins(app: FastifyInstance, config: AppConfig): void {
 	app.register(rateLimit, {
 		max: config.rateLimit.globalMax,
 		timeWindow: config.rateLimit.globalWindowMs
+	});
+
+	app.register(fastifyRawBody, {
+		field: "rawBody",
+		global: false,
+		encoding: "utf8",
+		runFirst: true,
 	});
 }
 
@@ -56,6 +58,7 @@ function registerRoutes(app: FastifyInstance): void {
 	// Each of these route modules applies requireAuth / requireRole itself as a preHandler
 	app.register(registerProjectsRoutes, { prefix: "/api/projects" });
 	app.register(registerInviteRoutes, { prefix: "/api/projects" });
+	app.register(registerUserRoutes, { prefix: "api/users" });
 	app.register(registerKanbanRoutes, { prefix: "/api" });
 	app.register(registerNotesRoutes, { prefix: "/api/notes" });
 	app.register(registerAttachmentsRoutes, { prefix: "/api/attachments" });
@@ -67,9 +70,12 @@ function registerRoutes(app: FastifyInstance): void {
 
 // buildApp constructs a Fastify instance with every module's routes registered, but does not start listening.
 export function buildApp(config: AppConfig): FastifyInstance {
-	const app = Fastify({ logger: true, });
+	const app = Fastify({ logger: true, constraints: { apiAuth: apiKeyRouteConstraint } });
 
 	initJwtService(config.jwtSecret);
+	initOAuthService({ github: config.oauthGithub, stateSecret: config.jwtSecret });
+	initTokenCrypto(config.oauthTokenEncryptionKey);
+	initApiKeys({ defaultRateLimit: config.publicApiRateLimitDefault });
 	registerPlugins(app, config);
 	registerRoutes(app);
 

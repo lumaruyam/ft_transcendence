@@ -5,7 +5,7 @@
 
 **Path note:** implementation now lives at `backend/src/modules/publicapi/` (Fastify
 routes in `publicapi.routes.ts`, API key logic in `apikeys.service.ts`, rate limiting
-in `ratelimit.middleware.ts`) — this replaced the former Go path
+in `ratelimit.middleware.ts`; auth middleware in `apikey.middleware.ts`; key-management routes)
 `backend/internal/publicapi/`. The endpoint contract, auth model, and rate-limit
 behavior described below are unchanged by the pivot.
 
@@ -26,21 +26,75 @@ window onto the same data, not a separate implementation.
 
 ## Auth
 
-Requests must present a valid API key (issued via `apikeys.service.ts`'s
-`issueApiKey`, scoped to a project). The key is presented as a header (exact header
-name TBD by the team, e.g. `X-API-Key`) and validated by `validateApiKey`, which
-looks up the key's hash — plaintext keys are never stored.
+Requests present an API key in the **`X-API-Key`** header. `requireApiKey`
+(`apikey.middleware.ts`) hashes it (SHA-256) and looks it up in `api_keys.key_hash` via
+`validateApiKey` — plaintext keys are never stored. Keys look like `tk_<43 base64url chars>`.
+
+```
+curl -H "X-API-Key: tk_..." https://host/api/projects
+```
+
+A key identifies *who* and optionally *where*; it never grants access by itself:
+
+- `api_keys.user_id` is the issuing user. Requests act as that user, and every project-scoped
+  route still runs `requireRole` against `project_members` (docs/architecture.md §5), so
+  demoting or removing the user cuts the key's access immediately. Keys with a null `user_id`
+  are rejected (fail closed).
+- `api_keys.project_id`, when set, restricts the key to that project (`403 api_key_project_mismatch`
+  elsewhere). `GET /api/projects` then returns only that project.
+- Minimum roles: `GET` cards = `viewer`; `POST`/`PUT`/`DELETE` cards = `member`.
+
+In the canonical layout `GET /api/projects` shares its path with the JWT route in
+`projects.routes.ts` (interim layout: that one is `GET /my-projects`). A Fastify route
+constraint (`apiKeyRouteConstraint`, registered in `app.ts`) sends requests that carry an
+`X-API-Key` header to the public handler and all others to the JWT handler.
+
+Prehandler order on every route: `requireApiKey` → `rateLimitMiddleware` →
+`enforceKeyProjectScope` → `requireRole`.
+
+### Key management (JWT, project admin)
+
+Not part of the 5 documented endpoints; ordinary JWT routes in `apikeys.routes.ts`.
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/projects/{projectId}/api-keys` | Body `{ "rateLimit"?: 1..10000 }` (req/min, default `PUBLIC_API_RATE_LIMIT_DEFAULT`). `201 { apiKey, key }` — `key` is the plaintext, returned **once** |
+| GET | `/api/projects/{projectId}/api-keys` | `200 { apiKeys: [...] }`, never includes key material |
+| DELETE | `/api/projects/{projectId}/api-keys/{keyId}` | Revokes (deletes the row). `204`, or `404 api_key_not_found` |
+
+## Request / response shapes
+
+Errors are always `{ "error": "<code>", "details"?: [...] }`.
+
+**Card**: `{ id, projectId, listId, title, description, status, position, linkedBranch, linkedPrUrl, createdAt, updatedAt }`
+**Project**: `{ id, name, ownerId, createdAt, updatedAt }`
+
+| Endpoint | Request | Success | Errors |
+|---|---|---|---|
+| `GET /api/projects` | — | `200 { projects: Project[] }` | 401 |
+| `GET /api/projects/{projectId}/cards` | query: `listId?`, `status?`, `limit?` (1–100, default 50), `offset?` (default 0) | `200 { cards: Card[], total, limit, offset }` | 400, 401, 403, 429 |
+| `POST /api/projects/{projectId}/cards` | `{ listId, title (≤200), description? (≤10000) }` | `201 { card }` | 400, 401, 403, 404 `list_not_found`, 429 |
+| `PUT /api/projects/{projectId}/cards/{cardId}` | `{ title?, description? }`, at least one (partial update) | `200 { card }` | 400, 401, 403, 404 `card_not_found`, 429 |
+| `DELETE /api/projects/{projectId}/cards/{cardId}` | — | `204` | 401, 403, 404 `card_not_found`, 429 |
+
+Lists/cards from another project are reported as `404`, never `403`, so ids can't be probed.
+Create/update/delete delegate to `kanban/card.service.ts`, so validation, Socket.IO broadcast
+and notifications behave as for the frontend. `assignee` is not exposed (no column in `cards`).
 
 ## Rate limiting
 
-Enforced by `ratelimit.middleware.ts`'s `rateLimitMiddleware`, registered as a Fastify
-`preHandler` ahead of every `/api/*` route, checking/incrementing usage against the
-key's `rate_limit` column (`checkRateLimit`). The team may implement the counter
-in-process or swap in the `@fastify/rate-limit` plugin — either satisfies the module
-requirement as long as it's per-key.
+`rateLimitMiddleware` runs a fixed one-minute window per API key, limit = `api_keys.rate_limit`
+(requests/minute), in-process (per-instance, see docs/architecture.md §8). It is separate from
+the IP-keyed global limit in `app.ts`, which also still applies.
 
-<!-- TODO: document exact request/response JSON shapes once the handlers are implemented -->
-<!-- TODO: document rate-limit response headers/behavior (e.g. 429 body shape, Retry-After) -->
+Every key-authenticated response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and
+`X-RateLimit-Reset` (epoch seconds). Over the limit:
+
+```
+429 Too Many Requests
+Retry-After: 37
+{ "error": "rate_limit_exceeded", "limit": 100, "retryAfter": 37 }
+```
 
 ## Invite-link membership endpoints
 
