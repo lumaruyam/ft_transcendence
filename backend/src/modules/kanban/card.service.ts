@@ -1,13 +1,15 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 
-export async function createCard(input: { listId: string; title: string; description?: string; position: number}) {
+// position is optional: callers that don't care (the public API) get the card appended at the end of the list
+export async function createCard(input: { listId: string; title: string; description?: string; position?: number}) {
+	const position = input.position ?? await prisma.card.count({ where: { listId: input.listId } });
 	const card = await prisma.card.create({
 		data: {
 			listId: input.listId,
 			title: input.title,
 			description: input.description,
-			position: input.position,
+			position,
 		}
 	});
 	return card;

@@ -10,7 +10,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireRole } from "../permissions/permissions.middleware.js";
 import { ROLES } from "../permissions/roles.service.js";
-import { createCard, updateCard, deleteCard } from "../kanban/cards.service.js";
+import { createCard, updateCard, deleteCard } from "../kanban/card.service.js";
 import { requireApiKey, enforceKeyProjectScope, API_KEY_ROUTE_CONSTRAINT } from "./apikey.middleware.js";
 import { rateLimitMiddleware } from "./ratelimit.middleware.js";
 import { registerApiKeyManagementRoutes } from "./apikeys.routes.js";
@@ -89,6 +89,11 @@ async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): 
 	}
 
 	const card = await updateCard(cardId, body.value);
+	if (!card) {
+		// deleted between the belongs-to-project check and the update
+		reply.code(404).send({ error: "card_not_found" });
+		return;
+	}
 	reply.code(200).send({ card: toPublicCard(card, projectId) });
 }
 

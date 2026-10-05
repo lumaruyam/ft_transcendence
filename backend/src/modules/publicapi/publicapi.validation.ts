@@ -2,7 +2,7 @@
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: request validation for the Public API endpoints (backend half of the mandatory
 // frontend+backend validation requirement). Kanban's own validateCardInput is still a stub, so the
-// public API validates its documented request shapes itself before delegating to kanban/cards.service.ts.
+// public API validates its documented request shapes itself before delegating to kanban/card.service.ts.
 
 import { MAX_RATE_LIMIT } from "./apikeys.service.js";
 
