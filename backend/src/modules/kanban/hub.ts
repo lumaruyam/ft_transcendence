@@ -47,6 +47,10 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
       }
       socket.data.projectId = projectId;
       socket.join(projectId);
+      // presence events only say who joins/leaves from now on: tell the newcomer who is already here
+      const peers = await socket.nsp.in(projectId).fetchSockets();
+      const userIds = [...new Set(peers.map((peer) => peer.data.userId as string))];
+      socket.emit("presence_snapshot", { projectId, userIds });
       handleReconnect(socket.id, projectId, socket.data.userId);
     });
 
