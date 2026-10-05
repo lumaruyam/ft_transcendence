@@ -5,7 +5,7 @@ import { Octokit } from "octokit";
 import { prisma} from '../../db/prisma/client.js';
 import { getDecryptedAccessToken } from "../auth/oauth.service.js";
 
-//autorise acces to github
+//autorise access to github
 async function getGitHubToken(userId: string): Promise<string> {
   // the token lives in the oauth_accounts table (encrypted), not on the user row
   const token = await getDecryptedAccessToken(userId);
