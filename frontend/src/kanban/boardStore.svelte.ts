@@ -38,6 +38,17 @@ export class BoardStore {
   accessDenied = $state(false);
   // last failed user action, shown by the page until dismissed
   actionError = $state<string | null>(null);
+  // what is being dragged right now (drag data can't be read during dragover, so the store keeps it)
+  drag = $state<{ kind: "card" | "list"; id: string } | null>(null);
+  // the card whose detail dialog is open; the dialog follows live updates and closes if the card is deleted
+  openCardId = $state<string | null>(null);
+  openCard = $derived.by(() => {
+    for (const list of this.board?.lists ?? []) {
+      const card = list.cards.find((c) => c.id === this.openCardId);
+      if (card) return { card, list };
+    }
+    return null;
+  });
 
   readonly #projectId: string;
   #disconnect: (() => void) | null = null;

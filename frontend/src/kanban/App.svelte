@@ -6,6 +6,7 @@
   import TopBar from "../shared/ui/TopBar.svelte";
   import ProfileMenu from "../shared/ui/ProfileMenu.svelte";
   import Board from "./Board.svelte";
+  import CardDetail from "./CardDetail.svelte";
   import Participants from "./Participants.svelte";
   import Sidebar from "./Sidebar.svelte";
   import type { BoardStore } from "./boardStore.svelte";
@@ -53,6 +54,8 @@
     {/if}
   </div>
 </div>
+
+<CardDetail {store} />
 
 <style>
   .shell {
