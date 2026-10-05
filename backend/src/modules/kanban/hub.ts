@@ -3,6 +3,8 @@
 import { Server as SocketIOServer } from "socket.io";
 import type { Server as HttpServer } from "http";
 import { broadcastPresence, handleReconnect } from "./presence.js";
+import { validateJwt, JwtExpiredError } from "../auth/jwt.service.js";
+import { getUserRole } from "../permissions/roles.service.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -18,23 +20,31 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
     cors: { origin: process.env.CORS_ORIGIN || "*" },
   });
 
-  // TEMPORARY: only checks a token was sent, doesn't verify it.
-  // TODO(Track 1): call validateJwt here once auth/jwt.service.ts implements it.
+  // The JWT sent in the handshake (auth.token) is verified here, the same way requireAuth does for HTTP.
+  // socket.data.userId is the verified user id, never the raw token.
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
     if (typeof token !== "string" || token.length === 0) {
       next(new Error("unauthorized"));
       return;
     }
-    socket.data.userId = token;
-    next();
+    try {
+      socket.data.userId = validateJwt(token).userId;
+      next();
+    } catch (err) {
+      next(new Error(err instanceof JwtExpiredError ? "token_expired" : "unauthorized"));
+    }
   });
 
   io.on("connection", (socket) => {
-    socket.on("join_project", (projectId: string) => {
+    socket.on("join_project", async (projectId: string) => {
       if (typeof projectId !== "string" || projectId.length === 0) return;
-      // TODO(permissions): verify socket.data.userId is a member of projectId — any
-      // authenticated socket can currently join any project's room.
+      // only members of the project (any role) may listen to its room
+      const role = await getUserRole(projectId, socket.data.userId);
+      if (!role) {
+        socket.emit("join_denied", { projectId });
+        return;
+      }
       socket.data.projectId = projectId;
       socket.join(projectId);
       handleReconnect(socket.id, projectId, socket.data.userId);
@@ -42,6 +52,7 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
 
     socket.on("leave_project", (projectId: string) => {
       if (typeof projectId !== "string" || projectId.length === 0) return;
+      if (!socket.rooms.has(projectId)) return;
       socket.leave(projectId);
       broadcastPresence(projectId, socket.data.userId, "left");
       if (socket.data.projectId === projectId) {
