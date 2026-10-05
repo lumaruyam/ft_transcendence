@@ -135,24 +135,26 @@ export async function matchCardByGitLink(repoUrl: string, branchName: string): P
     return link ? link.cardId : null;
 }
 
-// transitionCardStatus drives the actual card move by calling into Track 2 Person A's card service.
-export async function transitionCardStatus(cardId: string, targetStatus: string, extraData?: {prUrl?: string, prStatus: string}): Promise<void> {
-    //Updating the card status and the PR link in the `cards` table
-    const update = await updateCard(cardId, {status: targetStatus, ...(extraData?.prUrl ? { linkedPrUrl: extraData.prUrl} : {}), } as any);
-    if(!update){
-        console.warn(`Card ${cardId} not found, status ${targetStatus} was skipped`);
-        return;
-    }
-    //If prStatus is provided, synchronize it in the git_links table
-    if (extraData?.prStatus) {
-        try {
-            await prisma.gitLink.update({
-                where: { cardId },
-                data: { prStatus: extraData.prStatus },
-            });
-        } catch (err) {
-            console.warn(`[GitLink] No link found for card ${cardId} to update prStatus`);
+//change in prisma
+export async function transitionCardStatus(cardId: string, targetStatus: string,
+    extraData?: { prUrl?: string, prStatus?: string}): Promise<void> {
+    try{
+        const operations: any[] = [ prisma.card.update({
+        where: { id: cardId },
+        data: { status: targetStatus, ...( extraData?.prUrl ? { linkedPrUrl: extraData.prUrl } : {}),
+        }},)
+        ]
+        if(extraData?.prStatus){
+            operations.push(
+                prisma.gitLink.updateMany({
+                    where: { cardId },
+                    data: {prStatus: extraData.prStatus},
+                })
+            )
         }
-  }
+        await prisma.$transaction(operations);
+    }
+    catch(err:any){
+        console.warn(`Failed to transition card ${cardId} to status '${targetStatus}' : ${err?.message || err}`);
+    }
 }
-
