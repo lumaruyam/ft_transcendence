@@ -1,17 +1,19 @@
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
-// Responsible for: frontend API calls backing the /app dashboard (project list).
+// Responsible for: frontend API calls backing the /app dashboard (project list and creation).
+import { apiRequest } from "../api/apiClient";
 
 export interface ProjectSummary {
   id: string;
   name: string;
-  role: string;
 }
 
-// note: the backend endpoint is itself a temporary stub with hardcoded data
+// listMyProjects returns the projects the logged-in user is a member of
 export async function listMyProjects(): Promise<ProjectSummary[]> {
-  const res = await fetch("/api/my-projects");
-  if (!res.ok) {
-    throw new Error(`API error ${res.status} on /api/my-projects`);
-  }
-  return res.json();
+  const { projects } = await apiRequest<{ projects: ProjectSummary[] }>({ method: "GET", path: "/projects" });
+  return projects;
+}
+
+export async function createProject(name: string): Promise<ProjectSummary> {
+  const { project } = await apiRequest<{ project: ProjectSummary }>({ method: "POST", path: "/projects", body: { name } });
+  return project;
 }
