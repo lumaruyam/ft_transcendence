@@ -6,6 +6,8 @@
   import TopBar from "../shared/ui/TopBar.svelte";
   import ProfileMenu from "../shared/ui/ProfileMenu.svelte";
   import Board from "./Board.svelte";
+  import Participants from "./Participants.svelte";
+  import Sidebar from "./Sidebar.svelte";
   import type { BoardStore } from "./boardStore.svelte";
 
   let { store }: { store: BoardStore } = $props();
@@ -19,39 +21,49 @@
 </script>
 
 <div class="shell">
-  <TopBar>
-    {#snippet left()}
-      <div class="logo">{title.trim().slice(0, 2).toUpperCase() || "?"}</div>
-      <div class="title">{title}</div>
-    {/snippet}
-    {#snippet right()}
-      <ProfileMenu projectId={store.project?.id} />
-    {/snippet}
-  </TopBar>
+  <Sidebar />
 
-  {#if store.actionError}
-    <div class="error" role="alert">
-      <span>{store.actionError}</span>
-      <button type="button" aria-label="Fermer" onclick={() => store.dismissError()}>×</button>
-    </div>
-  {/if}
+  <div class="main">
+    <TopBar>
+      {#snippet left()}
+        <div class="logo">{title.trim().slice(0, 2).toUpperCase() || "?"}</div>
+        <div class="title">{title}</div>
+      {/snippet}
+      {#snippet right()}
+        <Participants {store} />
+        <ProfileMenu projectId={store.project?.id} />
+      {/snippet}
+    </TopBar>
 
-  {#if store.accessDenied}
-    <p class="message">Vous n'avez pas accès à ce projet.</p>
-  {:else if store.loadState === "loading"}
-    <p class="message">Chargement du board…</p>
-  {:else if store.loadState === "error"}
-    <p class="message">Impossible de charger le board pour le moment.</p>
-  {:else}
-    <Board {store} />
-  {/if}
+    {#if store.actionError}
+      <div class="error" role="alert">
+        <span>{store.actionError}</span>
+        <button type="button" aria-label="Fermer" onclick={() => store.dismissError()}>×</button>
+      </div>
+    {/if}
+
+    {#if store.accessDenied}
+      <p class="message">Vous n'avez pas accès à ce projet.</p>
+    {:else if store.loadState === "loading"}
+      <p class="message">Chargement du board…</p>
+    {:else if store.loadState === "error"}
+      <p class="message">Impossible de charger le board pour le moment.</p>
+    {:else}
+      <Board {store} />
+    {/if}
+  </div>
 </div>
 
 <style>
   .shell {
     display: flex;
-    flex-direction: column;
     height: 100vh;
+    overflow: hidden;
+  }
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     min-width: 0;
   }
   .logo {
