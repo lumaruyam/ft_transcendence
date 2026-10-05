@@ -34,8 +34,7 @@ calls in `frontend/src/api/` and `frontend/src/auth/`.
                           └──────────────────┘          └──────────────────┘
 ```
 
-- **Frontend** — vanilla TypeScript (or Svelte if drag-and-drop/reactivity gets
-  unwieldy in plain DOM code). Talks to the backend over HTTPS through Nginx: plain
+- **Frontend** — Svelte as main framework. Talks to the backend over HTTPS through Nginx: plain
   REST calls via `frontend/src/api/apiClient.ts`, and the Kanban real-time layer via
   `socket.io-client` (`frontend/src/api/wsClientWrapper.ts`, `frontend/src/kanban/wsClient.ts`).
 - **Backend** — Node.js + TypeScript, one process, hosting two protocols on the same
