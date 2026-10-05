@@ -1,6 +1,6 @@
 import { listMyProjects } from "./projectsApi";
 import { renderProjectList } from "./projectListView";
-import { initTheme } from "../kanban/theme";
+import { initTheme } from "../shared/theme";
 import { renderProfileMenu } from "../kanban/profileMenu";
 
 function renderTopBar(container: HTMLElement): void {

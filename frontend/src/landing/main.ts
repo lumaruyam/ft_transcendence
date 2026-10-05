@@ -1,6 +1,6 @@
 // health test: call the backend health endpoint and render the result, so opening
 // / visually confirms the full round-trip (browser -> nginx -> backend -> Postgres).
-import { initTheme } from "../kanban/theme";
+import { initTheme } from "../shared/theme";
 
 interface HealthResponse {
   status: string;

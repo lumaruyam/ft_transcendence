@@ -2,7 +2,7 @@
 // Responsible for: the top bar profile menu, theme toggle plus profile and board settings links
 //
 // projectId is optional so the dashboard page can reuse this without a board settings link
-import { currentTheme, toggleTheme } from "./theme";
+import { currentTheme, toggleTheme } from "../shared/theme";
 
 export function renderProfileMenu(container: HTMLElement, projectId?: string): void {
   const wrapper = document.createElement("div");

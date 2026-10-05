@@ -2,7 +2,7 @@ import { fetchBoardForProject } from "./boardApi";
 import { mountBoard } from "./boardView";
 import { renderSidebar } from "./sidebar";
 import { renderTopBar } from "./topBar";
-import { initTheme } from "./theme";
+import { initTheme } from "../shared/theme";
 
 function getProjectIdFromUrl(): string | null {
   const match = window.location.pathname.match(/^\/app\/([^/]+)$/);
