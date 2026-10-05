@@ -3,19 +3,18 @@
 import type { GitLink } from "@prisma/client";
 import { Octokit } from "octokit";
 import { prisma} from '../../db/prisma/client.js';
+import { getDecryptedAccessToken } from "../auth/oauth.service.js";
 
 //autorise acces to github
 async function getGitHubToken(userId: string): Promise<string> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { oauthAccessToken: true, oauthProvider: true },
-  });
+  // the token lives in the oauth_accounts table (encrypted), not on the user row
+  const token = await getDecryptedAccessToken(userId);
 
-  if (!user || user.oauthProvider !== "github" || !user.oauthAccessToken) {
+  if (!token) {
     throw new Error(`GitHub account is not linked for user ${userId}`);
   }
 
-  return user.oauthAccessToken;
+  return token;
 }
 //to find owner and repo
 export function parseRepoUrl(repoUrl: string): { owner: string; repo: string } {

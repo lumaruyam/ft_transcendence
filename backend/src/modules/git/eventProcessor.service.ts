@@ -4,7 +4,6 @@
 import { prisma } from "../../db/prisma/client.js";
 import { updateCard } from "../kanban/card.service.js";
 import { normalizeRepoUrl } from "./branchLink.service.js"
-import { createNotification } from "../notifications/notifications.service.js";
 
 export interface Commit {
     id: string;
@@ -116,7 +115,7 @@ export async function transitionCardStatus(cardId: string, targetStatus: string,
         console.warn(`Card ${cardId} not found, cannotmouve to '${targetStatus}'`);
 
     
-    const updated = await updateCard(cardId, { status: newStatus });
+    const updated = await updateCard(cardId, { status: targetStatus });
     if(!updated)
-        console.log(`Card ${cardId} not found, status '${newStatus}' was not applied`);
+        console.log(`Card ${cardId} not found, status '${targetStatus}' was not applied`);
 }

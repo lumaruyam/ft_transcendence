@@ -205,6 +205,8 @@ model Note {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   editor  User?   @relation("NoteUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
 
+  // one note per project — matches the notes_project_id_key index created by the note_one_per_project migration
+  @@unique([projectId])
   @@map("notes")
 }
 
