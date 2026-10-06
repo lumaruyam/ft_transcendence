@@ -4,6 +4,8 @@
 import { prisma } from "../../db/prisma/client.js";
 import { updateCard } from "../kanban/card.service.js";
 import { normalizeRepoUrl } from "./branchLink.service.js"
+import { createNotification } from "../notifications/notifications.service.js";
+import { Prisma } from "@prisma/client";
 
 export interface Commit {
     id: string;
@@ -22,6 +24,7 @@ export interface GitHubPullRequestPayload {
     pull_request: {
         title: string;
         body: string | null;
+        html_url?: string;
         merged: boolean;
         head: {
             ref: string; //name of branche of pull request
@@ -64,20 +67,43 @@ export async function processPushEvent(payload: GitHubPushPayload): Promise<void
 });*/
 }
 
-function createNotification(){
+async function dispatchCardNotification(cardId: string, message: string, url?: string): Promise<void> {
+  try {
+    //look the projectId asso with card
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      select: { list: { select: { board: { select: { projectId: true } } } } } ,
+    });
+    const projectId = card?.list?.board?.projectId;
+    if(!projectId){
+        console.warn(`[Notif] Project not found for card ${cardId}`);
+        return;}
+    //take members
+    const members = await prisma.projectMember.findMany({
+        where: { projectId },
+        select: {userId: true},
+    });
+    //Send notif to every membres
+    await Promise.all(
+        members.map((member) =>
+            createNotification(member.userId, "card", { cardId, message, url: url ?? null,})));
 
+
+  } catch (err) {
+    console.warn(`[Notif] Failed to dispatch for card ${cardId}:`);
+  }
 }
 
 // processPullRequestEvent handles a `pull_request` webhook payload (opened).
 export async function processPullRequestEvent(payload: GitHubPullRequestPayload): Promise<void> {
     // TODO: fire a notification via Track 4's notifications.service.ts once the card moves
     const {action, pull_request, repository} = payload; //desrtcurisation
-    if(action != 'opened' && action != 'reopened')
+    if(action !== 'opened' && action !== 'reopened')
         return;
-    let cardId: string | null = await matchCardByGitLink(repository.html_url, pull_request.head.ref)
+    let cardId: string | null = await matchCardByGitLink(repository.html_url, pull_request.head.ref);
     if(cardId){
-        await transitionCardStatus(cardId, 'PR pending');
-        createNotification();
+        await transitionCardStatus(cardId, 'PR pending', {prUrl: pull_request.html_url, prStatus: 'open'});
+        await dispatchCardNotification(cardId, `Pull Request opened: "${pull_request.title}"`,pull_request.html_url);
     }
 }
 
@@ -87,7 +113,8 @@ export async function processMergeEvent(payload: GitHubPullRequestPayload): Prom
     if(action == 'closed' && pull_request.merged == true){
         let cardId: string | null = await matchCardByGitLink(repository.html_url, pull_request.head.ref);
     if(cardId){
-            await transitionCardStatus(cardId, 'Done');
+            await transitionCardStatus(cardId, 'Done', {prUrl: pull_request.html_url, prStatus: 'merged'});
+            await dispatchCardNotification(cardId, `Pull Request merged! Card moved to Done.`, pull_request.html_url);
         }
     }
 }
@@ -114,8 +141,9 @@ export async function transitionCardStatus(cardId: string, targetStatus: string,
     if(!currentCard)
         console.warn(`Card ${cardId} not found, cannotmouve to '${targetStatus}'`);
 
-    
+
     const updated = await updateCard(cardId, { status: targetStatus });
     if(!updated)
         console.log(`Card ${cardId} not found, status '${targetStatus}' was not applied`);
 }
+
