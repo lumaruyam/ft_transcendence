@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   users.service.ts                                   :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: lulmaruy <lulmaruy@student.42.fr>          +#+  +:+       +#+        */
+/*   By: xzhen <xzhen@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/09 21:34:46 by lulmaruy          #+#    #+#             */
-/*   Updated: 2026/09/30 21:06:40 by lulmaruy         ###   ########.fr       */
+/*   Updated: 2026/10/06 00:01:08 by xzhen            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -124,6 +124,10 @@ export async function deleteUser(id: string, options: DeleteUserOptions = {}): P
 					await tx.attachment.updateMany({
 						where: { projectId: project.id, uploadedBy: id },
 						data: { uploadedBy: options.transferTo as string },
+					});
+					await tx.whiteboard.updateMany({
+						where: { projectId: project.id, updatedBy: id },
+						data: { updatedBy: options.transferTo as string },
 					});
 				}
 

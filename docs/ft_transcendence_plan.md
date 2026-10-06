@@ -69,7 +69,7 @@ Boards, lists, and cards. Every mutation (create, edit, move, delete) is written
 
 ### 3.2 Whiteboard (save-and-share, not live in the core plan)
 
-Built on the open-source Excalidraw component. One user draws at a time; there is no live syncing of strokes as they're drawn in the core plan. When done, the drawing is exported to an image (Excalidraw has this built in) and uploaded as a regular file attachment to the project or card. No WebSocket involvement, no persisted stroke/shape data, no conflict handling — this rides on the File upload module.
+Built on the open-source Excalidraw component. One user draws at a time; there is no live syncing of strokes as they're drawn in the core plan. The scene is stored as Excalidraw's own JSON in the database (one `whiteboards` row per project) and autosaved on a debounce timer once the user stops drawing, so the board stays re-editable for whoever opens it next — the same load-latest / autosave / last-save-wins shape as the notes page below. No WebSocket involvement and no conflict handling. Exporting the board to an image is available through Excalidraw's own menu, as a client-side download; it does not go through the File upload module.
 
 ### 3.3 Shared notes (save-and-share, not live)
 
@@ -153,6 +153,7 @@ ft_transcendence/
 │   │   │   ├── projects/              # organization system, incl. invite-link joins (invites.ts)
 │   │   │   ├── kanban/                # boards/lists/cards CRUD + Socket.IO hub
 │   │   │   ├── notes/                 # notes CRUD, autosave endpoint
+│   │   │   ├── whiteboard/            # one Excalidraw scene per project, load + autosave
 │   │   │   ├── attachments/           # file upload handling
 │   │   │   ├── search/                # advanced search
 │   │   │   ├── notifications/         # notification triggers and delivery
@@ -234,7 +235,7 @@ This track should be front-loaded hard in week 1, since every other track depend
 
 ### Track 4 — Whiteboard, notes, and supporting modules (1 person)
 
-- Whiteboard: mount `@excalidraw/excalidraw` on its own page, wire up export-to-image, send the result through the file upload pipeline
+- Whiteboard: mount `@excalidraw/excalidraw` on its own page, store the scene as JSON with load-latest and autosave-on-change (last-save-wins); image export is Excalidraw's own client-side download
 - Notes: integrate Tiptap, store content as JSON, implement load-latest and autosave-on-edit with last-save-wins as the resolution behavior
 - File upload system (covers the File upload minor module)
 - Advanced search across cards, notes, and attachments (covers the Advanced search minor module)

@@ -218,11 +218,11 @@ model Whiteboard {
   id        String   @id @default(uuid())
   projectId String   @unique @map("project_id")
   sceneJson Json     @map("scene_json")
-  updatedBy String   @map("updated_by")
+  updatedBy String?   @map("updated_by")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  editor  User    @relation("WhiteboardUpdatedBy", fields: [updatedBy], references: [id])
+  editor  User?   @relation("WhiteboardUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@map("whiteboards")
 }

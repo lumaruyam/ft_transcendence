@@ -72,3 +72,4 @@ infra/nginx/certs/
 *.crt
 *.key
 *.pem
+backend/scratch/

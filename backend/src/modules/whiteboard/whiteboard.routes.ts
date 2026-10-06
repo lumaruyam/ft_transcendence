@@ -1,6 +1,7 @@
 // Owner: Track 4 (Whiteboard, notes, and supporting modules)
 // Responsible for: Fastify route handlers for the shared per-project whiteboard (load + autosave).
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import type { Prisma } from "@prisma/client";
 import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
 import { getWhiteboard, saveWhiteboard } from "./whiteboard.service.js";
 
@@ -40,7 +41,9 @@ async function saveWhiteboardHandler(request: FastifyRequest, reply: FastifyRepl
 		reply.code(400).send({ error: "invalid_input", details: ["sceneJson must be a JSON object"] });
 		return;
 	}
+	//safe after the check above: sceneJson is a non-null, non-array object
+	const scene = sceneJson as Prisma.InputJsonObject;
 
-	const whiteboard = await saveWhiteboard(projectId, userId, sceneJson);
+	const whiteboard = await saveWhiteboard(projectId, userId, scene);
 	reply.code(200).send({ whiteboard });
 }

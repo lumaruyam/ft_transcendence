@@ -9,20 +9,17 @@ export async function getWhiteboard(projectId: string): Promise<Whiteboard | nul
 }
 
 //save a debounced scene from the Excalidraw canvas.
+//The route validates that sceneJson is a JSON object and answers 400 if it isn't — the parameter
+//type records that, so there is no second runtime check here.
 export async function saveWhiteboard(
 	projectId: string,
 	userId: string,
-	sceneJson: unknown,
+	sceneJson: Prisma.InputJsonObject,
 ): Promise<Whiteboard> {
-	if (typeof sceneJson !== "object" || sceneJson === null || Array.isArray(sceneJson)) {
-		throw new Error("sceneJson must be a JSON object");
-	}//as means i'm sure for type of sceneJson; InputJsonObject passed sceneJson to schema.prisma(sceneJson:Json)
-	const scene = sceneJson as Prisma.InputJsonObject;
-
 	//update the project's scene if it exists, otherwise create it
 	return prisma.whiteboard.upsert({//=update+insert
 		where: { projectId },
-		update: { sceneJson: scene, updatedBy: userId },
-		create: { projectId, sceneJson: scene, updatedBy: userId },
+		update: { sceneJson, updatedBy: userId },
+		create: { projectId, sceneJson, updatedBy: userId },
 	});
 }
