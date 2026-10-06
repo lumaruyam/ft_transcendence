@@ -17,32 +17,12 @@
     { icon: "users", title: "Une équipe, des rôles", text: "Administrateurs, membres, lecteurs. On invite avec un simple lien, qu'on peut révoquer d'un clic." },
     { icon: "key", title: "Ouvert aux scripts", text: "Une API publique à clé, limitée en débit, pour relier vos cartes au reste de vos outils." },
   ];
-
-  type Health = "checking" | "up" | "degraded" | "down";
-  let health = $state<Health>("checking");
-
-  $effect(() => {
-    fetch("/api/health", { headers: { accept: "application/json" } })
-      .then(async (res) => {
-        if (!res.ok) throw new Error();
-        const body = (await res.json()) as { db?: string };
-        health = body.db === "up" ? "up" : "degraded";
-      })
-      .catch(() => (health = "down"));
-  });
-
-  const HEALTH_TEXT: Record<Health, string> = {
-    checking: "Vérification du service…",
-    up: "Service opérationnel",
-    degraded: "Service dégradé",
-    down: "Service injoignable",
-  };
 </script>
 
 <div class="page">
   <header>
     <a class="brand" href="/"><Logo size={32} /><span>Transcendance</span></a>
-    <nav>
+    <nav class:signed={signedIn}>
       <a class="link" href="#fonctionnalites">Fonctionnalités</a>
       <ThemeSwitch compact />
       {#if signedIn}
@@ -58,7 +38,7 @@
     <section class="hero">
       <div class="copy">
         <p class="eyebrow">Gestion de projet collaborative</p>
-        <h1>Avancez ensemble,<br /><em>sans le bruit.</em></h1>
+        <h1>Votre projet,<br /><em>sur un seul tableau.</em></h1>
         <p class="lead">
           Un tableau, des notes et un tableau blanc partagés, qui se mettent à jour en direct. Un outil calme, pensé pour que
           l'équipe passe son temps à faire, pas à gérer l'outil.
@@ -76,7 +56,7 @@
     </section>
 
     <section id="fonctionnalites" class="features">
-      <h2>Tout ce qu'il faut, rien de superflu</h2>
+      <h2>Un seul outil pour toute l'équipe.</h2>
       <div class="grid">
         {#each FEATURES as feature (feature.title)}
           <article>
@@ -96,15 +76,14 @@
   </main>
 
   <footer>
-    <span class="status" class:ok={health === "up"} class:warn={health === "degraded"} class:err={health === "down"}>
-      <span class="dot"></span>{HEALTH_TEXT[health]}
-    </span>
     <span class="links"><a href="/legal/terms">Conditions</a><a href="/legal/privacy">Confidentialité</a></span>
   </footer>
 </div>
 
 <style>
   .page {
+    /* every heading and the wordmark on this page use the sans display font */
+    --font-serif: "Avenir Next", "Segoe UI Variable Display", "Helvetica Neue", Inter, var(--font-sans);
     max-width: 1120px;
     margin: 0 auto;
     padding: 0 28px;
@@ -113,7 +92,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 12px 16px;
     padding: 22px 0;
   }
   .brand {
@@ -128,7 +108,9 @@
   }
   nav {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-end;
     gap: 8px;
   }
   .link {
@@ -157,12 +139,13 @@
   }
   h1 {
     font-size: clamp(2.5rem, 5.4vw, 4rem);
-    line-height: 1.08;
-    letter-spacing: -0.025em;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.035em;
   }
   h1 em {
     color: var(--accent);
-    font-style: italic;
+    font-style: normal;
   }
   .lead {
     max-width: 46ch;
@@ -230,7 +213,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     gap: 12px;
     padding: 40px 0 32px;
     font-size: 0.84rem;
@@ -242,26 +225,6 @@
   }
   .links a {
     color: var(--text-faint);
-  }
-  .status {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--text-faint);
-  }
-  .ok .dot {
-    background: var(--online);
-  }
-  .warn .dot {
-    background: var(--warn);
-  }
-  .err .dot {
-    background: var(--danger);
   }
   @media (max-width: 860px) {
     .hero {
@@ -277,6 +240,22 @@
     .page {
       padding: 0 16px;
     }
+    /* second row: theme switch on the left, buttons on the right (wraps again on very narrow screens) */
+    nav {
+      width: 100%;
+      justify-content: space-between;
+      padding-bottom: 6px;
+    }
+    /* signed in: the hero already has an "Ouvrir mes projets" button, so the theme switch sits next to the logo */
+    nav.signed {
+      width: auto;
+      padding-bottom: 0;
+    }
+    nav.signed .btn {
+      display: none;
+    }
+  }
+  @media (max-width: 380px) {
     nav .btn-ghost {
       display: none;
     }

@@ -18,6 +18,25 @@
   } = $props();
 
   let root: HTMLElement;
+  let panel = $state<HTMLElement>();
+
+  // keep the panel inside the screen: on phones its trigger is not at the edge
+  function fit(): void {
+    if (!panel) return;
+    panel.style.translate = "0 0";
+    // the opening animation scales the panel: measure its real box
+    const box = panel.getBoundingClientRect();
+    const left = box.left + (box.width - panel.offsetWidth) / 2;
+    const right = left + panel.offsetWidth;
+    const margin = 12;
+    const viewport = document.documentElement.clientWidth;
+    const dx = left < margin ? margin - left : right > viewport - margin ? viewport - margin - right : 0;
+    panel.style.translate = `${dx}px 0`;
+  }
+
+  $effect(() => {
+    if (open && panel) fit();
+  });
 
   function toggle(): void {
     open = !open;
@@ -29,6 +48,8 @@
   }
 
   function onWindowPointerDown(event: PointerEvent): void {
+    // during the theme animation, clicks land on <html> (the snapshots), not on the page: not an outside click
+    if (event.target === document.documentElement) return;
     if (open && !root.contains(event.target as Node)) close();
   }
 
@@ -41,13 +62,13 @@
   }
 </script>
 
-<svelte:window onpointerdown={onWindowPointerDown} />
+<svelte:window onpointerdown={onWindowPointerDown} onresize={fit} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="popover" bind:this={root} onkeydown={onKeydown}>
   <span class="anchor" data-popover-trigger-wrap>{@render trigger({ open, toggle })}</span>
   {#if open}
-    <div class="float {align}" style:width="min({width}px, calc(100vw - 24px))">
+    <div class="float {align}" bind:this={panel} style:width="min({width}px, calc(100vw - 24px))">
       {@render children({ close })}
     </div>
   {/if}

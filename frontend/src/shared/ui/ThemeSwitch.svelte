@@ -19,7 +19,10 @@
       aria-checked={theme.pref === option.value}
       class:active={theme.pref === option.value}
       title={option.value === "system" ? "Suit le réglage de votre navigateur" : option.label}
-      onclick={() => setThemePref(option.value)}
+      onclick={(event) => {
+        const box = event.currentTarget.getBoundingClientRect();
+        setThemePref(option.value, { x: box.left + box.width / 2, y: box.top + box.height / 2 });
+      }}
     >
       <Icon name={option.icon} size={15} />
       {#if !compact}<span>{option.label}</span>{/if}
