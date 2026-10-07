@@ -23,7 +23,7 @@ documented here regardless of which ORM reads it.
 | `lists` | id, board_id, title, position | Kanban columns |
 | `cards` | id, title, list_id, linked_branch, linked_pr_url, status, position | Core Kanban entity; `linked_branch`/`linked_pr_url`/`status` driven by the Git integration module |
 | `notes` | id, project_id, content_json, updated_by, updated_at | Autosaved on edit, last-save-wins |
-| `attachments` | id, project_id, card_id (nullable), file_url, file_type, uploaded_by, uploaded_at | Covers regular file uploads and exported whiteboard images alike |
+| `attachments` | id, project_id, card_id (nullable), file_url, file_name, file_size, file_type, uploaded_by (nullable), uploaded_at | `file_url` is the name on disk (a generated uuid plus extension, never the user's file name); `file_name` is the original name, shown to users and searched |
 | `git_links` | card_id, repo_url, branch_name, pr_status | Drives the webhook-based card status automation |
 | `notifications` | id, user_id, type, payload, read_at, created_at | Fires on creation/update/deletion actions |
 | `webhook_events` | id, provider, repo, event_type, payload, processed_at, created_at | Audit log of every Git webhook received |

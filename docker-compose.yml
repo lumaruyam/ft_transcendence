@@ -42,6 +42,8 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -105,3 +107,4 @@ networks:
 volumes:
   db_data:
   frontend_dist:
+  uploads_data:

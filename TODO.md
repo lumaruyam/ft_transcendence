@@ -74,7 +74,7 @@ Track 1 here since they're foundational/unclaimed elsewhere; confirm this with t
 ## Track 4 — Whiteboard, notes, and supporting modules (1 person)
 
 - `backend/src/modules/notes/notes.service.ts`, `notes.routes.ts` *(`notes.routes.ts` added 2026-08-30, was missing from this list — thin wrapper `app.ts` already imports as `registerNotesRoutes`)*
-- `backend/src/modules/attachments/attachments.service.ts`, `attachments.routes.ts` *(added 2026-08-30 — `registerAttachmentsRoutes`)*
+- `backend/src/modules/attachments/attachments.service.ts`, `attachments.routes.ts` *(implemented 2026-10-07 — upload/list/download/delete behind requireRole, files on the `uploads_data` volume)*
 - `backend/src/modules/search/search.service.ts`, `search.routes.ts` *(added 2026-08-30 — `registerSearchRoutes`)*
 - `backend/src/modules/notifications/notifications.service.ts`, `notifications.routes.ts` *(added 2026-08-30 — `registerNotificationsRoutes`; note `createNotification` itself has no public endpoint, it's called internally by kanban/notes/attachments/git handlers)*
 - `frontend/src/whiteboard/whiteboardMount.tsx`, `exportToImage.ts`
