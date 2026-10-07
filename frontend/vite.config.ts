@@ -53,6 +53,14 @@ export default defineConfig({
   // Svelte plugin is the frontend main framework — activates only on .svelte files.
   // the Vite root is src/, so the Svelte config at the frontend root has to be pointed at explicitly
   plugins: [react(), svelte({ configFile: resolve(srcRoot, "../svelte.config.js") }), nginxLikePageRoutes(srcRoot)],
+  resolve: {
+		alias: {
+			"@excalidraw/excalidraw": resolve(
+				import.meta.dirname,
+				"node_modules/@excalidraw/excalidraw/dist/excalidraw.production.min.js",
+			),
+		},
+	},
   root: resolve(import.meta.dirname, "src"),
   publicDir: resolve(import.meta.dirname, "public"),
   server: {

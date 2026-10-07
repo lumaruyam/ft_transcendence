@@ -77,7 +77,8 @@ Track 1 here since they're foundational/unclaimed elsewhere; confirm this with t
 - `backend/src/modules/attachments/attachments.service.ts`, `attachments.routes.ts` *(added 2026-08-30 — `registerAttachmentsRoutes`)*
 - `backend/src/modules/search/search.service.ts`, `search.routes.ts` *(added 2026-08-30 — `registerSearchRoutes`)*
 - `backend/src/modules/notifications/notifications.service.ts`, `notifications.routes.ts` *(added 2026-08-30 — `registerNotificationsRoutes`; note `createNotification` itself has no public endpoint, it's called internally by kanban/notes/attachments/git handlers)*
-- `frontend/src/whiteboard/whiteboardMount.tsx`, `exportToImage.ts`
+- `frontend/src/whiteboard/index.html`, `main.tsx` *(React + Excalidraw; `whiteboardMount.tsx` and `exportToImage.ts` were planned but never needed — the scene is stored in the DB and Excalidraw's own menu handles image export)*
+- `backend/src/modules/whiteboard/whiteboard.service.ts`, `whiteboard.routes.ts` *(added 2026-10-05 — `registerWhiteboardRoutes`)*
 - `frontend/src/notes/notesEditor.ts`, `notesApi.ts`
 - `frontend/src/shared/designTokens.ts`, `components.ts`, `cssSetup.ts`
 - `frontend/src/legal/privacyPolicy.ts`, `termsOfService.ts`

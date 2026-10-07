@@ -20,6 +20,7 @@ import { registerInviteRoutes } from "./modules/projects/invites.js";
 import { registerUserRoutes } from "./modules/permissions/users.routes.js";
 import { registerKanbanRoutes } from "./modules/kanban/kanban.routes.js";
 import { registerNotesRoutes } from "./modules/notes/notes.routes.js";
+import { registerWhiteboardRoutes } from "./modules/whiteboard/whiteboard.routes.js";
 import { registerAttachmentsRoutes } from "./modules/attachments/attachments.routes.js";
 import { registerSearchRoutes } from "./modules/search/search.routes.js";
 import { registerNotificationsRoutes } from "./modules/notifications/notifications.routes.js";
@@ -61,6 +62,7 @@ function registerRoutes(app: FastifyInstance): void {
 	app.register(registerUserRoutes, { prefix: "api/users" });
 	app.register(registerKanbanRoutes, { prefix: "/api" });
 	app.register(registerNotesRoutes, { prefix: "/api/notes" });
+	app.register(registerWhiteboardRoutes, { prefix: "/api/whiteboards" });
 	app.register(registerAttachmentsRoutes, { prefix: "/api/attachments" });
 	app.register(registerSearchRoutes, { prefix: "/api/search" });
 	app.register(registerNotificationsRoutes, { prefix: "/api/notifications" });

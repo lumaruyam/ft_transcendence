@@ -131,3 +131,21 @@ frontend's other `/api/*` calls), not part of the API-key-based Public API secti
   authorized by `permissions.middleware.ts` reading `project_members` (role-based), not by
   presenting the invite token again or by any other form of "possessing the link." An invite
   link is a one-time credential for *joining*, never a standing credential for *access*.
+
+## Internal endpoints — whiteboard
+
+Not part of the Public API module (no API key, no rate-limit tier): these are the app's own routes,
+called by `frontend/src/whiteboard/` with the user's JWT.
+
+| Method | Path | Min role | Body | Success |
+|---|---|---|---|---|
+| `GET` | `/api/whiteboards/:projectId` | viewer | — | `200 { "whiteboard": … \| null }` |
+| `PUT` | `/api/whiteboards/:projectId` | member | `{ "sceneJson": { … } }` | `200 { "whiteboard": … }` |
+
+- The whiteboard object is `{ id, projectId, sceneJson, updatedBy, updatedAt }`. `GET` returns
+  `{ "whiteboard": null }` when nothing has been saved for the project yet — that is not an error.
+- `PUT` replaces the whole scene (last save wins) and accepts a body up to **5 MiB**, since an
+  Excalidraw scene with many shapes passes Fastify's 1 MiB default. nginx's `client_max_body_size`
+  has to allow the same.
+- Errors: `400 invalid_input` (`sceneJson` is not a JSON object), `401 unauthenticated`,
+  and whatever `requireRole` answers when the caller's role is too low.
