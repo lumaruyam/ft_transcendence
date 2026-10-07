@@ -16,8 +16,6 @@ import {
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MiB, same ceiling the service enforces
 
 export async function registerAttachmentsRoutes(app: FastifyInstance): Promise<void> {
-	// Registered here rather than in app.ts: a plugin registered inside a route module only applies
-	// to that module's sub-instance, so no other track's routes change behaviour.
 	await app.register(multipart, { limits: { fileSize: MAX_FILE_BYTES, files: 1 } });
 
 	// projectId comes first in every path because requireRole only reads params.projectId.
@@ -27,8 +25,7 @@ export async function registerAttachmentsRoutes(app: FastifyInstance): Promise<v
 	app.delete("/:projectId/:id", { preHandler: [requireAuth, requireRole("member")] }, deleteAttachmentHandler);
 }
 
-// uploadAttachmentHandler takes one multipart file and records it. An optional ?cardId= attaches
-// the file to a card rather than to the project as a whole.
+//take one multipart file and records it. An optional ?cardId= attaches
 async function uploadAttachmentHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const userId = request.userId;
 	if (!userId) {
@@ -72,7 +69,7 @@ async function uploadAttachmentHandler(request: FastifyRequest, reply: FastifyRe
 	}
 }
 
-// listAttachmentsHandler returns a project's files, metadata only.
+//return a project's files, metadata only.
 async function listAttachmentsHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId } = request.params as { projectId: string };
 
@@ -80,7 +77,7 @@ async function listAttachmentsHandler(request: FastifyRequest, reply: FastifyRep
 	reply.code(200).send({ attachments });
 }
 
-// getAttachmentHandler sends the stored file back.
+//send the stored file back.
 async function getAttachmentHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId, id } = request.params as { projectId: string; id: string };
 
@@ -90,26 +87,24 @@ async function getAttachmentHandler(request: FastifyRequest, reply: FastifyReply
 		return;
 	}
 
-	// Read into memory rather than stream: MAX_FILE_BYTES caps a file at 10 MiB, and a Buffer
-	// response avoids the stream lifecycle, which this stack cuts short.
+	//read into memory rather than stream: MAX_FILE_BYTES caps a file at 10 MiB, and a Buffer
 	let data: Buffer;
 	try {
 		data = await readFile(attachmentPath(attachment));
 	} catch {
-		// the row exists but the file is gone from the volume
+		//the row exists but the file is gone from the volume
 		reply.code(404).send({ error: "attachment_not_found" });
 		return;
 	}
 
-	// "attachment" rather than "inline": the browser saves the file instead of rendering it on our
-	// own origin. filename*=UTF-8'' is the encoding that survives non-ASCII names.
+	//"attachment" rather than "inline": the browser saves the file instead of rendering it on our
 	reply
 		.header("Content-Type", attachment.fileType)
 		.header("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`)
 		.send(data);
 }
 
-// deleteAttachmentHandler removes the record and the stored file.
+//remove the record and the stored file.
 async function deleteAttachmentHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId, id } = request.params as { projectId: string; id: string };
 

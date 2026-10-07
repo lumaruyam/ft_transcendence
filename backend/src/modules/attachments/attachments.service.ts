@@ -13,9 +13,7 @@ const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MiB
 
-// Allow-list of accepted types. The extension written to disk comes from this map and never from
-// the user's file name: a name like "../../etc/passwd" must not be able to steer where we write.
-// SVG is deliberately absent — it can carry scripts, and we would be serving it from our own origin.
+//map of allowed MIME types to their file extensions. The extension is only used for the stored name, not the original name.
 const ALLOWED_TYPES = new Map<string, string>([
 	["image/png", ".png"],
 	["image/jpeg", ".jpg"],
@@ -36,7 +34,7 @@ export interface UploadAttachmentInput {
 	fileBuffer: Buffer;
 }
 
-// InvalidUploadError carries the reasons, so the route can answer 400 with details.
+//carry the reasons, so the route can answer 400 with details.
 export class InvalidUploadError extends Error {
 	readonly details: string[];
 
@@ -47,7 +45,7 @@ export class InvalidUploadError extends Error {
 	}
 }
 
-// validateFileUpload checks type and size before anything touches the disk.
+//check type and size before anything touches the disk.
 export function validateFileUpload(input: UploadAttachmentInput): string[] {
 	const errors: string[] = [];
 
@@ -61,7 +59,7 @@ export function validateFileUpload(input: UploadAttachmentInput): string[] {
 	return errors;
 }
 
-// uploadAttachment writes the file to disk, records it, and tells the other members about it.
+//write the file to disk, records it, and tells the other members about it.
 export async function uploadAttachment(uploadedBy: string, input: UploadAttachmentInput): Promise<Attachment> {
 	const errors = validateFileUpload(input);
 	if (errors.length > 0) throw new InvalidUploadError(errors);
@@ -86,7 +84,7 @@ export async function uploadAttachment(uploadedBy: string, input: UploadAttachme
 	return attachment;
 }
 
-// Everyone on the project except the uploader hears about a new file.
+//Everyone on the project except the uploader hears about a new file.
 async function notifyProjectMembers(attachment: Attachment, uploadedBy: string): Promise<void> {
 	const members = await prisma.projectMember.findMany({
 		where: { projectId: attachment.projectId, userId: { not: uploadedBy } },
@@ -104,7 +102,7 @@ async function notifyProjectMembers(attachment: Attachment, uploadedBy: string):
 	);
 }
 
-// listAttachments returns a project's files, newest first.
+//return a project's files, newest first.
 export async function listAttachments(projectId: string): Promise<Attachment[]> {
 	return prisma.attachment.findMany({
 		where: { projectId },
@@ -112,28 +110,27 @@ export async function listAttachments(projectId: string): Promise<Attachment[]> 
 	});
 }
 
-// getAttachment is scoped by project on purpose: an id from another project must not resolve here,
-// because the role check in the route only proves the caller's role on THIS project.
+//an id from another project must not resolve here,
 export async function getAttachment(projectId: string, id: string): Promise<Attachment | null> {
 	return prisma.attachment.findFirst({ where: { id, projectId } });
 }
 
-// attachmentPath turns a stored record into the file's location on disk.
+//turn a stored record into the file's location on disk.
 export function attachmentPath(attachment: Attachment): string {
 	return path.join(UPLOADS_DIR, attachment.fileUrl);
 }
 
-// deleteAttachment removes the record and then the file. Returns false if there was nothing to delete.
+//remove the record and then the file. Returns false if there was nothing to delete.
 export async function deleteAttachment(projectId: string, id: string): Promise<boolean> {
 	const attachment = await getAttachment(projectId, id);
 	if (attachment === null) return false;
 
-	// The row goes first: a leftover file on disk is harmless, a row pointing at a missing file is not.
+	//The row goes first: a leftover file on disk is harmless, a row pointing at a missing file is not.
 	await prisma.attachment.delete({ where: { id } });
 	try {
 		await unlink(attachmentPath(attachment));
 	} catch {
-		// already gone — nothing to clean up
+		//already gone — nothing to clean up
 	}
 
 	return true;
