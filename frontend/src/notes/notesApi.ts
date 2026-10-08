@@ -1,22 +1,30 @@
 // Owner: Track 4 (Whiteboard, notes, and supporting modules)
 // Responsible for: frontend API calls for the notes module — load-latest and autosave-on-edit.
+import { apiRequest } from "../api/apiClient";
 
-interface Note {
-  id: string;
-  projectId: string;
-  contentJson: string;
-  updatedBy: string;
-  updatedAt: string;
+//interface: what a Note returned by backend shoould be like?
+export interface Note {
+	id: string;
+	projectId: string;
+	contentJson: Record<string, unknown>;
+	updatedBy: string | null;
+	updatedAt: string;
 }
 
-// fetchLatestNote loads whoever's most recent saved version for a project.
-async function fetchLatestNote(projectId: string): Promise<Note> {
-  // TODO: GET /api/projects/{projectId}/notes
-  throw new Error("not implemented");
+//return the latest note for a project; obly called when the user opens the old note editor
+export async function fetchLatestNote(projectId: string): Promise<Note | null> {
+	const { note } = await apiRequest<{ note: Note | null }>({
+		method: "GET",
+		path: `/notes/${projectId}`,
+	});
+	return note;
 }
 
-// autosaveNote persists a debounced edit — a normal HTTP request, not a live socket connection, per the plan's scope.
-async function autosaveNote(projectId: string, contentJson: string): Promise<Note> {
-  // TODO: PUT /api/projects/{projectId}/notes — last save wins if two people edit around the same time
-  throw new Error("not implemented");
+//autosave the note content on every edit; last save wins if two people type at the same time.
+export async function autosaveNote(projectId: string, contentJson: Record<string, unknown>): Promise<void> {
+	await apiRequest<unknown>({
+		method: "PUT",
+		path: `/notes/${projectId}`,
+		body: { contentJson },
+	});
 }
