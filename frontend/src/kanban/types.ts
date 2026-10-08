@@ -1,6 +1,13 @@
 // Owner: Track 2 (Person A — Kanban CRUD and UI)
 // Responsible for: the shapes the kanban backend sends over HTTP and Socket.IO.
 
+export interface Tag {
+  id: string;
+  projectId: string;
+  name: string;
+  color: string;
+}
+
 export interface Card {
   id: string;
   listId: string;
@@ -10,6 +17,7 @@ export interface Card {
   status?: string;
   linkedBranch?: string | null;
   linkedPrUrl?: string | null;
+  tags?: Tag[];
   createdAt?: string;
   updatedAt?: string;
 }

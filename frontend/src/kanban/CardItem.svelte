@@ -2,6 +2,7 @@
      Responsible for: one card. Click opens it, drag moves it, Alt+arrows move it, Delete removes it (undoable). -->
 <script lang="ts">
   import Icon from "../shared/ui/Icon.svelte";
+  import TagChip from "./TagChip.svelte";
   import type { BoardStore } from "./boardStore.svelte";
   import type { Card } from "./types";
 
@@ -73,6 +74,11 @@
   onclick={() => (store.openCardId = card.id)}
   onkeydown={onKeydown}
 >
+  {#if card.tags?.length}
+    <div class="tags">
+      {#each card.tags as tag (tag.id)}<TagChip {tag} small />{/each}
+    </div>
+  {/if}
   <div class="title selectable">{card.title}</div>
   {#if card.description}
     <div class="excerpt selectable">{card.description}</div>
@@ -127,6 +133,11 @@
       border-color: var(--accent);
       box-shadow: 0 0 0 4px var(--accent-soft);
     }
+  }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
   }
   .title {
     font-size: 0.93rem;

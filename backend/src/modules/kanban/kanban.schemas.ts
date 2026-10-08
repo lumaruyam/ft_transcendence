@@ -132,3 +132,45 @@ export const updateCardSchema: FastifySchema = {
     },
   },
 };
+
+const tagName = { type: "string", minLength: 1, maxLength: 30 } as const;
+const tagColor = { type: "string", pattern: "^#[0-9a-fA-F]{6}$" } as const;
+
+export const createTagSchema: FastifySchema = {
+  params: {
+    type: "object",
+    required: ["projectId"],
+    additionalProperties: false,
+    properties: { projectId: { type: "string", format: "uuid" } },
+  },
+  body: {
+    type: "object",
+    required: ["name"],
+    additionalProperties: false,
+    properties: { name: tagName, color: tagColor },
+  },
+};
+
+export const updateTagSchema: FastifySchema = {
+  params: idParamSchema,
+  body: {
+    type: "object",
+    minProperties: 1,
+    additionalProperties: false,
+    properties: { name: tagName, color: tagColor },
+  },
+};
+
+export const tagIdParamSchema: FastifySchema = { params: idParamSchema };
+
+export const setCardTagsSchema: FastifySchema = {
+  params: idParamSchema,
+  body: {
+    type: "object",
+    required: ["tagIds"],
+    additionalProperties: false,
+    properties: {
+      tagIds: { type: "array", items: { type: "string", format: "uuid" }, maxItems: 50 },
+    },
+  },
+};

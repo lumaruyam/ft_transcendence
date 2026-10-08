@@ -101,7 +101,7 @@
             <input
               type="search"
               bind:value={store.filter}
-              placeholder="Filtrer les cartes…"
+              placeholder="Filtrer par texte ou étiquette…"
               aria-label="Filtrer les cartes du tableau"
               onkeydown={(e) => e.key === "Escape" && (store.filter = "")}
             />

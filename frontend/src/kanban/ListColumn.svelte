@@ -23,7 +23,9 @@
   const filter = $derived(store.filter.trim().toLowerCase());
   const shown = $derived(
     filter
-      ? list.cards.filter((c) => `${c.title} ${c.description ?? ""}`.toLowerCase().includes(filter))
+      ? list.cards.filter((c) =>
+          `${c.title} ${c.description ?? ""} ${(c.tags ?? []).map((t) => t.name).join(" ")}`.toLowerCase().includes(filter)
+        )
       : list.cards
   );
   const cardIds = $derived(list.cards.map((c) => c.id));

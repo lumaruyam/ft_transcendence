@@ -27,11 +27,52 @@ show_urls() {
   echo "      http://localhost:${http}/              — redirects to https"
 }
 
-# --build     : rebuild images before starting (code changes -> new image layers)
-# --force-recreate : recreate containers from the freshly built image. podman-compose
-#                    builds the image on --build but will happily keep an old container
-#                    running unless forced, so this is required to actually serve new code.
-BUILD_FLAGS="--build --force-recreate"
+PROJECT="$(basename "$SCRIPT_DIR" | tr 'A-Z' 'a-z')"
+STAMP_FILE="$SCRIPT_DIR/.build-hash"
+NO_CACHE=""
+
+# hash of the files an image is built from
+sources_hash() {
+  (cd "$SCRIPT_DIR/$1" && find . -type f -not -path '*/node_modules/*' -not -path '*/dist/*' -print0 \
+    | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+}
+
+stamp_get() {
+  sed -n "s/^$1=//p" "$STAMP_FILE" 2>/dev/null | head -n1
+}
+
+stamp_set() {
+  local tmp
+  tmp="$(mktemp)"
+  { grep -v "^$1=" "$STAMP_FILE" 2>/dev/null || true; echo "$1=$2"; } > "$tmp"
+  cat "$tmp" > "$STAMP_FILE"
+  rm -f "$tmp"
+}
+
+# true when the image of a service is missing or older than its sources
+needs_build() {
+  [ -n "$NO_CACHE" ] && return 0
+  docker image inspect "localhost/${PROJECT}_$1" >/dev/null 2>&1 || return 0
+  [ "$(stamp_get "$1")" = "$(sources_hash "$1")" ] || return 0
+  return 1
+}
+
+# builds the given services, only the ones that need it. Sets BUILT=1 if something was built
+build_services() {
+  local svc hash todo=()
+  BUILT=""
+  for svc in "$@"; do
+    if needs_build "$svc"; then todo+=("$svc"); else echo "==> $svc: sources unchanged, keeping its image"; fi
+  done
+  [ ${#todo[@]} -eq 0 ] && return 0
+  for svc in "${todo[@]}"; do
+    hash="$(sources_hash "$svc")"
+    echo "==> Building $svc..."
+    docker compose build $NO_CACHE "$svc"
+    stamp_set "$svc" "$hash"
+  done
+  BUILT=1
+}
 
 ensure_env() {
   if [ ! -f "$SCRIPT_DIR/.env" ]; then
@@ -106,23 +147,34 @@ generate_certs() {
   fi
 }
 
+# builds what changed, then starts everything. Nothing is rebuilt when the sources did not change
+start_stack() {
+  build_services backend frontend
+  if [ -n "$BUILT" ]; then
+    docker compose up -d --force-recreate
+  else
+    docker compose up -d
+  fi
+}
+
 usage() {
-  echo "Usage: $0 {start|stop|restart|reload|oauth} [--no-cache]"
+  echo "Usage: $0 {start|stop|restart|reload|clean|oauth} [--no-cache]"
   echo ""
-  echo "  start           — build and start all containers (serves current code)"
-  echo "  stop            — stop and remove all containers"
-  echo "  restart         — stop, then build and start all containers"
+  echo "  start           — start all containers, building only what changed since the last build"
+  echo "  stop            — stop and remove all containers (images are kept)"
+  echo "  restart         — stop, then start"
   echo "  reload          — rebuild the frontend only and refresh what nginx serves"
+  echo "  clean           — delete build leftovers (node_modules, dist, unused image layers)."
+  echo "                    Safe while running; images in use and the database are kept"
   echo "  oauth           — (re)enter the GitHub OAuth credentials stored in .env"
   echo ""
-  echo "  --no-cache      — force a full image rebuild (re-runs npm ci; slow). Only"
-  echo "                    needed if a cached layer is stale; normal runs don't need it."
+  echo "  --no-cache      — rebuild the images from scratch (re-runs npm ci; slow)"
   exit 1
 }
 
 # second arg may be --no-cache
 if [ "$2" = "--no-cache" ]; then
-  BUILD_FLAGS="$BUILD_FLAGS --no-cache"
+  NO_CACHE="--no-cache"
 elif [ -n "$2" ]; then
   usage
 fi
@@ -132,7 +184,7 @@ case "$1" in
     ensure_env
     ensure_oauth
     generate_certs
-    docker compose up -d $BUILD_FLAGS
+    start_stack
     show_urls
     ;;
 
@@ -145,19 +197,25 @@ case "$1" in
     ensure_oauth
     generate_certs
     docker compose down
-    docker compose up -d $BUILD_FLAGS
+    start_stack
     show_urls
     ;;
 
   reload)
     ensure_env
-    # Rebuild the frontend image (fresh `npm run build`) and recreate its container.
-    # The frontend container copies the build into the shared frontend_dist volume and
-    # exits; nginx serves that volume, so the new files are live immediately after.
-    echo "==> Rebuilding frontend and refreshing the static volume..."
-    docker compose up -d $BUILD_FLAGS frontend
+    # the frontend container copies the build into the volume nginx serves
+    build_services frontend
+    echo "==> Refreshing the static volume..."
+    docker compose up -d --force-recreate frontend
     echo "==> Reloading nginx..."
     docker compose exec nginx nginx -s reload
+    ;;
+
+  clean)
+    echo "==> Removing local build folders..."
+    rm -rf "$SCRIPT_DIR"/{backend,frontend}/{node_modules,dist}
+    echo "==> Removing unused image layers (images used by containers are kept)..."
+    docker image prune -f
     ;;
 
   oauth)

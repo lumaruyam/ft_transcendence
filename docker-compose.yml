@@ -70,6 +70,7 @@ services:
   nginx:
     image: docker.io/library/nginx:1.27
     restart: unless-stopped
+    stop_signal: SIGTERM
     environment:
       # all three consumed by the nginx image's entrypoint at startup:
       # HTTP_PORT/HTTPS_PORT -> envsubst into default.conf.template;

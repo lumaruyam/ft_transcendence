@@ -7,6 +7,7 @@ import { ROLE_RANK, getUserRole, type Role } from "../permissions/roles.service.
 import { getProjectIdForBoard } from "./board.service.js";
 import { getProjectIdForList } from "./list.service.js";
 import { getProjectIdForCard } from "./card.service.js";
+import { getProjectIdForTag } from "./tag.service.js";
 
 type ProjectIdResolver = (request: FastifyRequest) => Promise<string | null | undefined> | string | null | undefined;
 
@@ -43,5 +44,6 @@ export const projectOf = {
 	boardBody: (request: FastifyRequest) => getProjectIdForBoard((request.body as { boardId: string }).boardId),
 	listParam: (request: FastifyRequest) => getProjectIdForList((request.params as { id: string }).id),
 	listBody: (request: FastifyRequest) => getProjectIdForList((request.body as { listId: string }).listId),
+	tagParam: (request: FastifyRequest) => getProjectIdForTag((request.params as { id: string }).id),
 	cardParam: (request: FastifyRequest) => getProjectIdForCard((request.params as { id: string }).id),
 };

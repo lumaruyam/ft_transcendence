@@ -18,6 +18,7 @@
 import type { Prisma, Project } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 import { ROLES } from "../permissions/roles.service.js";
+import { DEFAULT_TAGS } from "../kanban/tag.service.js";
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -64,6 +65,9 @@ export async function createProject(ownerId: string, input: CreateProjectInput):
 		});
 		await tx.projectMember.create({
 			data: { projectId: project.id, userId: ownerId, role: ROLES.ADMIN },
+		});
+		await tx.tag.createMany({
+			data: DEFAULT_TAGS.map((tag) => ({ ...tag, projectId: project.id })),
 		});
 		return project;
 	});

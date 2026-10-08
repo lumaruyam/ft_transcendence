@@ -2,7 +2,7 @@
 // Responsible for: frontend API calls backing the /app/:id kanban board. Everything goes through
 // apiRequest (api/apiClient.ts), which adds the JWT and logs the user out on an expired session.
 import { apiRequest } from "../api/apiClient";
-import type { Board, Card, CardMoved, List, Member, Project } from "./types";
+import type { Board, Card, CardMoved, List, Member, Project, Tag } from "./types";
 
 type ListRow = Omit<List, "cards">;
 
@@ -50,4 +50,24 @@ export function moveCard(cardId: string, listId: string, position: number): Prom
 
 export function deleteCard(cardId: string, keepalive = false): Promise<void> {
   return apiRequest<void>({ method: "DELETE", path: `/cards/${cardId}`, keepalive });
+}
+
+export function fetchTags(projectId: string): Promise<Tag[]> {
+  return apiRequest<Tag[]>({ method: "GET", path: `/projects/${projectId}/tags` });
+}
+
+export function createTag(projectId: string, name: string, color: string): Promise<Tag> {
+  return apiRequest<Tag>({ method: "POST", path: `/projects/${projectId}/tags`, body: { name, color } });
+}
+
+export function updateTag(tagId: string, patch: { name?: string; color?: string }): Promise<Tag> {
+  return apiRequest<Tag>({ method: "PUT", path: `/tags/${tagId}`, body: patch });
+}
+
+export function deleteTag(tagId: string): Promise<void> {
+  return apiRequest<void>({ method: "DELETE", path: `/tags/${tagId}` });
+}
+
+export function setCardTags(cardId: string, tagIds: string[]): Promise<Card> {
+  return apiRequest<Card>({ method: "PUT", path: `/cards/${cardId}/tags`, body: { tagIds } });
 }
