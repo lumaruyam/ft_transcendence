@@ -82,8 +82,6 @@
 
 <style>
   .page {
-    /* every heading and the wordmark on this page use the sans display font */
-    --font-serif: "Avenir Next", "Segoe UI Variable Display", "Helvetica Neue", Inter, var(--font-sans);
     max-width: 1120px;
     margin: 0 auto;
     padding: 0 28px;

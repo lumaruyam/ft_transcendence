@@ -32,6 +32,7 @@ services:
       retries: 10
 
   backend:
+    image: ft_transcendence_backend
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -53,6 +54,7 @@ services:
       - "3000"
 
   frontend:
+    image: ft_transcendence_frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -70,6 +72,7 @@ services:
   nginx:
     image: docker.io/library/nginx:1.27
     restart: unless-stopped
+    stop_signal: SIGTERM
     environment:
       # all three consumed by the nginx image's entrypoint at startup:
       # HTTP_PORT/HTTPS_PORT -> envsubst into default.conf.template;

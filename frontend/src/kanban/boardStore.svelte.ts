@@ -12,7 +12,7 @@ import { errorMessage } from "../shared/errors";
 import { toast } from "../shared/toast.svelte";
 import * as api from "./boardApi";
 import { connectKanbanSocket } from "./wsClient";
-import type { Board, Card, CardMoved, List, Member, Project } from "./types";
+import type { Board, Card, CardMoved, List, Member, Project, Tag } from "./types";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -37,6 +37,7 @@ export class BoardStore {
   project = $state<Project | null>(null);
   board = $state<Board | null>(null);
   members = $state<Member[]>([]);
+  tags = $state<Tag[]>([]);
   online = new SvelteSet<string>();
   loadState = $state<LoadState>("loading");
   // the logged-in user's role in this project: viewers get a read-only board
@@ -70,6 +71,8 @@ export class BoardStore {
   #pendingDeletes = new Map<string, PendingDelete>();
   // cards this user just changed: no highlight when the broadcast comes back
   #mine = new Set<string>();
+  // cards with a tag change in flight: other updates must not overwrite their tags
+  #tagsPending = new Map<string, number>();
   readonly #flushDeletes = (): void => this.#commitAllDeletes();
 
   constructor(projectId: string) {
@@ -97,14 +100,16 @@ export class BoardStore {
   // load (re)fetches everything. Also used to resync after a reconnect or a failed action.
   async load(): Promise<void> {
     try {
-      const [project, board, members] = await Promise.all([
+      const [project, board, members, tags] = await Promise.all([
         api.fetchProject(this.#projectId),
         api.fetchBoardForProject(this.#projectId),
         api.fetchMembers(this.#projectId),
+        api.fetchTags(this.#projectId),
       ]);
       this.project = project;
       this.board = board;
       this.members = members;
+      this.tags = tags;
       for (const id of this.#pendingDeletes.keys()) this.#dropCard(id);
       this.loadState = "ready";
     } catch (err) {
@@ -172,6 +177,55 @@ export class BoardStore {
   async editCard(cardId: string, patch: { title?: string; description?: string }): Promise<boolean> {
     this.#mine.add(cardId);
     return this.#run(async () => this.#upsertCard(await api.updateCard(cardId, patch)));
+  }
+
+  async setCardTags(cardId: string, tagIds: string[]): Promise<void> {
+    const card = this.#findCardList(cardId)?.cards.find((c) => c.id === cardId);
+    if (!card) return;
+    this.#mine.add(cardId);
+    card.tags = tagIds.flatMap((id) => this.tags.find((t) => t.id === id) ?? []);
+    this.#tagsPending.set(cardId, (this.#tagsPending.get(cardId) ?? 0) + 1);
+    const ok = await this.#run(async () => {
+      const saved = await api.setCardTags(cardId, tagIds);
+      const left = (this.#tagsPending.get(cardId) ?? 1) - 1;
+      if (left > 0) this.#tagsPending.set(cardId, left);
+      else this.#tagsPending.delete(cardId);
+      if (left === 0) this.#upsertCard(saved);
+    });
+    if (!ok) {
+      this.#tagsPending.delete(cardId);
+      await this.load();
+    }
+  }
+
+  // the tag methods return an error message for the tag dialog (null or no error when it worked)
+  async addTag(name: string, color: string): Promise<{ tag?: Tag; error?: string }> {
+    try {
+      const tag = await api.createTag(this.#projectId, name, color);
+      this.#upsertTag(tag);
+      return { tag };
+    } catch (err) {
+      return { error: errorMessage(err) };
+    }
+  }
+
+  async editTag(tagId: string, patch: { name?: string; color?: string }): Promise<string | null> {
+    try {
+      this.#upsertTag(await api.updateTag(tagId, patch));
+      return null;
+    } catch (err) {
+      return errorMessage(err);
+    }
+  }
+
+  async removeTag(tagId: string): Promise<string | null> {
+    try {
+      await api.deleteTag(tagId);
+      this.#dropTag(tagId);
+      return null;
+    } catch (err) {
+      return errorMessage(err);
+    }
   }
 
   // hides the card now and deletes it on the server after UNDO_MS (the toast offers undo)
@@ -280,6 +334,13 @@ export class BoardStore {
         this.#upsertCard(payload as Card);
         this.#flash((payload as Card).id);
         break;
+      case "tag_created":
+      case "tag_updated":
+        this.#upsertTag(payload as Tag);
+        break;
+      case "tag_deleted":
+        this.#dropTag((payload as { id: string }).id);
+        break;
       case "card_deleted":
         this.#dropCard((payload as { id: string }).id);
         break;
@@ -353,11 +414,37 @@ export class BoardStore {
     if (!list) return;
     const existing = this.#findCardList(card.id)?.cards.find((c) => c.id === card.id);
     if (existing) {
-      Object.assign(existing, card);
+      const { tags, ...rest } = card;
+      Object.assign(existing, rest);
+      if (tags && !this.#tagsPending.has(card.id)) existing.tags = tags;
     } else {
       list.cards.push(card);
     }
     list.cards.sort(byPosition);
+  }
+
+  #upsertTag(tag: Tag): void {
+    const existing = this.tags.find((t) => t.id === tag.id);
+    if (existing) {
+      Object.assign(existing, tag);
+      for (const list of this.board?.lists ?? []) {
+        for (const card of list.cards) {
+          const used = card.tags?.find((t) => t.id === tag.id);
+          if (used) Object.assign(used, tag);
+        }
+      }
+    } else {
+      this.tags.push(tag);
+    }
+  }
+
+  #dropTag(tagId: string): void {
+    this.tags = this.tags.filter((t) => t.id !== tagId);
+    for (const list of this.board?.lists ?? []) {
+      for (const card of list.cards) {
+        if (card.tags?.some((t) => t.id === tagId)) card.tags = card.tags.filter((t) => t.id !== tagId);
+      }
+    }
   }
 
   #dropCard(cardId: string): void {

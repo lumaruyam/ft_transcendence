@@ -20,6 +20,7 @@ const MESSAGES: Record<string, string> = {
   already_member: "Vous faites déjà partie de ce projet.",
   already_revoked: "Ce lien est déjà révoqué.",
   api_key_not_found: "Cette clé n'existe plus.",
+  tag_name_taken: "Une étiquette porte déjà ce nom.",
   rate_limit_exceeded: "Trop de requêtes. Patientez un instant puis réessayez.",
 };
 

@@ -72,7 +72,7 @@ function registerRoutes(app: FastifyInstance): void {
 
 // buildApp constructs a Fastify instance with every module's routes registered, but does not start listening.
 export function buildApp(config: AppConfig): FastifyInstance {
-	const app = Fastify({ logger: true, constraints: { apiAuth: apiKeyRouteConstraint } });
+	const app = Fastify({ logger: true, routerOptions: { constraints: { apiAuth: apiKeyRouteConstraint } } });
 
 	initJwtService(config.jwtSecret);
 	initOAuthService({ github: config.oauthGithub, stateSecret: config.jwtSecret });

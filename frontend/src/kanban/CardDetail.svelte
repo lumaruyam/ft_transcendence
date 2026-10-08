@@ -5,6 +5,8 @@
   import { formatDateTime, timeAgo } from "../shared/format";
   import Icon from "../shared/ui/Icon.svelte";
   import InlineTitle from "./InlineTitle.svelte";
+  import TagChip from "./TagChip.svelte";
+  import TagsModal from "./TagsModal.svelte";
   import type { BoardStore } from "./boardStore.svelte";
 
   let { store }: { store: BoardStore } = $props();
@@ -12,6 +14,7 @@
   const AUTOSAVE_MS = 900;
 
   let dialog: HTMLDialogElement;
+  let tagsOpen = $state(false);
   const open = $derived(store.openCard);
 
   // description draft: mirrors the card until the user types
@@ -198,6 +201,23 @@
           </select>
         </div>
 
+        <div class="field">
+          <span class="label">Étiquettes</span>
+          {#if open.card.tags?.length}
+            <div class="tag-list">
+              {#each open.card.tags as tag (tag.id)}<TagChip {tag} />{/each}
+            </div>
+          {/if}
+          {#if store.canEdit}
+            <button type="button" class="btn btn-ghost btn-sm tag-btn" onclick={() => (tagsOpen = true)}>
+              <Icon name={open.card.tags?.length ? "pencil" : "plus"} size={14} />
+              {open.card.tags?.length ? "Modifier" : "Ajouter"}
+            </button>
+          {:else if !open.card.tags?.length}
+            <span class="none">Aucune</span>
+          {/if}
+        </div>
+
         {#if open.card.status && open.card.status.toLowerCase() !== "todo"}
           <div class="field">
             <span class="label">Statut</span>
@@ -217,6 +237,7 @@
         {/if}
       </aside>
     </div>
+    <TagsModal {store} card={open.card} bind:open={tagsOpen} />
   {/if}
 </dialog>
 
@@ -292,6 +313,19 @@
     gap: 8px;
     font-size: 0.88rem;
     overflow-wrap: anywhere;
+  }
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .tag-btn {
+    align-self: flex-start;
+    margin-left: -8px;
+  }
+  .none {
+    font-size: 0.85rem;
+    color: var(--text-faint);
   }
   .status {
     align-self: flex-start;

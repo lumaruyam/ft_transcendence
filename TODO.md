@@ -34,6 +34,13 @@ wraps (route handlers stay thin: decode request → call the service → apply `
 people. Invite-link routes are unaffected — `invites.ts` stays as the one file that combines
 service logic and route registration, as already established; it is not being split or moved.
 
+**Card tags + stack upgrade (2026-10-08):** cards can carry project-scoped tags (`tags` /
+`card_tags` tables, `backend/src/modules/kanban/tag.service.ts`, `TagsModal.svelte` on the
+frontend; routes in `docs/api-spec.md` "Internal endpoints — kanban tags"). Each project gets 5
+default tags on creation, and the migration adds them to existing projects. The stack moved to
+Node 22 (images, `engines`), Fastify 5 (with the matching `@fastify/*` plugins), Octokit 5 and
+ESLint 10 (flat config in `backend/eslint.config.js`, replacing `.eslintrc.json`).
+
 Two paths aren't explicitly assigned in the plan's GitHub management table
 (`backend/src/modules/projects/` and `frontend/src/api/`) — they're grouped under
 Track 1 here since they're foundational/unclaimed elsewhere; confirm this with the team.
@@ -48,7 +55,7 @@ Track 1 here since they're foundational/unclaimed elsewhere; confirm this with t
 - `backend/src/modules/publicapi/apikeys.service.ts`, `ratelimit.middleware.ts`, `publicapi.routes.ts`
 - `backend/src/db/prisma/client.ts`
 - `backend/prisma/schema.prisma` *(now includes `ProjectInvite`/`project_invites`, with `revokedBy`/`revokedAt` FK'd to `users.id`)*
-- `backend/package.json`, `backend/tsconfig.json`, `backend/.eslintrc.json`, `backend/.prettierrc.json`
+- `backend/package.json`, `backend/tsconfig.json`, `backend/eslint.config.js`, `backend/.prettierrc.json`
 - `frontend/src/auth/loginForm.ts`, `signupForm.ts`, `oauthFlow.ts`
 - `frontend/src/api/apiClient.ts`, `wsClientWrapper.ts` *(low-level Socket.IO client wrapper — unclaimed in the GH table, grouped here)*
 - `frontend/package.json`
@@ -59,8 +66,8 @@ Track 1 here since they're foundational/unclaimed elsewhere; confirm this with t
 ## Track 2 — Kanban core & real-time sync (2 people)
 
 **Person A — Kanban CRUD and UI:**
-- `backend/src/modules/kanban/boards.service.ts`, `lists.service.ts`, `cards.service.ts`, `validation.ts`, `kanban.routes.ts` *(`kanban.routes.ts` is the thin Fastify wrapper around boards/lists/cards services that `app.ts` already imports as `registerKanbanRoutes` — added 2026-08-30, was missing from this list; after each mutation it calls Person B's `broadcast.ts`, so coordinate event names/payloads with Person B)*
-- `frontend/src/kanban/boardApi.ts`, `listApi.ts`, `cardApi.ts`, `dragAndDrop.ts`, `cardDetail.ts`
+- `backend/src/modules/kanban/boards.service.ts`, `lists.service.ts`, `cards.service.ts`, `tag.service.ts`, `validation.ts`, `kanban.routes.ts` *(`kanban.routes.ts` is the thin Fastify wrapper around boards/lists/cards services that `app.ts` already imports as `registerKanbanRoutes` — added 2026-08-30, was missing from this list; after each mutation it calls Person B's `broadcast.ts`, so coordinate event names/payloads with Person B)*
+- `frontend/src/kanban/boardApi.ts`, `listApi.ts`, `cardApi.ts`, `dragAndDrop.ts`, `cardDetail.ts`, `TagChip.svelte`, `TagsModal.svelte`
 
 **Person B — WebSocket layer (Socket.IO):**
 - `backend/src/modules/kanban/hub.ts`, `broadcast.ts`, `presence.ts`

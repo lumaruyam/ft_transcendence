@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 import { broadcastToProject } from "./broadcast.js";
 import { getProjectIdForList } from "./list.service.js";
+import { CARD_TAGS_INCLUDE, withTags } from "./tag.service.js";
 
 // broadcastToListProject resolves a list to its project and broadcasts to that project's room
 async function broadcastToListProject(listId: string, type: string, payload: unknown): Promise<void> {
@@ -20,10 +21,12 @@ export async function createCard(input: { listId: string; title: string; descrip
 			title: input.title,
 			description: input.description,
 			position,
-		}
+		},
+		include: CARD_TAGS_INCLUDE,
 	});
-	await broadcastToListProject(card.listId, "card_created", card);
-	return card;
+	const payload = withTags(card);
+	await broadcastToListProject(card.listId, "card_created", payload);
+	return payload;
 }
 
 // resolves a card id to its project id through its list and board, used for permission checks
@@ -38,8 +41,9 @@ export async function getProjectIdForCard(cardId: string): Promise<string | null
 export async function getCard(id: string) {
 	const card = await prisma.card.findUnique({
 		where: { id },
+		include: CARD_TAGS_INCLUDE,
 	});
-	return card;
+	return card ? withTags(card) : null;
 }
 
 export async function updateCard(id: string, input: Prisma.CardUncheckedUpdateInput) {
@@ -48,9 +52,11 @@ export async function updateCard(id: string, input: Prisma.CardUncheckedUpdateIn
 		const card = await prisma.card.update({
 			where: { id },
 			data: input,
+			include: CARD_TAGS_INCLUDE,
 		});
-		await broadcastToListProject(card.listId, "card_updated", card);
-		return card;
+		const payload = withTags(card);
+		await broadcastToListProject(card.listId, "card_updated", payload);
+		return payload;
 	}
 	catch (err)
 	{

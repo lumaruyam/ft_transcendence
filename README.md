@@ -5,7 +5,7 @@
 
 <!-- TODO: Description — project name, goal, brief overview, key features (subject VI) -->
 
-<!-- TODO: Instructions — prerequisites (Node.js 20+, Docker), .env setup, `docker compose up` single-command run, `npx prisma migrate dev` for local schema setup (subject VI) -->
+<!-- TODO: Instructions — prerequisites (Node.js 22+, Docker), .env setup, `docker compose up` single-command run, `npx prisma migrate dev` for local schema setup (subject VI) -->
 
 <!-- TODO: Team Information — each member's role(s) (PO/PM/Tech Lead/Developers) and responsibilities, per docs/ft_transcendence_plan.md section 9 and subject VI -->
 

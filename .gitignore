@@ -73,3 +73,6 @@ infra/nginx/certs/
 *.key
 *.pem
 backend/scratch/
+
+# --- build stamps (./transcendence) ---
+.build-hash

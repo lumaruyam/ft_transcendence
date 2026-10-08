@@ -2,6 +2,9 @@
   "name": "ft-transcendence-frontend",
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "_owner": "Track 1 (Foundation, Auth, and API infrastructure) — package manifest; each src/ subfolder below has its own per-file ownership comments",
   "_description": "Frontend: Svelte 5 + TypeScript + Vite MPA (React used only for whiteboard/Excalidraw)",
   "_note_react": "React is pinned to ^18 — @excalidraw/excalidraw 0.17.x declares peer react@^17||^18 and breaks with React 19. Do NOT upgrade react/react-dom past 18.x without first checking Excalidraw compatibility.",
