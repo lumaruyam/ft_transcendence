@@ -132,6 +132,27 @@ frontend's other `/api/*` calls), not part of the API-key-based Public API secti
   presenting the invite token again or by any other form of "possessing the link." An invite
   link is a one-time credential for *joining*, never a standing credential for *access*.
 
+## Internal endpoints — attachments
+
+Not part of the Public API module: the app's own file upload routes, called with the user's JWT.
+
+| Method | Path | Min role | Body | Success |
+|---|---|---|---|---|
+| `POST` | `/api/attachments/:projectId` | member | `multipart/form-data`, one file field; optional `?cardId=` | `201 { "attachment": … }` |
+| `GET` | `/api/attachments/:projectId` | viewer | — | `200 { "attachments": [ … ] }` |
+| `GET` | `/api/attachments/:projectId/:id` | viewer | — | `200`, the file itself |
+| `DELETE` | `/api/attachments/:projectId/:id` | member | — | `204` |
+
+- 10 MiB per file, one file per request. nginx already allows 20 MiB on `/api/`.
+- Accepted types: PNG, JPEG, GIF, WebP, PDF, plain text, Markdown, JSON, ZIP. SVG is deliberately
+  excluded — it can carry scripts and would be served from our own origin.
+- Files live under `/app/uploads` (the `uploads_data` volume) under a generated uuid name. The
+  user's file name is stored as data in `file_name` and never used as a path.
+- Downloads carry `Content-Disposition: attachment`, so the browser saves the file rather than
+  rendering it.
+- Errors: `400 invalid_upload` (type or size), `401 unauthenticated`, `403 insufficient_role`,
+  `404 attachment_not_found`, `413 file_too_large`.
+
 ## Internal endpoints — whiteboard
 
 Not part of the Public API module (no API key, no rate-limit tier): these are the app's own routes,

@@ -234,6 +234,8 @@ model Attachment {
   projectId  String   @map("project_id")
   cardId     String?  @map("card_id")
   fileUrl    String   @map("file_url")
+  fileName   String   @map("file_name")
+  fileSize   Int      @map("file_size")
   fileType   String   @map("file_type")
   uploadedBy String?  @map("uploaded_by")
   uploadedAt DateTime @default(now()) @map("uploaded_at")

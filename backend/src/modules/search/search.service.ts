@@ -93,7 +93,7 @@ export async function searchAttachments(projectId: string, query: string): Promi
 	const attachments = await prisma.attachment.findMany({
 		where: {//search in database
 			projectId,
-			fileUrl: { contains: query, mode: "insensitive" },
+			fileName: { contains: query, mode: "insensitive" },
 		},
 		take: MAX_RESULTS_PER_TYPE,
 		orderBy: { uploadedAt: "desc" },
@@ -102,7 +102,7 @@ export async function searchAttachments(projectId: string, query: string): Promi
 	return attachments.map((attachment) => ({
 		entityType: "attachment" as const,
 		entityId: attachment.id,//with his id at the end
-		title: attachment.fileUrl.split("/").pop() ?? attachment.fileUrl,
+		title: attachment.fileName,
 		snippet: attachment.fileType,//with his type at the end
 	}));
 }
