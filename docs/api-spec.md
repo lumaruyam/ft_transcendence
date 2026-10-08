@@ -152,3 +152,47 @@ Not part of the Public API module: the app's own file upload routes, called with
   rendering it.
 - Errors: `400 invalid_upload` (type or size), `401 unauthenticated`, `403 insufficient_role`,
   `404 attachment_not_found`, `413 file_too_large`.
+
+## Internal endpoints — whiteboard
+
+Not part of the Public API module (no API key, no rate-limit tier): these are the app's own routes,
+called by `frontend/src/whiteboard/` with the user's JWT.
+
+| Method | Path | Min role | Body | Success |
+|---|---|---|---|---|
+| `GET` | `/api/whiteboards/:projectId` | viewer | — | `200 { "whiteboard": … \| null }` |
+| `PUT` | `/api/whiteboards/:projectId` | member | `{ "sceneJson": { … } }` | `200 { "whiteboard": … }` |
+
+- The whiteboard object is `{ id, projectId, sceneJson, updatedBy, updatedAt }`. `GET` returns
+  `{ "whiteboard": null }` when nothing has been saved for the project yet — that is not an error.
+- `PUT` replaces the whole scene (last save wins) and accepts a body up to **5 MiB**, since an
+  Excalidraw scene with many shapes passes Fastify's 1 MiB default. nginx's `client_max_body_size`
+  has to allow the same.
+- Errors: `400 invalid_input` (`sceneJson` is not a JSON object), `401 unauthenticated`,
+  and whatever `requireRole` answers when the caller's role is too low.
+
+## Internal endpoints — kanban tags
+
+Not part of the Public API module either: JWT routes called by `frontend/src/kanban/`, implemented in
+`backend/src/modules/kanban/tag.service.ts` and `kanban.routes.ts`. Tags belong to one project: two
+projects can both have a "Bug" tag with their own colour. Each new project starts with 5 default tags
+(WIP, En cours, À relire, Bloqué, Bug).
+
+| Method | Path | Min role | Body | Success |
+|---|---|---|---|---|
+| `GET` | `/api/projects/:projectId/tags` | viewer | — | `200 [ Tag ]` |
+| `POST` | `/api/projects/:projectId/tags` | member | `{ "name", "color"? }` | `201 Tag` |
+| `PUT` | `/api/tags/:id` | member | `{ "name"?, "color"? }`, at least one | `200 Tag` |
+| `DELETE` | `/api/tags/:id` | member | — | `204` |
+| `PUT` | `/api/cards/:id/tags` | member | `{ "tagIds": [uuid, …] }` | `200 Card` (with `tags`) |
+
+- A `Tag` is `{ id, projectId, name, color, createdAt }`. `name` is 1 to 30 characters with at least one
+  non-space character, unique per project. `color` is a `#rrggbb` string (default `#6b7280`).
+- Every card sent by the board and card routes now has a `tags` array (`Tag[]`, sorted by name).
+- `PUT /api/cards/:id/tags` replaces all the tags of the card (an empty array removes them all).
+  It accepts up to 50 ids.
+- Deleting a tag removes it from every card.
+- Errors: `400` (validation, or `invalid_tags` when a tag does not exist or belongs to another
+  project), `401`, `403 insufficient_role`, `404` (tag or card not found), `409 tag_name_taken`.
+- Socket.IO events sent to the project room: `tag_created` and `tag_updated` (the `Tag`),
+  `tag_deleted` (`{ id }`), and `card_updated` (the `Card`) when the tags of a card change.

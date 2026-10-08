@@ -1,11 +1,7 @@
-//Owner: Track 4 (Whiteboard, notes, and supporting modules)
-//Responsible for: entry point for the /legal/terms page — mounts the terms content into the page shell.
-
-//give me this function from ../termsOfService
+// Owner: Track 4 (Whiteboard, notes, and supporting modules)
+// Responsible for: the /legal/terms entry point.
+import { boot } from "../../shared/boot";
+import LegalPage from "../LegalPage.svelte";
 import { renderTermsOfServicePage } from "../termsOfService";
-//find an element called legal-content from html; call it root;
-const root = document.getElementById("legal-content");
-//if root is valid, call renderTermsOfService to show terms
-if (root) {
-	renderTermsOfServicePage(root);
-}
+
+boot(LegalPage, { props: { render: renderTermsOfServicePage, other: { href: "/legal/privacy", label: "Privacy Policy" } } });

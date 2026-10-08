@@ -23,6 +23,9 @@ documented here regardless of which ORM reads it.
 | `lists` | id, board_id, title, position | Kanban columns |
 | `cards` | id, title, list_id, linked_branch, linked_pr_url, status, position | Core Kanban entity; `linked_branch`/`linked_pr_url`/`status` driven by the Git integration module |
 | `notes` | id, project_id, content_json, updated_by, updated_at | Autosaved on edit, last-save-wins |
+| `whiteboards` | id, project_id (unique), scene_json, updated_by (nullable), updated_at | One Excalidraw scene per project, autosaved on change, last-save-wins |
+| `tags` | id, project_id, name, color (default `#6b7280`) | Project-scoped card labels, unique per (project_id, name); 5 defaults are created with each project |
+| `card_tags` | card_id, tag_id | Many-to-many join between cards and tags, composite primary key |
 | `attachments` | id, project_id, card_id (nullable), file_url, file_name, file_size, file_type, uploaded_by (nullable), uploaded_at | `file_url` is the name on disk (a generated uuid plus extension, never the user's file name); `file_name` is the original name, shown to users and searched |
 | `git_links` | card_id, repo_url, branch_name, pr_status | Drives the webhook-based card status automation |
 | `notifications` | id, user_id, type, payload, read_at, created_at | Fires on creation/update/deletion actions |
@@ -44,6 +47,10 @@ documented here regardless of which ORM reads it.
 - `lists.board_id -> boards.id`
 - `cards.list_id -> lists.id`
 - `notes.project_id -> projects.id`, `notes.updated_by -> users.id`
+- `whiteboards.project_id -> projects.id` (unique — one scene per project; cascade delete)
+- `whiteboards.updated_by -> users.id` (nullable, `ON DELETE SET NULL`)
+- `tags.project_id -> projects.id` (cascade delete)
+- `card_tags.card_id -> cards.id` and `card_tags.tag_id -> tags.id` (cascade delete)
 - `attachments.project_id -> projects.id`, `attachments.card_id -> cards.id` (nullable), `attachments.uploaded_by -> users.id`
 - `git_links.card_id -> cards.id` (one-to-one)
 - `notifications.user_id -> users.id`

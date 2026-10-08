@@ -19,7 +19,12 @@ import {
   reorderLists,
 } from "./list.service.js";
 import { createCard, getCard, updateCard, moveCard, deleteCard } from "./card.service.js";
+import { listTags, createTag, updateTag, deleteTag, setCardTags, TagConflictError } from "./tag.service.js";
 import {
+  createTagSchema,
+  updateTagSchema,
+  tagIdParamSchema,
+  setCardTagsSchema,
   createBoardSchema,
   boardIdParamSchema,
   projectIdParamSchema,
@@ -152,6 +157,72 @@ export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> 
       schema: cardIdParamSchema,
     },
     deleteCardHandler
+  );
+
+  app.get<{ Params: { projectId: string } }>(
+    "/projects/:projectId/tags",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.VIEWER, projectOf.projectParam)],
+      schema: projectIdParamSchema,
+    },
+    async (request, reply) => reply.send(await listTags(request.params.projectId))
+  );
+  app.post<{ Params: { projectId: string }; Body: { name: string; color?: string } }>(
+    "/projects/:projectId/tags",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.projectParam)],
+      schema: createTagSchema,
+    },
+    async (request, reply) => {
+      try {
+        reply.code(201).send(await createTag(request.params.projectId, request.body));
+      } catch (err) {
+        if (err instanceof TagConflictError) reply.code(409).send({ error: "tag_name_taken" });
+        else throw err;
+      }
+    }
+  );
+  app.put<{ Params: { id: string }; Body: { name?: string; color?: string } }>(
+    "/tags/:id",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.tagParam)],
+      schema: updateTagSchema,
+    },
+    async (request, reply) => {
+      try {
+        const tag = await updateTag(request.params.id, request.body);
+        if (!tag) reply.code(404).send({ error: "Tag not found" });
+        else reply.send(tag);
+      } catch (err) {
+        if (err instanceof TagConflictError) reply.code(409).send({ error: "tag_name_taken" });
+        else throw err;
+      }
+    }
+  );
+  app.delete<{ Params: { id: string } }>(
+    "/tags/:id",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.tagParam)],
+      schema: tagIdParamSchema,
+    },
+    async (request, reply) => {
+      const deleted = await deleteTag(request.params.id);
+      if (!deleted) reply.code(404).send({ error: "Tag not found" });
+      else reply.code(204).send();
+    }
+  );
+  app.put<{ Params: { id: string }; Body: { tagIds: string[] } }>(
+    "/cards/:id/tags",
+    {
+      preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.cardParam)],
+      schema: setCardTagsSchema,
+    },
+    async (request, reply) => {
+      const card = await setCardTags(request.params.id, request.body.tagIds);
+      if (card === "invalid_tags") reply.code(400).send({ error: "invalid_tags" });
+      else if (!card) reply.code(404).send({ error: "Card not found" });
+      else reply.send(card);
+    }
   );
 }
 

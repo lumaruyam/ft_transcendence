@@ -17,7 +17,8 @@ const PAGE_ROUTES: [RegExp, string][] = [
   [/^\/app\/[^/]+\/whiteboard\/?$/, "/whiteboard/index.html"],
   [/^\/app\/[^/]+\/notes\/?$/, "/notes/index.html"],
   [/^\/app\/[^/]+\/?$/, "/kanban/index.html"],
-  [/^\/invite\/[^/]+$/, "/invite/index.html"],
+  // no dot: /invite/main.ts is the page script, not a token
+  [/^\/invite\/[^/.]+$/, "/invite/index.html"],
   [/^\/auth\/callback$/, "/auth-callback/index.html"],
 ];
 
@@ -53,6 +54,14 @@ export default defineConfig({
   // Svelte plugin is the frontend main framework — activates only on .svelte files.
   // the Vite root is src/, so the Svelte config at the frontend root has to be pointed at explicitly
   plugins: [react(), svelte({ configFile: resolve(srcRoot, "../svelte.config.js") }), nginxLikePageRoutes(srcRoot)],
+  resolve: {
+		alias: {
+			"@excalidraw/excalidraw": resolve(
+				import.meta.dirname,
+				"node_modules/@excalidraw/excalidraw/dist/excalidraw.production.min.js",
+			),
+		},
+	},
   root: resolve(import.meta.dirname, "src"),
   publicDir: resolve(import.meta.dirname, "public"),
   server: {

@@ -1,8 +1,8 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
-     Responsible for: the board area — the columns side by side and the "add a list" input. It is also
-     the drop zone for reordering the lists: a line shows where the dragged list will land. -->
+     Responsible for: the board area: columns, "add list", empty state and list drag and drop. -->
 <script lang="ts">
-  import AddForm from "./AddForm.svelte";
+  import Icon from "../shared/ui/Icon.svelte";
+  import Composer from "./Composer.svelte";
   import ListColumn from "./ListColumn.svelte";
   import { insertionIndex, othersBefore } from "./dnd";
   import type { BoardStore } from "./boardStore.svelte";
@@ -10,8 +10,9 @@
   let { store }: { store: BoardStore } = $props();
 
   let boardEl: HTMLElement;
-  // index (among the lists without the dragged one) where a dragged list would land, null when none is dragged
+  // where a dragged list would land (null when not dragging)
   let dropIndex = $state<number | null>(null);
+  let creatingDefaults = $state(false);
 
   const listIds = $derived(store.board?.lists.map((l) => l.id) ?? []);
   const othersCount = $derived(listIds.filter((id) => id !== store.drag?.id).length);
@@ -36,35 +37,52 @@
     store.drag = null;
     void store.moveList(listId, index);
   }
+
+  async function createDefaults(): Promise<void> {
+    creatingDefaults = true;
+    await store.addDefaultLists();
+    creatingDefaults = false;
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-  class="board"
-  bind:this={boardEl}
-  ondragover={onDragOver}
-  ondragleave={onDragLeave}
-  ondrop={onDrop}
->
+<div class="board" bind:this={boardEl} ondragover={onDragOver} ondragleave={onDragLeave} ondrop={onDrop}>
   {#if store.board}
-    {#each store.board.lists as list, i (list.id)}
-      {#if dropIndex !== null && list.id !== store.drag?.id && othersBefore(listIds, i, store.drag?.id) === dropIndex}
+    {#if store.board.lists.length === 0}
+      <div class="welcome">
+        <div class="icon"><Icon name="columns" size={28} /></div>
+        {#if store.canEdit}
+          <h2>Un tableau tout neuf</h2>
+          <p>Les listes sont les colonnes de votre tableau. Commencez avec les trois classiques — vous pourrez les renommer, les déplacer ou en ajouter à tout moment.</p>
+          <button type="button" class="btn btn-primary" disabled={creatingDefaults} onclick={createDefaults}>
+            {#if creatingDefaults}<span class="spinner"></span>{:else}<Icon name="sparkle" size={17} />{/if}
+            Créer « À faire · En cours · Terminé »
+          </button>
+          <div class="or">ou ajoutez votre propre liste</div>
+          <div class="own"><Composer ghost label="Ajouter une liste" placeholder="Nom de la liste…" onadd={(t) => store.addList(t)} /></div>
+        {:else}
+          <h2>Ce tableau est vide</h2>
+          <p>Il n'y a pas encore de liste. Vous avez un accès en lecture seule : un membre pourra en créer.</p>
+        {/if}
+      </div>
+    {:else}
+      {#each store.board.lists as list, i (list.id)}
+        {#if dropIndex !== null && list.id !== store.drag?.id && othersBefore(listIds, i, store.drag?.id) === dropIndex}
+          <div class="drop-line"></div>
+        {/if}
+        <div class="column-slot" data-id={list.id} style:--col={i}>
+          <ListColumn {store} {list} />
+        </div>
+      {/each}
+      {#if dropIndex !== null && dropIndex >= othersCount}
         <div class="drop-line"></div>
       {/if}
-      <div class="column-slot" data-id={list.id}>
-        <ListColumn {store} {list} />
-      </div>
-    {/each}
-    {#if dropIndex !== null && dropIndex >= othersCount}
-      <div class="drop-line"></div>
-    {/if}
 
-    {#if store.canEdit}
-      <div class="add-list">
-        <AddForm placeholder="+ Ajouter une liste" onadd={(title) => store.addList(title)} />
-      </div>
-    {:else if store.board.lists.length === 0}
-      <p class="empty">Ce board est vide.</p>
+      {#if store.canEdit}
+        <div class="add-list">
+          <Composer ghost label="Ajouter une liste" placeholder="Nom de la liste…" onadd={(t) => store.addList(t)} />
+        </div>
+      {/if}
     {/if}
   {/if}
 </div>
@@ -72,32 +90,69 @@
 <style>
   .board {
     flex: 1;
-    overflow: auto;
+    min-height: 0;
     display: flex;
-    gap: 1rem;
+    gap: 14px;
     align-items: flex-start;
-    padding: 1.25rem;
-    background: var(--bg-main);
-    transition: background-color 0.15s ease;
+    padding: 4px 20px 24px;
+    overflow: auto;
+    scroll-snap-type: x proximity;
+    scroll-padding: 0 20px;
   }
-  /* wraps a column so the list drop position can be measured on the slot; the column keeps its own width */
+  /* list drop is measured on the slot */
   .column-slot {
     display: flex;
     max-height: 100%;
+    scroll-snap-align: start;
   }
   .drop-line {
     width: 3px;
     align-self: stretch;
+    flex-shrink: 0;
     border-radius: 2px;
     background: var(--accent);
-    flex-shrink: 0;
   }
   .add-list {
-    width: 16rem;
+    width: 300px;
     flex-shrink: 0;
   }
-  .empty {
-    color: var(--text-muted);
-    font-size: 0.9rem;
+  .welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    max-width: 480px;
+    margin: 6vh auto 0;
+    padding: 0 8px;
+    text-align: center;
+  }
+  .welcome p {
+    color: var(--text-soft);
+  }
+  .icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+  }
+  .or {
+    margin-top: 6px;
+    font-size: 0.84rem;
+    color: var(--text-faint);
+  }
+  .own {
+    width: min(300px, 100%);
+  }
+  @media (max-width: 600px) {
+    .board {
+      padding: 4px 12px 20px;
+    }
+    .add-list {
+      width: min(300px, 84vw);
+    }
   }
 </style>

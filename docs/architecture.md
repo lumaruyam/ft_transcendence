@@ -75,7 +75,8 @@ internal service mesh, this is a single deployable.
 | `kanban/` | Boards/lists/cards CRUD, the Socket.IO hub, broadcast, presence | `git/` (drives card status), `publicapi/` (wraps card CRUD) |
 | `git/` | Branch linking, webhook receipt/verification, event→card-status processing, webhook audit log | Calls back into `kanban/` to move cards |
 | `notes/` | Notes CRUD, autosave | `search/` (indexes note content) |
-| `attachments/` | File uploads (regular + exported whiteboard images) | `search/`, `notifications/` |
+| `whiteboard/` | One Excalidraw scene per project, stored as JSON; load + autosave | — |
+| `attachments/` | File uploads (whiteboard image export is a client-side download in Excalidraw, not an upload) | `search/`, `notifications/` |
 | `search/` | Cross-entity search over cards/notes/attachments | — |
 | `notifications/` | Notification creation/delivery on create/update/delete actions | Triggered by `kanban/`, `notes/`, `attachments/`, `git/` |
 | `publicapi/` | API-key auth, per-key rate limiting, the 5 documented external REST endpoints | Wraps `projects/` and `kanban/` service functions |

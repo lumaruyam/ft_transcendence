@@ -1,6 +1,7 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type Tag } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 import { broadcastToProject } from "./broadcast.js";
+import { CARD_TAGS_INCLUDE, withTags } from "./tag.service.js";
 
 export async function createBoard(input: { projectId: string; title: string}) {
 	const board = await prisma.board.create({
@@ -20,10 +21,18 @@ const BOARD_WITH_LISTS_AND_CARDS = {
 		include: {
 			cards: {
 				orderBy: [{ position: "asc" as const }, { id: "asc" as const }],
+				include: CARD_TAGS_INCLUDE,
 			},
 		},
 	},
 };
+
+function flattenCardTags<B extends { lists: { cards: { tags: { tag: Tag }[] }[] }[] }>(board: B) {
+	return {
+		...board,
+		lists: board.lists.map((list) => ({ ...list, cards: list.cards.map(withTags) })),
+	};
+}
 
 // creates a board for the project if none exists yet
 // null return means the project does not exist, this is only an existence check not a permission check
@@ -33,7 +42,7 @@ export async function getOrCreateBoardForProject(projectId: string) {
 		include: BOARD_WITH_LISTS_AND_CARDS,
 	});
 	if (existing) {
-		return existing;
+		return flattenCardTags(existing);
 	}
 
 	try {
@@ -52,18 +61,9 @@ export async function getOrCreateBoardForProject(projectId: string) {
 export async function getBoard(id: string) {
 	const board = await prisma.board.findUnique({
 		where: { id },
-		include: {
-			lists: {
-				orderBy: [{ position: "asc" }, { id: "asc" }],
-				include: {
-					cards: {
-						orderBy: [{ position: "asc" }, { id: "asc" }],
-					},
-				},
-			},
-		},
+		include: BOARD_WITH_LISTS_AND_CARDS,
 	});
-	return board;
+	return board ? flattenCardTags(board) : null;
 }
 
 

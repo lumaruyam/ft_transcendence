@@ -25,6 +25,7 @@ model User {
   ownedProjects  Project[]       @relation("ProjectOwner")
   memberships    ProjectMember[]
   updatedNotes   Note[]          @relation("NoteUpdatedBy")
+  updatedWhiteboards Whiteboard[]    @relation("WhiteboardUpdatedBy")
   uploads        Attachment[]    @relation("AttachmentUploadedBy")
   notifications  Notification[]
   createdInvites ProjectInvite[] @relation("InviteCreatedBy")
@@ -69,9 +70,10 @@ model Project {
   invites     ProjectInvite[]
   boards      Board[]
   notes       Note[]
+  whiteboard  Whiteboard?
   attachments Attachment[]
   apiKeys     ApiKey[]
-  // tags        Tag[] // Add tags later ?
+  tags        Tag[]
 
   @@map("projects")
 }
@@ -157,7 +159,7 @@ model Card {
   list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
   gitLink     GitLink?
   attachments Attachment[]
-  // tags        CardTag[] // Add tags ?
+  tags        CardTag[]
 
   @@map("cards")
 }
@@ -165,34 +167,35 @@ model Card {
 // Tag maps to `tags` — project-scoped labels (e.g. "bug", "urgent") applied to cards.
 // Scoped per-project (not global) so two projects can each have their own "bug" tag
 // with independent colors, and deleting a project cleans up its tags automatically.
-// model Tag {
-//  id        String   @id @default(uuid())
-//  projectId String   @map("project_id")
-//  name      String
-//  color     String?
-//  createdAt DateTime @default(now()) @map("created_at")
-//
-//  project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-//  cards   CardTag[]
-//
-//  @@unique([projectId, name])
-//  @@map("tags")
-//}
+model Tag {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  name      String
+  color     String   @default("#6b7280")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cards   CardTag[]
+
+  @@unique([projectId, name])
+  @@map("tags")
+}
 
 // CardTag maps to `card_tags` — the many-to-many join between cards and tags. Explicit
 // join table (rather than an implicit Prisma m-n) to match the project's existing
 // convention (see ProjectMember) and leave room for future columns (e.g. added_by/added_at)
 // without a schema rewrite.
-//model CardTag {
-//  cardId String @map("card_id")
-//  tagId  String @map("tag_id")
-//
-//  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
-//  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
-//
-//  @@id([cardId, tagId])
-//  @@map("card_tags")
-//}
+model CardTag {
+  cardId String @map("card_id")
+  tagId  String @map("tag_id")
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, tagId])
+  @@index([tagId])
+  @@map("card_tags")
+}
 
 // Note maps to `notes`: id, project_id, content_json, updated_by, updated_at. Autosaved on edit per Track 4's notes module.
 model Note {
@@ -208,6 +211,21 @@ model Note {
   // one note per project — matches the notes_project_id_key index created by the note_one_per_project migration
   @@unique([projectId])
   @@map("notes")
+}
+
+// Whiteboard maps to `whiteboards` — one Excalidraw scene per project, autosaved from the
+// frontend. The scene (elements + view state) is stored as JSON so it stays re-editable.
+model Whiteboard {
+  id        String   @id @default(uuid())
+  projectId String   @unique @map("project_id")
+  sceneJson Json     @map("scene_json")
+  updatedBy String?   @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  editor  User?   @relation("WhiteboardUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@map("whiteboards")
 }
 
 // Attachment maps to `attachments` — covers regular file uploads and exported whiteboard images alike.

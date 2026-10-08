@@ -1,6 +1,13 @@
 // Owner: Track 2 (Person A — Kanban CRUD and UI)
 // Responsible for: the shapes the kanban backend sends over HTTP and Socket.IO.
 
+export interface Tag {
+  id: string;
+  projectId: string;
+  name: string;
+  color: string;
+}
+
 export interface Card {
   id: string;
   listId: string;
@@ -10,6 +17,9 @@ export interface Card {
   status?: string;
   linkedBranch?: string | null;
   linkedPrUrl?: string | null;
+  tags?: Tag[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface List {
@@ -27,18 +37,7 @@ export interface Board {
   lists: List[];
 }
 
-export interface Project {
-  id: string;
-  name: string;
-}
-
-export type Role = "admin" | "member" | "viewer";
-
-export interface Member {
-  userId: string;
-  role: Role;
-  user: { id: string; name: string; email: string; avatar: string | null };
-}
+export type { Project, Member, Role } from "../api/types";
 
 // payload of the "card_moved" event and of the PUT /cards/:id/move response: the new card order of
 // both lists (identical when the card stays in its list), so clients don't have to replay the shift

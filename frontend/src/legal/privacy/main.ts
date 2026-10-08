@@ -1,9 +1,7 @@
-//Owner: Track 4 (Whiteboard, notes, and supporting modules)
-//entry point for the /legal/privacy page - mounts the policy content into the page shell.
+// Owner: Track 4 (Whiteboard, notes, and supporting modules)
+// Responsible for: the /legal/privacy entry point.
+import { boot } from "../../shared/boot";
+import LegalPage from "../LegalPage.svelte";
 import { renderPrivacyPolicyPage } from "../privacyPolicy";
 
-const root = document.getElementById("legal-content");
-
-if (root) {
-	renderPrivacyPolicyPage(root);
-}
+boot(LegalPage, { props: { render: renderPrivacyPolicyPage, other: { href: "/legal/terms", label: "Terms of Service" } } });

@@ -1,1 +1,5 @@
-// TODO: import 404 UI from ../src/
+// Shown by nginx on 404.
+import { boot } from "../shared/boot";
+import NotFound from "./NotFound.svelte";
+
+boot(NotFound);
