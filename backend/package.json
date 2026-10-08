@@ -6,7 +6,7 @@
   "_description": "Node.js + TypeScript backend (Fastify, Prisma, Socket.IO) per docs/ft_transcendence_plan.md section 4 — replaces the former Go module (go.mod, removed)",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
