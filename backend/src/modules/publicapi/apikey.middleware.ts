@@ -47,8 +47,8 @@ export async function enforceKeyProjectScope(request: FastifyRequest, reply: Fas
 	}
 }
 
-// apiKeyRouteConstraint is a Fastify custom constraint strategy (passed via Fastify({ constraints }) in app.ts)
-export const apiKeyRouteConstraint: NonNullable<FastifyServerOptions["constraints"]>[string] = {
+// apiKeyRouteConstraint is a Fastify custom constraint strategy (passed via Fastify({ routerOptions: { constraints } }) in app.ts)
+export const apiKeyRouteConstraint: NonNullable<NonNullable<FastifyServerOptions["routerOptions"]>["constraints"]>[string] = {
 	name: "apiAuth",
 	storage() {
 		const handlers = new Map<string, unknown>();
@@ -68,7 +68,7 @@ export const apiKeyRouteConstraint: NonNullable<FastifyServerOptions["constraint
 		}
 	},
 	mustMatchWhenDerived: false,
-} as NonNullable<FastifyServerOptions["constraints"]>[string];
+} as NonNullable<NonNullable<FastifyServerOptions["routerOptions"]>["constraints"]>[string];
 
 // API_KEY_ROUTE_CONSTRAINT is the constraints value public routes that share a path with a JWT route declare
 export const API_KEY_ROUTE_CONSTRAINT = { apiAuth: "apikey" } as const;
