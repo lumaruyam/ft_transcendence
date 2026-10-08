@@ -135,15 +135,26 @@ export async function matchCardByGitLink(repoUrl: string, branchName: string): P
     return link ? link.cardId : null;
 }
 
-// transitionCardStatus drives the actual card move by calling into Track 2 Person A's card service.
-export async function transitionCardStatus(cardId: string, targetStatus: string, extraData?: {prUrl?: string, prStatus?: 'open' | 'merged'}): Promise<void> {
-    const currentCard = await prisma.card.findUnique({where: {id: cardId}, include: {list: true}});
-    if(!currentCard)
-        console.warn(`Card ${cardId} not found, cannotmouve to '${targetStatus}'`);
-
-
-    const updated = await updateCard(cardId, { status: targetStatus });
-    if(!updated)
-        console.log(`Card ${cardId} not found, status '${targetStatus}' was not applied`);
+//change in prisma
+export async function transitionCardStatus(cardId: string, targetStatus: string,
+    extraData?: { prUrl?: string, prStatus?: string}): Promise<void> {
+    try{
+        const operations: any[] = [ prisma.card.update({
+        where: { id: cardId },
+        data: { status: targetStatus, ...( extraData?.prUrl ? { linkedPrUrl: extraData.prUrl } : {}),
+        }},)
+        ]
+        if(extraData?.prStatus){
+            operations.push(
+                prisma.gitLink.updateMany({
+                    where: { cardId },
+                    data: {prStatus: extraData.prStatus},
+                })
+            )
+        }
+        await prisma.$transaction(operations);
+    }
+    catch(err:any){
+        console.warn(`Failed to transition card ${cardId} to status '${targetStatus}' : ${err?.message || err}`);
+    }
 }
-
