@@ -1,7 +1,7 @@
 # Owner: Track 1
 
 # --- build stage ---
-FROM node:20-bookworm AS builder
+FROM node:22-bookworm AS builder
 WORKDIR /app
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 
