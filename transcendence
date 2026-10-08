@@ -41,6 +41,59 @@ ensure_env() {
   fi
 }
 
+# read KEY from .env only (no fallback)
+dotenv_get() {
+  sed -n "s/^$1=//p" "$SCRIPT_DIR/.env" | head -n1
+}
+
+# set KEY=value in .env; awk keeps special characters as they are
+dotenv_set() {
+  local tmp
+  tmp="$(mktemp)"
+  KEY="$1" VAL="$2" awk '
+    BEGIN { k = ENVIRON["KEY"]; v = ENVIRON["VAL"]; done = 0 }
+    index($0, k "=") == 1 { print k "=" v; done = 1; next }
+    { print }
+    END { if (!done) print k "=" v }
+  ' "$SCRIPT_DIR/.env" > "$tmp" && cat "$tmp" > "$SCRIPT_DIR/.env"
+  rm -f "$tmp"
+}
+
+# GitHub OAuth app credentials. Blank answer or no terminal: random placeholders
+# (GitHub login won't work until you run ./transcendence oauth).
+ask_oauth() {
+  local id="" secret=""
+  if [ -t 0 ]; then
+    echo "==> GitHub OAuth (login with GitHub)"
+    echo "    Create an OAuth App on https://github.com/settings/developers, with callback URL:"
+    echo "      $(env_value GITHUB_OAUTH_REDIRECT_URI http://localhost:8080/api/auth/oauth/github/callback)"
+    echo "    Leave blank to use a random placeholder (GitHub login won't work, email/password will)."
+    read -r -p "    GITHUB_CLIENT_ID: " id || true
+    read -r -s -p "    GITHUB_CLIENT_SECRET: " secret || true
+    echo ""
+  fi
+  if [ -z "$id" ] || [ -z "$secret" ]; then
+    id="placeholder_$(openssl rand -hex 8)"
+    secret="placeholder_$(openssl rand -hex 20)"
+    echo "    Using random placeholders for GitHub OAuth (GitHub login disabled)."
+  fi
+  dotenv_set GITHUB_CLIENT_ID "$id"
+  dotenv_set GITHUB_CLIENT_SECRET "$secret"
+}
+
+ensure_oauth() {
+  # first run or missing credentials
+  if [ -z "$(dotenv_get GITHUB_CLIENT_ID)" ] || [ -z "$(dotenv_get GITHUB_CLIENT_SECRET)" ]; then
+    ask_oauth
+  fi
+
+  # the encryption key must be 64 hex chars: generate it, never ask
+  if ! printf '%s' "$(dotenv_get OAUTH_TOKEN_ENCRYPTION_KEY)" | grep -Eq '^[0-9a-fA-F]{64}$'; then
+    echo "==> Generating OAUTH_TOKEN_ENCRYPTION_KEY"
+    dotenv_set OAUTH_TOKEN_ENCRYPTION_KEY "$(openssl rand -hex 32)"
+  fi
+}
+
 generate_certs() {
   if [ ! -f "$CERTS_DIR/server.crt" ] || [ ! -f "$CERTS_DIR/server.key" ]; then
     echo "==> Generating self-signed SSL certificates..."
@@ -54,12 +107,13 @@ generate_certs() {
 }
 
 usage() {
-  echo "Usage: $0 {start|stop|restart|reload} [--no-cache]"
+  echo "Usage: $0 {start|stop|restart|reload|oauth} [--no-cache]"
   echo ""
   echo "  start           — build and start all containers (serves current code)"
   echo "  stop            — stop and remove all containers"
   echo "  restart         — stop, then build and start all containers"
   echo "  reload          — rebuild the frontend only and refresh what nginx serves"
+  echo "  oauth           — (re)enter the GitHub OAuth credentials stored in .env"
   echo ""
   echo "  --no-cache      — force a full image rebuild (re-runs npm ci; slow). Only"
   echo "                    needed if a cached layer is stale; normal runs don't need it."
@@ -76,6 +130,7 @@ fi
 case "$1" in
   start)
     ensure_env
+    ensure_oauth
     generate_certs
     docker compose up -d $BUILD_FLAGS
     show_urls
@@ -87,6 +142,7 @@ case "$1" in
 
   restart)
     ensure_env
+    ensure_oauth
     generate_certs
     docker compose down
     docker compose up -d $BUILD_FLAGS
@@ -102,6 +158,12 @@ case "$1" in
     docker compose up -d $BUILD_FLAGS frontend
     echo "==> Reloading nginx..."
     docker compose exec nginx nginx -s reload
+    ;;
+
+  oauth)
+    ensure_env
+    ask_oauth
+    echo "==> Saved in .env. Run '$0 restart' for the backend to pick it up."
     ;;
 
   *)

@@ -48,6 +48,6 @@ export function moveCard(cardId: string, listId: string, position: number): Prom
   return apiRequest<CardMoved>({ method: "PUT", path: `/cards/${cardId}/move`, body: { listId, position } });
 }
 
-export function deleteCard(cardId: string): Promise<void> {
-  return apiRequest<void>({ method: "DELETE", path: `/cards/${cardId}` });
+export function deleteCard(cardId: string, keepalive = false): Promise<void> {
+  return apiRequest<void>({ method: "DELETE", path: `/cards/${cardId}`, keepalive });
 }

@@ -13,6 +13,7 @@ export interface SocketConnection {
 	// (e.g. kanban's "join_project") from this callback, not just once after creating the connection
 	onConnect: (handler: () => void) => void;
 	onConnectError: (handler: (error: Error) => void) => void;// onConnectError fires when a connection attempt fails
+	onDisconnect: (handler: () => void) => void;// fires when an established connection drops
 	disconnect: () => void;
 }
 
@@ -36,6 +37,9 @@ export function createSocketConnection(url: string, authToken: string): SocketCo
 		},
 		onConnectError: (handler) => {
 			socket.on("connect_error", handler);
+		},
+		onDisconnect: (handler) => {
+			socket.on("disconnect", handler);
 		},
 		disconnect: () => {
 			socket.disconnect();

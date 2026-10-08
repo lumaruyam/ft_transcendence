@@ -8,6 +8,8 @@
 import { SvelteSet } from "svelte/reactivity";
 import { ApiError } from "../api/apiClient";
 import { getStoredUser } from "../auth/authClient";
+import { errorMessage } from "../shared/errors";
+import { toast } from "../shared/toast.svelte";
 import * as api from "./boardApi";
 import { connectKanbanSocket } from "./wsClient";
 import type { Board, Card, CardMoved, List, Member, Project } from "./types";
@@ -17,12 +19,18 @@ type LoadState = "loading" | "ready" | "error";
 const byPosition = (a: { position: number; id: string }, b: { position: number; id: string }): number =>
   a.position - b.position || a.id.localeCompare(b.id);
 
-function describeError(err: unknown): string {
-  if (err instanceof ApiError) {
-    if (err.status === 403) return "Vous n'avez pas les droits pour faire cela.";
-    if (err.details.length > 0) return err.details.join(", ");
-  }
-  return "Une erreur est survenue, réessayez.";
+// ms a deleted card can be restored before the server is told
+const UNDO_MS = 6000;
+// ms a card changed by someone else stays highlighted
+const FLASH_MS = 1800;
+
+const DEFAULT_LISTS = ["À faire", "En cours", "Terminé"];
+
+interface PendingDelete {
+  card: Card;
+  listId: string;
+  index: number;
+  timer: ReturnType<typeof setTimeout>;
 }
 
 export class BoardStore {
@@ -38,6 +46,12 @@ export class BoardStore {
   accessDenied = $state(false);
   // last failed user action, shown by the page until dismissed
   actionError = $state<string | null>(null);
+  // the live connection is up
+  connected = $state(true);
+  // toolbar filter: hides other cards and turns dragging off
+  filter = $state("");
+  // cards changed by someone else, highlighted for a moment
+  flashed = new SvelteSet<string>();
   // what is being dragged right now (drag data can't be read during dragover, so the store keeps it)
   drag = $state<{ kind: "card" | "list"; id: string } | null>(null);
   // the card whose detail dialog is open; the dialog follows live updates and closes if the card is deleted
@@ -52,6 +66,11 @@ export class BoardStore {
 
   readonly #projectId: string;
   #disconnect: (() => void) | null = null;
+  // deleted cards waiting for the undo delay: hidden here, still on the server
+  #pendingDeletes = new Map<string, PendingDelete>();
+  // cards this user just changed: no highlight when the broadcast comes back
+  #mine = new Set<string>();
+  readonly #flushDeletes = (): void => this.#commitAllDeletes();
 
   constructor(projectId: string) {
     this.#projectId = projectId;
@@ -60,13 +79,17 @@ export class BoardStore {
   // start loads the page data, then listens to the project room
   async start(): Promise<void> {
     await this.load();
+    window.addEventListener("pagehide", this.#flushDeletes);
     this.#disconnect = connectKanbanSocket(this.#projectId, {
       onEvent: (event, payload) => this.applyEvent(event, payload),
       onReconnect: () => void this.load(),
+      onStatus: (connected) => (this.connected = connected),
     });
   }
 
   stop(): void {
+    window.removeEventListener("pagehide", this.#flushDeletes);
+    this.#commitAllDeletes();
     this.#disconnect?.();
     this.#disconnect = null;
   }
@@ -82,6 +105,7 @@ export class BoardStore {
       this.project = project;
       this.board = board;
       this.members = members;
+      for (const id of this.#pendingDeletes.keys()) this.#dropCard(id);
       this.loadState = "ready";
     } catch (err) {
       // a failed reload keeps showing the board we already have
@@ -127,21 +151,75 @@ export class BoardStore {
     if (!ok) await this.load();
   }
 
+  // gives an empty board the three usual lists
+  async addDefaultLists(): Promise<boolean> {
+    for (const title of DEFAULT_LISTS) {
+      if (!(await this.addList(title))) return false;
+    }
+    return true;
+  }
+
   async addCard(listId: string, title: string): Promise<boolean> {
     const list = this.#findList(listId);
     if (!list) return false;
-    return this.#run(async () => this.#upsertCard(await api.createCard(listId, title, list.cards.length)));
+    return this.#run(async () => {
+      const card = await api.createCard(listId, title, list.cards.length);
+      this.#mine.add(card.id);
+      this.#upsertCard(card);
+    });
   }
 
   async editCard(cardId: string, patch: { title?: string; description?: string }): Promise<boolean> {
+    this.#mine.add(cardId);
     return this.#run(async () => this.#upsertCard(await api.updateCard(cardId, patch)));
   }
 
-  async removeCard(cardId: string): Promise<boolean> {
-    return this.#run(async () => {
-      await api.deleteCard(cardId);
-      this.#dropCard(cardId);
-    });
+  // hides the card now and deletes it on the server after UNDO_MS (the toast offers undo)
+  removeCard(cardId: string): void {
+    const list = this.#findCardList(cardId);
+    const card = list?.cards.find((c) => c.id === cardId);
+    if (!list || !card) return;
+
+    const index = list.cards.indexOf(card);
+    const snapshot = $state.snapshot(card) as Card;
+    this.#dropCard(cardId);
+    if (this.openCardId === cardId) this.openCardId = null;
+
+    const timer = setTimeout(() => void this.#commitDelete(cardId), UNDO_MS);
+    this.#pendingDeletes.set(cardId, { card: snapshot, listId: list.id, index, timer });
+    toast("Carte supprimée", { duration: UNDO_MS, action: { label: "Annuler", run: () => this.#undoDelete(cardId) } });
+  }
+
+  #undoDelete(cardId: string): void {
+    const pending = this.#pendingDeletes.get(cardId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.#pendingDeletes.delete(cardId);
+    const list = this.#findList(pending.listId);
+    if (!list) {
+      void this.load();
+      return;
+    }
+    list.cards.splice(Math.min(pending.index, list.cards.length), 0, pending.card);
+  }
+
+  async #commitDelete(cardId: string, keepalive = false): Promise<void> {
+    const pending = this.#pendingDeletes.get(cardId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.#pendingDeletes.delete(cardId);
+    try {
+      await api.deleteCard(cardId, keepalive);
+    } catch (err) {
+      // already deleted elsewhere is fine; otherwise restore the card and show the error
+      if (err instanceof ApiError && err.status === 404) return;
+      this.actionError = errorMessage(err);
+      await this.load();
+    }
+  }
+
+  #commitAllDeletes(): void {
+    for (const id of [...this.#pendingDeletes.keys()]) void this.#commitDelete(id, true);
   }
 
   // moveCard puts a card at `toIndex` of a list (maybe another one): the UI updates right away, and a
@@ -155,6 +233,7 @@ export class BoardStore {
     toOrder.splice(Math.min(toIndex, toOrder.length), 0, cardId);
     const fromOrder = from === to ? toOrder : from.cards.map((c) => c.id).filter((id) => id !== cardId);
 
+    this.#mine.add(cardId);
     this.#applyMove({ cardId, fromListId: from.id, toListId, fromOrder, toOrder });
     const ok = await this.#run(() => api.moveCard(cardId, toListId, toIndex));
     if (!ok) await this.load();
@@ -199,12 +278,14 @@ export class BoardStore {
       case "card_created":
       case "card_updated":
         this.#upsertCard(payload as Card);
+        this.#flash((payload as Card).id);
         break;
       case "card_deleted":
         this.#dropCard((payload as { id: string }).id);
         break;
       case "card_moved":
         this.#applyMove(payload as CardMoved);
+        this.#flash((payload as CardMoved).cardId);
         break;
       // board_created / board_deleted: nothing to show, the page has a single board per project
     }
@@ -217,9 +298,15 @@ export class BoardStore {
       await action();
       return true;
     } catch (err) {
-      this.actionError = describeError(err);
+      this.actionError = errorMessage(err);
       return false;
     }
+  }
+
+  #flash(cardId: string): void {
+    if (this.#mine.delete(cardId)) return;
+    this.flashed.add(cardId);
+    setTimeout(() => this.flashed.delete(cardId), FLASH_MS);
   }
 
   #findList(listId: string): List | undefined {
@@ -261,6 +348,7 @@ export class BoardStore {
   }
 
   #upsertCard(card: Card): void {
+    if (this.#pendingDeletes.has(card.id)) return;
     const list = this.#findList(card.listId);
     if (!list) return;
     const existing = this.#findCardList(card.id)?.cards.find((c) => c.id === card.id);

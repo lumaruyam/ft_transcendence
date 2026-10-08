@@ -1,111 +1,244 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
-     Responsible for: the kanban page shell — top bar, then either the board or a message explaining
-     why there is none (loading, error, no access). -->
+     Responsible for: the kanban page shell: header, toolbar and board. -->
 <script lang="ts">
   import { onMount } from "svelte";
-  import TopBar from "../shared/ui/TopBar.svelte";
-  import ProfileMenu from "../shared/ui/ProfileMenu.svelte";
+  import AppHeader from "../shared/ui/AppHeader.svelte";
+  import Icon from "../shared/ui/Icon.svelte";
+  import { LoadGate } from "../shared/loadGate.svelte";
+  import LoadStage from "../shared/ui/LoadStage.svelte";
   import Board from "./Board.svelte";
+  import BoardSkeleton from "./BoardSkeleton.svelte";
   import CardDetail from "./CardDetail.svelte";
   import Participants from "./Participants.svelte";
-  import Sidebar from "./Sidebar.svelte";
   import type { BoardStore } from "./boardStore.svelte";
 
   let { store }: { store: BoardStore } = $props();
 
-  onMount(() => {
-    void store.start();
-    return () => store.stop();
+  // skeleton only after 0.5 s (see LoadGate)
+  const gate = new LoadGate({ delay: 500, enter: 700, leave: 380 });
+  gate.start();
+  $effect(() => {
+    if (store.loadState !== "loading") gate.resolve();
   });
 
-  const title = $derived(store.project?.name ?? "Kanban");
+  let wantedCard = $state<string | null>(new URLSearchParams(window.location.search).get("card"));
+
+  onMount(() => {
+    void store.start().then(() => {
+      // deep link: open the card from the URL
+      if (wantedCard && store.board?.lists.some((l) => l.cards.some((c) => c.id === wantedCard))) store.openCardId = wantedCard;
+      wantedCard = null;
+    });
+
+    // the palette asks to open a card
+    const onPaletteCard = (event: Event) => {
+      const id = (event as CustomEvent<string | null>).detail;
+      if (id) store.openCardId = id;
+    };
+    window.addEventListener("palette:card", onPaletteCard);
+    return () => {
+      window.removeEventListener("palette:card", onPaletteCard);
+      store.stop();
+      gate.destroy();
+    };
+  });
+
+  // keep ?card= in the URL without adding history entries
+  $effect(() => {
+    if (store.loadState !== "ready" || wantedCard) return;
+    const url = new URL(window.location.href);
+    if (store.openCardId) url.searchParams.set("card", store.openCardId);
+    else url.searchParams.delete("card");
+    history.replaceState(null, "", url);
+  });
+
+  $effect(() => {
+    document.title = store.project ? `${store.project.name} · Tableau — Transcendance` : "Tableau — Transcendance";
+  });
+
+  const cardCount = $derived(store.board?.lists.reduce((n, l) => n + l.cards.length, 0) ?? 0);
+  const filtering = $derived(store.filter.trim().length > 0);
 </script>
 
-<div class="shell">
-  <Sidebar />
+<div class="page">
+  <AppHeader project={store.project} active="board">
+    {#snippet extra()}
+      <Participants {store} />
+    {/snippet}
+  </AppHeader>
 
-  <div class="main">
-    <TopBar>
-      {#snippet left()}
-        <div class="logo">{title.trim().slice(0, 2).toUpperCase() || "?"}</div>
-        <div class="title">{title}</div>
-      {/snippet}
-      {#snippet right()}
-        <Participants {store} />
-        <ProfileMenu projectId={store.project?.id} />
-      {/snippet}
-    </TopBar>
+  {#if store.actionError}
+    <div class="banner error" role="alert">
+      <Icon name="alert" size={16} />
+      <span>{store.actionError}</span>
+      <button type="button" class="icon-btn" aria-label="Fermer" onclick={() => store.dismissError()}><Icon name="x" size={16} /></button>
+    </div>
+  {/if}
 
-    {#if store.actionError}
-      <div class="error" role="alert">
-        <span>{store.actionError}</span>
-        <button type="button" aria-label="Fermer" onclick={() => store.dismissError()}>×</button>
-      </div>
-    {/if}
-
-    {#if store.accessDenied}
-      <p class="message">Vous n'avez pas accès à ce projet.</p>
-    {:else if store.loadState === "loading"}
-      <p class="message">Chargement du board…</p>
-    {:else if store.loadState === "error"}
-      <p class="message">Impossible de charger le board pour le moment.</p>
-    {:else}
-      <Board {store} />
-    {/if}
-  </div>
+  <LoadStage {gate} label="Chargement du tableau…">
+    {#snippet skeleton()}
+      <BoardSkeleton />
+    {/snippet}
+    {#snippet children()}
+      {#if store.accessDenied}
+        <div class="state">
+          <div class="state-icon"><Icon name="lock" size={26} /></div>
+          <h2>Vous n'avez pas accès à ce projet</h2>
+          <p>Il n'existe peut-être plus, ou vous n'en faites pas partie. Demandez un lien d'invitation à un administrateur.</p>
+          <a class="btn btn-primary" href="/app">Retour à mes projets</a>
+        </div>
+      {:else if store.loadState === "error"}
+        <div class="state">
+          <div class="state-icon"><Icon name="wifiOff" size={26} /></div>
+          <h2>Impossible de charger le tableau</h2>
+          <p>Vérifiez votre connexion, puis réessayez.</p>
+          <button type="button" class="btn btn-primary" onclick={() => void store.load()}>Réessayer</button>
+        </div>
+      {:else}
+        <div class="toolbar">
+          <div class="filter">
+            <Icon name="search" size={16} />
+            <input
+              type="search"
+              bind:value={store.filter}
+              placeholder="Filtrer les cartes…"
+              aria-label="Filtrer les cartes du tableau"
+              onkeydown={(e) => e.key === "Escape" && (store.filter = "")}
+            />
+            {#if filtering}
+              <button type="button" class="clear" aria-label="Effacer le filtre" onclick={() => (store.filter = "")}><Icon name="x" size={14} /></button>
+            {/if}
+          </div>
+          {#if filtering}
+            <span class="count">Glisser-déposer désactivé pendant le filtrage</span>
+          {:else}
+            <span class="count">{cardCount} carte{cardCount > 1 ? "s" : ""}</span>
+          {/if}
+          <span class="spacer"></span>
+          {#if !store.canEdit}
+            <span class="chip" title="Votre rôle ne permet pas de modifier le tableau"><Icon name="eye" size={13} /> Lecture seule</span>
+          {/if}
+        </div>
+        <Board {store} />
+      {/if}
+    {/snippet}
+  </LoadStage>
 </div>
 
 <CardDetail {store} />
 
 <style>
-  .shell {
+  .page {
     display: flex;
+    flex-direction: column;
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
   }
-  .main {
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px 10px;
+  }
+  :global(.reveal) .toolbar {
+    animation: reveal-in 0.5s var(--ease) backwards;
+    animation-delay: var(--reveal-base, 0ms);
+  }
+  .filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: min(280px, 100%);
+    height: 36px;
+    padding: 0 8px 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text-faint);
+    transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+  }
+  .filter:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .filter input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    outline: none;
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+  .clear {
+    display: inline-flex;
+    padding: 5px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-faint);
+  }
+  .clear:hover {
+    background: var(--bg-sunken);
+    color: var(--text);
+  }
+  .count {
+    font-size: 0.84rem;
+    color: var(--text-faint);
+  }
+  .spacer {
+    flex: 1;
+  }
+  .banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 20px;
+    font-size: 0.86rem;
+  }
+  .banner.error {
+    background: var(--danger-soft);
+    color: var(--danger);
+  }
+  .banner span {
+    flex: 1;
+  }
+  .banner .icon-btn {
+    width: 28px;
+    height: 28px;
+    color: inherit;
+  }
+  .state {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-width: 0;
-  }
-  .logo {
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-    border-radius: 8px;
-    background: var(--accent);
-    color: #fff;
-    display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
-    font-size: 0.65rem;
-  }
-  .title {
-    font-weight: 600;
-    font-size: 0.95rem;
-  }
-  .message {
-    padding: 1.5rem;
-    color: var(--text-muted);
-  }
-  .error {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     gap: 12px;
-    padding: 8px 20px;
-    background: var(--danger);
-    color: #fff;
-    font-size: 0.85rem;
+    padding: 24px;
+    text-align: center;
   }
-  .error button {
-    background: none;
-    border: none;
-    color: inherit;
-    cursor: pointer;
-    font-size: 1.1rem;
-    line-height: 1;
+  .state p {
+    max-width: 42ch;
+    color: var(--text-soft);
+  }
+  .state-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: var(--bg-sunken);
+    color: var(--text-soft);
+  }
+  @media (max-width: 600px) {
+    .toolbar {
+      padding: 12px 12px 8px;
+    }
+    .count {
+      display: none;
+    }
   }
 </style>
