@@ -96,7 +96,10 @@ export async function setCardTags(cardId: string, tagIds: string[]) {
 	try {
 		const card = await prisma.$transaction(async (tx) => {
 			await tx.cardTag.deleteMany({ where: { cardId } });
-			await tx.cardTag.createMany({ data: uniqueIds.map((tagId) => ({ cardId, tagId })) });
+			await tx.cardTag.createMany({
+				data: uniqueIds.map((tagId) => ({ cardId, tagId })),
+				skipDuplicates: true,
+			});
 			return tx.card.findUniqueOrThrow({ where: { id: cardId }, include: CARD_TAGS_INCLUDE });
 		});
 		const payload = withTags(card);

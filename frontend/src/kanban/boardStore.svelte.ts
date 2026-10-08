@@ -71,6 +71,8 @@ export class BoardStore {
   #pendingDeletes = new Map<string, PendingDelete>();
   // cards this user just changed: no highlight when the broadcast comes back
   #mine = new Set<string>();
+  // cards with a tag change in flight: other updates must not overwrite their tags
+  #tagsPending = new Map<string, number>();
   readonly #flushDeletes = (): void => this.#commitAllDeletes();
 
   constructor(projectId: string) {
@@ -182,8 +184,18 @@ export class BoardStore {
     if (!card) return;
     this.#mine.add(cardId);
     card.tags = tagIds.flatMap((id) => this.tags.find((t) => t.id === id) ?? []);
-    const ok = await this.#run(async () => this.#upsertCard(await api.setCardTags(cardId, tagIds)));
-    if (!ok) await this.load();
+    this.#tagsPending.set(cardId, (this.#tagsPending.get(cardId) ?? 0) + 1);
+    const ok = await this.#run(async () => {
+      const saved = await api.setCardTags(cardId, tagIds);
+      const left = (this.#tagsPending.get(cardId) ?? 1) - 1;
+      if (left > 0) this.#tagsPending.set(cardId, left);
+      else this.#tagsPending.delete(cardId);
+      if (left === 0) this.#upsertCard(saved);
+    });
+    if (!ok) {
+      this.#tagsPending.delete(cardId);
+      await this.load();
+    }
   }
 
   // the tag methods return an error message for the tag dialog (null or no error when it worked)
@@ -402,7 +414,9 @@ export class BoardStore {
     if (!list) return;
     const existing = this.#findCardList(card.id)?.cards.find((c) => c.id === card.id);
     if (existing) {
-      Object.assign(existing, card);
+      const { tags, ...rest } = card;
+      Object.assign(existing, rest);
+      if (tags && !this.#tagsPending.has(card.id)) existing.tags = tags;
     } else {
       list.cards.push(card);
     }

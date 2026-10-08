@@ -32,6 +32,7 @@ services:
       retries: 10
 
   backend:
+    image: ft_transcendence_backend
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -53,6 +54,7 @@ services:
       - "3000"
 
   frontend:
+    image: ft_transcendence_frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile

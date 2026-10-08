@@ -27,14 +27,13 @@ show_urls() {
   echo "      http://localhost:${http}/              — redirects to https"
 }
 
-PROJECT="$(basename "$SCRIPT_DIR" | tr 'A-Z' 'a-z')"
 STAMP_FILE="$SCRIPT_DIR/.build-hash"
 NO_CACHE=""
 
-# hash of the files an image is built from
+# hash of the files an image is built from (files ignored by git are skipped)
 sources_hash() {
-  (cd "$SCRIPT_DIR/$1" && find . -type f -not -path '*/node_modules/*' -not -path '*/dist/*' -print0 \
-    | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+  (cd "$SCRIPT_DIR" && git ls-files -co --exclude-standard -z -- "$1" | sort -z \
+    | xargs -0 sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1)
 }
 
 stamp_get() {
@@ -49,29 +48,23 @@ stamp_set() {
   rm -f "$tmp"
 }
 
-# true when the image of a service is missing or older than its sources
-needs_build() {
-  [ -n "$NO_CACHE" ] && return 0
-  docker image inspect "localhost/${PROJECT}_$1" >/dev/null 2>&1 || return 0
-  [ "$(stamp_get "$1")" = "$(sources_hash "$1")" ] || return 0
-  return 1
-}
-
-# builds the given services, only the ones that need it. Sets BUILT=1 if something was built
+# build_services builds the services whose sources changed (or whose image is gone).
+# BUILT is set to 1 if something was built
 build_services() {
-  local svc hash todo=()
+  local svc hash
   BUILT=""
   for svc in "$@"; do
-    if needs_build "$svc"; then todo+=("$svc"); else echo "==> $svc: sources unchanged, keeping its image"; fi
-  done
-  [ ${#todo[@]} -eq 0 ] && return 0
-  for svc in "${todo[@]}"; do
     hash="$(sources_hash "$svc")"
+    if [ -z "$NO_CACHE" ] && [ "$(stamp_get "$svc")" = "$hash" ] \
+      && docker image inspect "ft_transcendence_$svc" >/dev/null 2>&1; then
+      echo "==> $svc: sources unchanged, keeping its image"
+      continue
+    fi
     echo "==> Building $svc..."
     docker compose build $NO_CACHE "$svc"
     stamp_set "$svc" "$hash"
+    BUILT=1
   done
-  BUILT=1
 }
 
 ensure_env() {

@@ -133,7 +133,7 @@ export const updateCardSchema: FastifySchema = {
   },
 };
 
-const tagName = { type: "string", minLength: 1, maxLength: 30 } as const;
+const tagName = { type: "string", minLength: 1, maxLength: 30, pattern: "\\S" } as const;
 const tagColor = { type: "string", pattern: "^#[0-9a-fA-F]{6}$" } as const;
 
 export const createTagSchema: FastifySchema = {

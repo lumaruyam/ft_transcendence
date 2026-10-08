@@ -1,6 +1,7 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
      Responsible for: the dialog that sets the tags of a card, and creates, renames, recolors and deletes the project's tags. -->
 <script lang="ts">
+  import { confirmDialog } from "../shared/confirm.svelte";
   import Icon from "../shared/ui/Icon.svelte";
   import TagChip from "./TagChip.svelte";
   import { TAG_COLORS } from "./tagColors";
@@ -77,6 +78,17 @@
 
   async function remove(): Promise<void> {
     if (!editingId || busy) return;
+    const tag = store.tags.find((t) => t.id === editingId);
+    const used = (store.board?.lists ?? []).flatMap((l) => l.cards).filter((c) => c.tags?.some((t) => t.id === editingId)).length;
+    if (tag && used > 0) {
+      const ok = await confirmDialog({
+        title: `Supprimer « ${tag.name} » ?`,
+        message: `Cette étiquette est utilisée sur ${used} carte${used > 1 ? "s" : ""}. Elle sera retirée de toutes.`,
+        confirmLabel: "Supprimer",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     busy = true;
     error = await store.removeTag(editingId);
     busy = false;
