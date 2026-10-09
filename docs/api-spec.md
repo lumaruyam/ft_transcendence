@@ -196,3 +196,21 @@ projects can both have a "Bug" tag with their own colour. Each new project start
   project), `401`, `403 insufficient_role`, `404` (tag or card not found), `409 tag_name_taken`.
 - Socket.IO events sent to the project room: `tag_created` and `tag_updated` (the `Tag`),
   `tag_deleted` (`{ id }`), and `card_updated` (the `Card`) when the tags of a card change.
+
+## Internal endpoints — notes
+
+Not part of the Public API module: the app's own shared-notes routes, called with the user's JWT.
+
+| Method | Path | Min role | Body | Success |
+|---|---|---|---|---|
+| `GET` | `/api/notes/:projectId` | viewer | — | `200 { "note": … \| null }` |
+| `PUT` | `/api/notes/:projectId` | member | `{ "contentJson": { … } }` | `200 { "note": … }` |
+
+- One note per project (`notes.project_id` is unique). `GET` returns `{ "note": null }` when nobody
+  has written anything yet — that is not an error.
+- `contentJson` is Tiptap's own document JSON, stored and returned unchanged. `search.service.ts`
+  walks it with `extractPlainText` to index the text.
+- `PUT` replaces the whole document; last save wins. The editor sends one after the user has
+  stopped typing for one second.
+- Errors: `400 invalid_input` (`contentJson` is not a JSON object), `401 unauthenticated`,
+  `403 insufficient_role` (a viewer trying to save).
