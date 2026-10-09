@@ -27,6 +27,7 @@
           { key: "board", label: "Tableau", icon: "columns", href: `/app/${project.id}` },
           { key: "notes", label: "Notes", icon: "note", href: `/app/${project.id}/notes` },
           { key: "whiteboard", label: "Tableau blanc", icon: "board", href: `/app/${project.id}/whiteboard` },
+          { key: "files", label: "Fichiers", icon: "folder", href: `/app/${project.id}/files` },
           { key: "settings", label: "Réglages", icon: "settings", href: `/app/${project.id}/settings` },
         ] as const)
       : []
