@@ -101,6 +101,10 @@ server {
     location ~ ^/app/[^/]+/notes$ {
         try_files /notes/index.html =404;
     }
+    # /app/:id/files
+    location ~ ^/app/[^/]+/files$ {
+        try_files /files/index.html =404;
+    }
 
     # /app/:id -> kanban
     location ~ ^/app/[^/]+$ {
