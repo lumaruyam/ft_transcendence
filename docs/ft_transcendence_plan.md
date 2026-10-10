@@ -240,7 +240,7 @@ This track should be front-loaded hard in week 1, since every other track depend
 - File upload system (covers the File upload minor module)
 - Advanced search across cards, notes, and attachments (covers the Advanced search minor module)
 - Notification system, scoped to fire on creation, update, and deletion of cards, notes, and files (covers the Notification minor module)
-- CSS framework selection and shared component library used consistently across Kanban, whiteboard, and notes pages
+- CSS framework selection and shared component library used consistently across Kanban, whiteboard, and notes pages *(implemented by Jax in the October frontend redesign: `frontend/src/shared/theme.css`, `theme.svelte.ts` and `shared/ui/`; listed here because the module was planned under Track 4)*
 - Privacy Policy and Terms of Service pages, with real content and footer links
 - Verifies Chrome compatibility and a clean browser console across the app
 
