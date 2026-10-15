@@ -5,6 +5,7 @@ import type { Server as HttpServer } from "http";
 import { broadcastPresence, handleReconnect } from "./presence.js";
 import { validateJwt, JwtExpiredError } from "../auth/jwt.service.js";
 import { getUserRole } from "../permissions/roles.service.js";
+import { registerWhiteboardEvents } from "../whiteboard/whiteboard.realtime.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -18,6 +19,8 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
   io = new SocketIOServer(httpServer, {
     // `||` not `??`: docker-compose passes CORS_ORIGIN through as "" when unset in .env
     cors: { origin: process.env.CORS_ORIGIN || "*" },
+    // whiteboard deltas can carry many shapes (the HTTP save allows 5 MiB)
+    maxHttpBufferSize: 5 * 1024 * 1024,
   });
 
   // The JWT sent in the handshake (auth.token) is verified here, the same way requireAuth does for HTTP.
@@ -37,6 +40,8 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
   });
 
   io.on("connection", (socket) => {
+    registerWhiteboardEvents(socket);
+
     socket.on("join_project", async (projectId: string) => {
       if (typeof projectId !== "string" || projectId.length === 0) return;
       // only members of the project (any role) may listen to its room
