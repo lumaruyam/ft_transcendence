@@ -5,6 +5,7 @@ import type { Server as HttpServer } from "http";
 import { broadcastPresence, handleReconnect } from "./presence.js";
 import { validateJwt, JwtExpiredError } from "../auth/jwt.service.js";
 import { getUserRole } from "../permissions/roles.service.js";
+import { registerNoteCollabHandlers } from "../notes/notes.collab.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -37,6 +38,7 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
   });
 
   io.on("connection", (socket) => {
+    registerNoteCollabHandlers(socket);
     socket.on("join_project", async (projectId: string) => {
       if (typeof projectId !== "string" || projectId.length === 0) return;
       // only members of the project (any role) may listen to its room

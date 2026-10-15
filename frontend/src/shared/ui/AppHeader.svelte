@@ -9,7 +9,7 @@
   import UserMenu from "./UserMenu.svelte";
   import { isPageEnabled } from "../features";
 
-  type HeaderTab = "board" | "notes" | "whiteboard" | "settings";
+  type HeaderTab = "board" | "notes" | "whiteboard" | "files" | "settings";
 
   let {
     project,
@@ -106,7 +106,8 @@
     top: 0;
     z-index: 40;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    /* the right column never shrinks below its content so it cannot overflow onto the tabs */
+    grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
     grid-template-areas: "left tabs right";
     align-items: center;
     gap: 8px 16px;
@@ -123,7 +124,13 @@
     gap: 4px;
     min-width: 0;
   }
+  /* lets the project switcher shrink with the column */
+  .left :global(.popover),
+  .left :global(.anchor) {
+    min-width: 0;
+  }
   .brand {
+    flex: none;
     display: inline-flex;
     align-items: center;
     gap: 10px;
@@ -188,6 +195,7 @@
     align-items: center;
     justify-content: flex-end;
     gap: 6px;
+    white-space: nowrap;
   }
   .search {
     display: inline-flex;

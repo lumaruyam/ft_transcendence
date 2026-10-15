@@ -70,6 +70,7 @@ model Project {
   invites     ProjectInvite[]
   boards      Board[]
   notes       Note[]
+  folders     Folder[]
   whiteboard  Whiteboard?
   attachments Attachment[]
   apiKeys     ApiKey[]
@@ -158,7 +159,8 @@ model Card {
 
   list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
   gitLink     GitLink?
-  attachments Attachment[]
+  noteLinks       CardNote[]
+  attachmentLinks CardAttachment[]
   tags        CardTag[]
 
   @@map("cards")
@@ -197,19 +199,40 @@ model CardTag {
   @@map("card_tags")
 }
 
-// Note maps to `notes`: id, project_id, content_json, updated_by, updated_at. Autosaved on edit per Track 4's notes module.
+// Folder maps to folders depth and subfolder limits live in the folders service
+model Folder {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  parentId  String?  @map("parent_id")
+  name      String
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent      Folder?      @relation("FolderTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children    Folder[]     @relation("FolderTree")
+  attachments Attachment[]
+
+  @@index([projectId, parentId])
+  @@map("folders")
+}
+
+// Note maps to notes yjs_state is the source of truth and content_json a derived copy for search
 model Note {
   id          String   @id @default(uuid())
   projectId   String   @map("project_id")
+  title       String   @default("Sans titre")
   contentJson Json     @map("content_json")
+  yjsState    Bytes?   @map("yjs_state")
   updatedBy   String?  @map("updated_by")
+  createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  editor  User?   @relation("NoteUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  editor    User?      @relation("NoteUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
+  cardLinks CardNote[]
 
-  // one note per project — matches the notes_project_id_key index created by the note_one_per_project migration
-  @@unique([projectId])
+  @@index([projectId])
   @@map("notes")
 }
 
@@ -232,7 +255,7 @@ model Whiteboard {
 model Attachment {
   id         String   @id @default(uuid())
   projectId  String   @map("project_id")
-  cardId     String?  @map("card_id")
+  folderId   String?  @map("folder_id")
   fileUrl    String   @map("file_url")
   fileName   String   @map("file_name")
   fileSize   Int      @map("file_size")
@@ -240,11 +263,39 @@ model Attachment {
   uploadedBy String?  @map("uploaded_by")
   uploadedAt DateTime @default(now()) @map("uploaded_at")
 
-  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  card     Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
-  uploader User?   @relation("AttachmentUploadedBy", fields: [uploadedBy], references: [id], onDelete: SetNull)
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder    Folder?          @relation(fields: [folderId], references: [id], onDelete: Restrict)
+  uploader  User?            @relation("AttachmentUploadedBy", fields: [uploadedBy], references: [id], onDelete: SetNull)
+  cardLinks CardAttachment[]
 
+  @@index([projectId, folderId])
   @@map("attachments")
+}
+
+// CardNote maps to card_notes
+model CardNote {
+  cardId String @map("card_id")
+  noteId String @map("note_id")
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, noteId])
+  @@index([noteId])
+  @@map("card_notes")
+}
+
+// CardAttachment maps to card_attachments
+model CardAttachment {
+  cardId       String @map("card_id")
+  attachmentId String @map("attachment_id")
+
+  card       Card       @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  attachment Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, attachmentId])
+  @@index([attachmentId])
+  @@map("card_attachments")
 }
 
 // GitLink maps to `git_links`: card_id, repo_url, branch_name, pr_status — drives Track 3's card status automation.

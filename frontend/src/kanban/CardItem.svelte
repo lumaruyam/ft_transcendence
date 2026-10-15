@@ -10,6 +10,7 @@
 
   const draggable = $derived(store.canEdit && !store.filter.trim());
   const status = $derived(card.status && card.status.toLowerCase() !== "todo" ? card.status : null);
+  const docCount = $derived(store.docCounts[card.id] ?? 0);
   const done = $derived(/^(done|merged|termin)/i.test(card.status ?? ""));
 
   function onDragStart(event: DragEvent): void {
@@ -74,9 +75,14 @@
   onclick={() => (store.openCardId = card.id)}
   onkeydown={onKeydown}
 >
-  {#if card.tags?.length}
+  {#if docCount > 0 || card.tags?.length}
     <div class="tags">
-      {#each card.tags as tag (tag.id)}<TagChip {tag} small />{/each}
+      {#if docCount > 0}
+        <span class="docs" title={`${docCount} document${docCount > 1 ? "s" : ""} lié${docCount > 1 ? "s" : ""}`}>
+          <Icon name="note" size={12} /><span>{docCount}</span>
+        </span>
+      {/if}
+      {#each card.tags ?? [] as tag (tag.id)}<TagChip {tag} small />{/each}
     </div>
   {/if}
   <div class="title selectable">{card.title}</div>
@@ -133,6 +139,19 @@
       border-color: var(--accent);
       box-shadow: 0 0 0 4px var(--accent-soft);
     }
+  }
+  .docs {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 8px 0 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text) 7%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 16%, transparent);
+    color: color-mix(in srgb, var(--text) 82%, transparent);
+    font-size: 0.72rem;
+    font-weight: 620;
+    line-height: 1.55;
   }
   .tags {
     display: flex;
