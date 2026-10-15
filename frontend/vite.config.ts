@@ -15,7 +15,7 @@ const PAGE_ROUTES: [RegExp, string][] = [
   [/^\/app\/?$/, "/dashboard/index.html"],
   [/^\/app\/[^/]+\/settings\/?$/, "/project-settings/index.html"],
   [/^\/app\/[^/]+\/whiteboard\/?$/, "/whiteboard/index.html"],
-  [/^\/app\/[^/]+\/notes\/?$/, "/notes/index.html"],
+  [/^\/app\/[^/]+\/notes(\/[^/]+)?\/?$/, "/notes/index.html"],
   [/^\/app\/[^/]+\/files\/?$/, "/files/index.html"],
   [/^\/app\/[^/]+\/?$/, "/kanban/index.html"],
   // no dot: /invite/main.ts is the page script, not a token

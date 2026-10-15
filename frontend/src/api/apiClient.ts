@@ -16,7 +16,7 @@ const LOGIN_PATH = "/login";
 // Error codes permissions.middleware.ts sends with a 401 when the JWT is unusable
 const SESSION_EXPIRED_CODES = new Set(["missing_token", "token_expired", "invalid_token", "unauthenticated"]);
 interface ApiRequestOptions {
-	method: "GET" | "POST" | "PUT" | "DELETE";
+	method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 	path: string;
 	body?: unknown;
 	// lets the request finish after the page closes

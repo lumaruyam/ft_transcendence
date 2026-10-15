@@ -2,10 +2,13 @@
 // Responsible for: the File upload minor module. Files live on disk under UPLOADS_DIR, which
 // docker-compose mounts as a named volume; the database only stores metadata.
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile, unlink } from "node:fs/promises";
+import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { Attachment } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
+import { DocumentError } from "../folders/documentError.js";
+import { notifyDocumentsChanged } from "../folders/documentEvents.js";
+import { assertFolderUsable, cardInProject } from "../folders/folders.service.js";
 import { createNotification } from "../notifications/notifications.service.js";
 
 // /app/uploads inside the container, backend/uploads locally (both gitignored).
@@ -26,9 +29,12 @@ const ALLOWED_TYPES = new Map<string, string>([
 	["application/zip", ".zip"],
 ]);
 
+export type AttachmentWithLinks = Attachment & { cardIds: string[] };
+
 export interface UploadAttachmentInput {
 	projectId: string;
 	cardId?: string;
+	folderId?: string;
 	fileName: string;
 	fileType: string;
 	fileBuffer: Buffer;
@@ -60,9 +66,13 @@ export function validateFileUpload(input: UploadAttachmentInput): string[] {
 }
 
 //write the file to disk, records it, and tells the other members about it.
-export async function uploadAttachment(uploadedBy: string, input: UploadAttachmentInput): Promise<Attachment> {
+export async function uploadAttachment(uploadedBy: string, input: UploadAttachmentInput): Promise<AttachmentWithLinks> {
 	const errors = validateFileUpload(input);
 	if (errors.length > 0) throw new InvalidUploadError(errors);
+	await assertFolderUsable(input.projectId, input.folderId ?? null);
+	if (input.cardId && !(await cardInProject(input.projectId, input.cardId))) {
+		throw new DocumentError("card_not_found", 404);
+	}
 
 	const storedName = `${randomUUID()}${ALLOWED_TYPES.get(input.fileType) ?? ""}`;
 	await mkdir(UPLOADS_DIR, { recursive: true });
@@ -71,17 +81,20 @@ export async function uploadAttachment(uploadedBy: string, input: UploadAttachme
 	const attachment = await prisma.attachment.create({
 		data: {
 			projectId: input.projectId,
-			cardId: input.cardId ?? null,
+			folderId: input.folderId ?? null,
+			...(input.cardId ? { cardLinks: { create: { cardId: input.cardId } } } : {}),
 			fileUrl: storedName,
 			fileName: input.fileName,
 			fileSize: input.fileBuffer.length,
 			fileType: input.fileType,
 			uploadedBy,
 		},
+		include: { cardLinks: { select: { cardId: true } } },
 	});
 
 	await notifyProjectMembers(attachment, uploadedBy);
-	return attachment;
+	if (input.cardId) notifyDocumentsChanged(input.projectId);
+	return withLinks(attachment);
 }
 
 //Everyone on the project except the uploader hears about a new file.
@@ -102,12 +115,88 @@ async function notifyProjectMembers(attachment: Attachment, uploadedBy: string):
 	);
 }
 
-//return a project's files, newest first.
-export async function listAttachments(projectId: string): Promise<Attachment[]> {
-	return prisma.attachment.findMany({
-		where: { projectId },
+export async function listAttachments(projectId: string, cardId?: string): Promise<AttachmentWithLinks[]> {
+	const attachments = await prisma.attachment.findMany({
+		where: { projectId, ...(cardId ? { cardLinks: { some: { cardId } } } : {}) },
+		include: { cardLinks: { select: { cardId: true } } },
 		orderBy: { uploadedAt: "desc" },
 	});
+	return attachments.map(withLinks);
+}
+
+export async function moveAttachment(projectId: string, id: string, folderId: string | null): Promise<AttachmentWithLinks> {
+	if ((await getAttachment(projectId, id)) === null) throw new DocumentError("attachment_not_found", 404);
+	await assertFolderUsable(projectId, folderId);
+	const attachment = await prisma.attachment.update({
+		where: { id },
+		data: { folderId },
+		include: { cardLinks: { select: { cardId: true } } },
+	});
+	return withLinks(attachment);
+}
+
+export async function copyAttachment(
+	projectId: string,
+	id: string,
+	userId: string,
+	folderId: string | null,
+	options: { keepName?: boolean } = {},
+): Promise<AttachmentWithLinks> {
+	const source = await getAttachment(projectId, id);
+	if (source === null) throw new DocumentError("attachment_not_found", 404);
+	await assertFolderUsable(projectId, folderId);
+
+	let data: Buffer;
+	try {
+		data = await readFile(attachmentPath(source));
+	} catch {
+		throw new DocumentError("attachment_not_found", 404);
+	}
+	const storedName = `${randomUUID()}${ALLOWED_TYPES.get(source.fileType) ?? ""}`;
+	await mkdir(UPLOADS_DIR, { recursive: true });
+	await writeFile(path.join(UPLOADS_DIR, storedName), data);
+
+	const beside = folderId === source.folderId;
+	const copy = await prisma.attachment.create({
+		data: {
+			projectId,
+			folderId,
+			fileUrl: storedName,
+			fileName: beside && !options.keepName ? copyName(source.fileName) : source.fileName,
+			fileSize: source.fileSize,
+			fileType: source.fileType,
+			uploadedBy: userId,
+		},
+		include: { cardLinks: { select: { cardId: true } } },
+	});
+	return withLinks(copy);
+}
+
+function copyName(fileName: string): string {
+	const dot = fileName.lastIndexOf(".");
+	return dot > 0 ? `${fileName.slice(0, dot)} (copie)${fileName.slice(dot)}` : `${fileName} (copie)`;
+}
+
+export async function linkAttachmentToCard(projectId: string, id: string, cardId: string): Promise<void> {
+	if ((await getAttachment(projectId, id)) === null) throw new DocumentError("attachment_not_found", 404);
+	if (!(await cardInProject(projectId, cardId))) throw new DocumentError("card_not_found", 404);
+	await prisma.cardAttachment.upsert({
+		where: { cardId_attachmentId: { cardId, attachmentId: id } },
+		update: {},
+		create: { cardId, attachmentId: id },
+	});
+	notifyDocumentsChanged(projectId);
+}
+
+export async function unlinkAttachmentFromCard(projectId: string, id: string, cardId: string): Promise<void> {
+	if ((await getAttachment(projectId, id)) === null) throw new DocumentError("attachment_not_found", 404);
+	await prisma.cardAttachment.deleteMany({ where: { cardId, attachmentId: id } });
+	notifyDocumentsChanged(projectId);
+}
+
+function withLinks(attachment: Attachment & { cardLinks: { cardId: string }[] }): AttachmentWithLinks {
+	const { cardLinks, ...rest } = attachment;
+	return { ...rest, cardIds: cardLinks.map((link) => link.cardId) };
 }
 
 //an id from another project must not resolve here,
@@ -127,6 +216,7 @@ export async function deleteAttachment(projectId: string, id: string): Promise<b
 
 	//The row goes first: a leftover file on disk is harmless, a row pointing at a missing file is not.
 	await prisma.attachment.delete({ where: { id } });
+	notifyDocumentsChanged(projectId);
 	try {
 		await unlink(attachmentPath(attachment));
 	} catch {

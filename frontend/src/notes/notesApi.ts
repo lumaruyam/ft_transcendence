@@ -1,30 +1,66 @@
 // Owner: Track 4 (Whiteboard, notes, and supporting modules)
-// Responsible for: frontend API calls for the notes module — load-latest and autosave-on-edit.
+// Responsible for: frontend API calls for the notes
 import { apiRequest } from "../api/apiClient";
 
-//interface: what a Note returned by backend shoould be like?
-export interface Note {
+export interface NoteSummary {
 	id: string;
 	projectId: string;
-	contentJson: Record<string, unknown>;
+	title: string;
 	updatedBy: string | null;
+	createdAt: string;
+	updatedAt: string;
+	cardIds: string[];
+	preview: string;
+}
+
+export interface NoteDetail {
+	id: string;
+	projectId: string;
+	title: string;
+	updatedBy: string | null;
+	createdAt: string;
 	updatedAt: string;
 }
 
-//return the latest note for a project; obly called when the user opens the old note editor
-export async function fetchLatestNote(projectId: string): Promise<Note | null> {
-	const { note } = await apiRequest<{ note: Note | null }>({
+export async function listNotes(projectId: string, cardId?: string): Promise<NoteSummary[]> {
+	const { notes } = await apiRequest<{ notes: NoteSummary[] }>({
 		method: "GET",
-		path: `/notes/${projectId}`,
+		path: `/notes/${projectId}${cardId ? `?cardId=${encodeURIComponent(cardId)}` : ""}`,
 	});
+	return notes;
+}
+
+export async function getNote(projectId: string, noteId: string): Promise<NoteDetail> {
+	const { note } = await apiRequest<{ note: NoteDetail }>({ method: "GET", path: `/notes/${projectId}/${noteId}` });
 	return note;
 }
 
-//autosave the note content on every edit; last save wins if two people type at the same time.
-export async function autosaveNote(projectId: string, contentJson: Record<string, unknown>): Promise<void> {
-	await apiRequest<unknown>({
-		method: "PUT",
-		path: `/notes/${projectId}`,
-		body: { contentJson },
-	});
+export async function createNote(projectId: string, input: { title?: string }): Promise<NoteSummary> {
+	const { note } = await apiRequest<{ note: NoteSummary }>({ method: "POST", path: `/notes/${projectId}`, body: input });
+	return note;
+}
+
+export async function updateNote(
+	projectId: string,
+	noteId: string,
+	patch: { title?: string },
+): Promise<NoteSummary> {
+	const { note } = await apiRequest<{ note: NoteSummary }>({ method: "PATCH", path: `/notes/${projectId}/${noteId}`, body: patch });
+	return note;
+}
+
+export function deleteNote(projectId: string, noteId: string): Promise<void> {
+	return apiRequest<void>({ method: "DELETE", path: `/notes/${projectId}/${noteId}` });
+}
+
+export function linkNoteToCard(projectId: string, noteId: string, cardId: string): Promise<void> {
+	return apiRequest<void>({ method: "PUT", path: `/notes/${projectId}/${noteId}/cards/${cardId}` });
+}
+
+export function unlinkNoteFromCard(projectId: string, noteId: string, cardId: string): Promise<void> {
+	return apiRequest<void>({ method: "DELETE", path: `/notes/${projectId}/${noteId}/cards/${cardId}` });
+}
+
+export function noteUrl(projectId: string, noteId: string): string {
+	return `/app/${projectId}/notes/${noteId}`;
 }

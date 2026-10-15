@@ -62,6 +62,7 @@
     align-items: center;
     gap: 6px;
     max-width: min(280px, 38vw);
+    min-width: 0;
     padding: 6px 10px;
     border: none;
     border-radius: 8px;
@@ -74,7 +75,11 @@
   .name:hover {
     background: var(--bg-sunken);
   }
+  .name :global(svg) {
+    flex: none;
+  }
   .text {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

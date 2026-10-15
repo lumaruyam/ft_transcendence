@@ -4,6 +4,7 @@
   import { toast } from "../shared/toast.svelte";
   import { formatDateTime, timeAgo } from "../shared/format";
   import Icon from "../shared/ui/Icon.svelte";
+  import CardDocuments from "./CardDocuments.svelte";
   import InlineTitle from "./InlineTitle.svelte";
   import TagChip from "./TagChip.svelte";
   import TagsModal from "./TagsModal.svelte";
@@ -175,6 +176,10 @@
           ></textarea>
           {#if store.canEdit}<span class="hint">Enregistrement automatique · <kbd>Ctrl</kbd> + <kbd>Entrée</kbd> pour enregistrer tout de suite</span>{/if}
         </div>
+
+        {#if store.project}
+          <CardDocuments projectId={store.project.id} cardId={open.card.id} canEdit={store.canEdit} onchange={() => void store.loadDocCounts()} />
+        {/if}
 
         {#if open.card.linkedBranch || open.card.linkedPrUrl}
           <div class="git">

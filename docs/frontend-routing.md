@@ -24,7 +24,9 @@
 | `/app/:id` | `frontend/src/kanban/` | Kanban board for a project |
 | `/app/:id/settings` | `frontend/src/project-settings/` | Project settings (name, members, danger zone) |
 | `/app/:id/whiteboard` | `frontend/src/whiteboard/` | Excalidraw whiteboard — **React + `@excalidraw/excalidraw`** |
-| `/app/:id/notes` | `frontend/src/notes/` | Shared notes (Tiptap) |
+| `/app/:id/notes` | `frontend/src/notes/` | Notes of the project as a flat list of tiles |
+| `/app/:id/notes/:noteId` | `frontend/src/notes/` | One note, edited live (Tiptap + Yjs); same entry point as the list |
+| `/app/:id/files` | `frontend/src/files/` | Files of the project: folders, upload, download (`?folder=<id>` is the open folder) |
 | `/legal/privacy` | `frontend/src/legal/privacy/` | Privacy Policy |
 | `/legal/terms` | `frontend/src/legal/terms/` | Terms of Service |
 | 404 | `frontend/src/not-found/` | Served by nginx `error_page 404` |

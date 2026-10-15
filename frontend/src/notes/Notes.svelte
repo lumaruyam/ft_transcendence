@@ -1,111 +1,154 @@
 <script lang="ts">
+	// Owner: Track 4 (Whiteboard, notes, and supporting modules)
+	// Responsible for: one note with its live collaborative editor
 	import { onMount, onDestroy } from "svelte";
 	import { Editor } from "@tiptap/core";
+	import Collaboration from "@tiptap/extension-collaboration";
+	import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 	import StarterKit from "@tiptap/starter-kit";
-	import { ApiError } from "../api/apiClient";
+	import { Awareness } from "y-protocols/awareness";
+	import * as Y from "yjs";
 	import { getProject } from "../api/projectsApi";
 	import type { Project } from "../api/types";
+	import { getStoredUser } from "../auth/authClient";
+	import { describeDocumentError } from "../documents/foldersApi";
+	import { toast } from "../shared/toast.svelte";
 	import AppHeader from "../shared/ui/AppHeader.svelte";
 	import Icon from "../shared/ui/Icon.svelte";
-	import { fetchLatestNote, autosaveNote } from "./notesApi";
+	import { getNote, updateNote } from "./notesApi";
+	import { connectNoteCollab } from "./notesCollab";
 
-	const { projectId }: { projectId: string } = $props();
-
-	const SAVE_DELAY_MS = 1000;
+	const { projectId, noteId }: { projectId: string; noteId: string } = $props();
 
 	let host: HTMLDivElement;
 	let editor: Editor | undefined;
-	let saveTimer: number | undefined;
+	let disconnect: (() => void) | undefined;
 
 	let project = $state<Project | null>(null);
+	let title = $state("");
+	let savedTitle = "";
 	let failure = $state("");
 	let readOnly = $state(false);
-	let saving = $state(false);
-	let pending = $state(false);
+	let connected = $state(false);
+	let synced = $state(false);
+
+	const backUrl = $derived(`/app/${projectId}/notes`);
 
 	$effect(() => {
-		document.title = project ? `Notes · ${project.name} — Transcendance` : "Notes — Transcendance";
+		document.title = `${title || "Note"} · ${project?.name ?? "Notes"} — Transcendance`;
 	});
 
-	onMount(async () => {
+	onMount(() => {
 		void getProject(projectId)
 			.then((p) => (project = p))
 			.catch(() => {});
+		void getNote(projectId, noteId)
+			.then((note) => {
+				title = savedTitle = note.title;
+			})
+			.catch(() => (failure = "Cette note n'existe pas ou vous n'y avez pas accès."));
 
-		let content: Record<string, unknown> | null;
-
-		try {
-			const note = await fetchLatestNote(projectId);
-			content = note?.contentJson ?? null;
-		} catch (error) {
-			failure =
-				error instanceof ApiError && error.status === 403
-					? "Vous n'avez pas accès aux notes de ce projet."
-					: "Impossible de charger la note. Rechargez la page pour réessayer.";
-			return;
-		}
+		const ydoc = new Y.Doc();
+		const awareness = new Awareness(ydoc);
+		const me = getStoredUser();
 
 		editor = new Editor({
 			element: host,
-			extensions: [StarterKit],
-			content: content ?? "",
-			onUpdate: scheduleSave,
+			// Yjs keeps its own undo history
+			extensions: [
+				StarterKit.configure({ undoRedo: false }),
+				Collaboration.configure({ document: ydoc }),
+				CollaborationCaret.configure({
+					provider: { awareness },
+					user: { name: me?.name ?? "Anonyme", color: colorFor(me?.id ?? "") },
+				}),
+			],
+			// read only until the first sync so nothing is typed on an empty document
+			editable: false,
+		});
+
+		disconnect = connectNoteCollab(noteId, ydoc, awareness, {
+			onSynced: (canEdit) => {
+				synced = true;
+				readOnly = !canEdit;
+				editor?.setEditable(canEdit);
+			},
+			onDenied: () => (failure = "Vous n'avez pas accès à cette note."),
+			onDeleted: () => (failure = "Cette note a été supprimée."),
+			onStatus: (isConnected) => {
+				connected = isConnected;
+				if (!isConnected) {
+					synced = false;
+					editor?.setEditable(false);
+				}
+			},
 		});
 	});
 
-	onDestroy(() => {
-		window.clearTimeout(saveTimer);
-		editor?.destroy();
-	});
-
-	function scheduleSave(): void {
-		if (readOnly) return;
-		pending = true;
-		window.clearTimeout(saveTimer);
-		saveTimer = window.setTimeout(() => void save(), SAVE_DELAY_MS);
+	// same person same colour on every screen
+	const CURSOR_COLORS = ["#e5484d", "#d6409f", "#8e4ec6", "#3e63dd", "#0090ff", "#12a594", "#30a46c", "#d9730d"];
+	function colorFor(userId: string): string {
+		let hash = 0;
+		for (const char of userId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+		return CURSOR_COLORS[hash % CURSOR_COLORS.length];
 	}
 
-	async function save(): Promise<void> {
-		if (!editor) return;
-
-		pending = false;
-		saving = true;
+	async function saveTitle(): Promise<void> {
+		const next = title.trim();
+		if (next === savedTitle) {
+			title = savedTitle;
+			return;
+		}
 		try {
-			await autosaveNote(projectId, editor.getJSON() as Record<string, unknown>);
+			const note = await updateNote(projectId, noteId, { title: next });
+			title = savedTitle = note.title;
 		} catch (error) {
-			if (error instanceof ApiError && error.status === 403) {
-				readOnly = true;
-				editor.setEditable(false);
-			}
-		} finally {
-			saving = false;
+			title = savedTitle;
+			toast(describeDocumentError(error), { kind: "error" });
 		}
 	}
+
+	onDestroy(() => {
+		disconnect?.();
+		editor?.destroy();
+	});
 </script>
 
 <AppHeader project={project ?? undefined} active="notes" />
 
 <main class="page">
 	{#if failure}
-		<p class="failure">{failure}</p>
+		<p class="failure">{failure} <a href={backUrl}>Retour aux notes</a></p>
 	{:else}
+		<a class="back" href={backUrl}><Icon name="arrowLeft" size={15} /> Notes</a>
 		<header class="title">
 			<div class="heading">
 				<span class="badge"><Icon name="note" size={20} /></span>
 				<div>
-					<h1>Notes</h1>
+					<input
+						class="note-title"
+						bind:value={title}
+						maxlength="200"
+						readonly={readOnly}
+						aria-label="Titre de la note"
+						onblur={() => void saveTitle()}
+						onkeydown={(event) => event.key === "Enter" && event.currentTarget.blur()}
+					/>
 					{#if project}<p class="project">{project.name}</p>{/if}
 				</div>
 			</div>
 			<span class="status" role="status">
-				{#if readOnly}
-					Lecture seule
-				{:else if saving || pending}
+				{#if !connected}
 					<span class="spinner" aria-hidden="true"></span>
-					Enregistrement…
+					Reconnexion…
+				{:else if !synced}
+					<span class="spinner" aria-hidden="true"></span>
+					Synchronisation…
+				{:else if readOnly}
+					Lecture seule
 				{:else}
 					<svg class="check" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
-					Enregistré
+					Synchronisé
 				{/if}
 			</span>
 		</header>
@@ -147,13 +190,43 @@
 		color: var(--accent);
 	}
 
-	h1 {
+	.note-title {
+		width: min(28rem, 62vw);
 		margin: 0;
+		padding: 2px 6px;
+		margin-left: -6px;
+		border: 1px solid transparent;
+		border-radius: var(--radius-sm);
+		background: none;
+		color: var(--text);
 		font-family: var(--font-serif);
 		font-size: 1.6rem;
 		font-weight: 600;
 		letter-spacing: -0.01em;
 		line-height: 1.15;
+	}
+
+	.note-title:hover:not([readonly]) {
+		border-color: var(--line);
+	}
+
+	.note-title:focus {
+		border-color: var(--accent);
+		outline: none;
+	}
+
+	.back {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		margin-bottom: 0.9rem;
+		color: var(--text-soft);
+		font-size: 0.85rem;
+		text-decoration: none;
+	}
+
+	.back:hover {
+		color: var(--text);
 	}
 
 	.project {
@@ -264,6 +337,29 @@
 	.editor :global(.ProseMirror pre code) {
 		padding: 0;
 		background: none;
+	}
+
+	.editor :global(.collaboration-carets__caret) {
+		position: relative;
+		margin-left: -1px;
+		margin-right: -1px;
+		border-left: 2px solid;
+		word-break: normal;
+		pointer-events: none;
+	}
+
+	.editor :global(.collaboration-carets__label) {
+		position: absolute;
+		top: -1.5em;
+		left: -2px;
+		padding: 1px 6px;
+		border-radius: 4px 4px 4px 0;
+		color: #fff;
+		font-size: 0.7rem;
+		font-weight: 600;
+		line-height: 1.3;
+		white-space: nowrap;
+		user-select: none;
 	}
 
 	@media (max-width: 600px) {

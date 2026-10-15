@@ -10,6 +10,8 @@ import { ApiError } from "../api/apiClient";
 import { getStoredUser } from "../auth/authClient";
 import { errorMessage } from "../shared/errors";
 import { toast } from "../shared/toast.svelte";
+import { listAttachments } from "../files/attachmentsApi";
+import { listNotes } from "../notes/notesApi";
 import * as api from "./boardApi";
 import { connectKanbanSocket } from "./wsClient";
 import type { Board, Card, CardMoved, List, Member, Project, Tag } from "./types";
@@ -38,6 +40,7 @@ export class BoardStore {
   board = $state<Board | null>(null);
   members = $state<Member[]>([]);
   tags = $state<Tag[]>([]);
+  docCounts = $state<Record<string, number>>({});
   online = new SvelteSet<string>();
   loadState = $state<LoadState>("loading");
   // the logged-in user's role in this project: viewers get a read-only board
@@ -73,6 +76,7 @@ export class BoardStore {
   #mine = new Set<string>();
   // cards with a tag change in flight: other updates must not overwrite their tags
   #tagsPending = new Map<string, number>();
+  #docTimer: ReturnType<typeof setTimeout> | undefined;
   readonly #flushDeletes = (): void => this.#commitAllDeletes();
 
   constructor(projectId: string) {
@@ -91,6 +95,7 @@ export class BoardStore {
   }
 
   stop(): void {
+    clearTimeout(this.#docTimer);
     window.removeEventListener("pagehide", this.#flushDeletes);
     this.#commitAllDeletes();
     this.#disconnect?.();
@@ -112,12 +117,24 @@ export class BoardStore {
       this.tags = tags;
       for (const id of this.#pendingDeletes.keys()) this.#dropCard(id);
       this.loadState = "ready";
+      void this.loadDocCounts();
     } catch (err) {
       // a failed reload keeps showing the board we already have
       if (this.loadState !== "ready") {
         this.loadState = "error";
         this.accessDenied = err instanceof ApiError && (err.status === 403 || err.status === 404);
       }
+    }
+  }
+
+  async loadDocCounts(): Promise<void> {
+    try {
+      const [notes, files] = await Promise.all([listNotes(this.#projectId), listAttachments(this.#projectId)]);
+      const counts: Record<string, number> = {};
+      for (const cardId of [...notes, ...files].flatMap((doc) => doc.cardIds)) counts[cardId] = (counts[cardId] ?? 0) + 1;
+      this.docCounts = counts;
+    } catch {
+      // keep the previous counts
     }
   }
 
@@ -343,6 +360,11 @@ export class BoardStore {
         break;
       case "card_deleted":
         this.#dropCard((payload as { id: string }).id);
+        break;
+      case "documents_changed":
+        // debounce bursts of link changes
+        clearTimeout(this.#docTimer);
+        this.#docTimer = setTimeout(() => void this.loadDocCounts(), 300);
         break;
       case "card_moved":
         this.#applyMove(payload as CardMoved);

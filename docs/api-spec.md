@@ -197,20 +197,63 @@ projects can both have a "Bug" tag with their own colour. Each new project start
 - Socket.IO events sent to the project room: `tag_created` and `tag_updated` (the `Tag`),
   `tag_deleted` (`{ id }`), and `card_updated` (the `Card`) when the tags of a card change.
 
-## Internal endpoints — notes
+## Internal endpoints — folders, notes and files
 
-Not part of the Public API module: the app's own shared-notes routes, called with the user's JWT.
+Not part of the Public API module: the app's own routes, called with the user's JWT. Only files have folders; notes are a flat list.
+
+**Folders** — `/api/folders`
 
 | Method | Path | Min role | Body | Success |
 |---|---|---|---|---|
-| `GET` | `/api/notes/:projectId` | viewer | — | `200 { "note": … \| null }` |
-| `PUT` | `/api/notes/:projectId` | member | `{ "contentJson": { … } }` | `200 { "note": … }` |
+| `GET` | `/api/folders/:projectId` | viewer | — | `200 { folders: […], limits: { maxSubfolders, maxDepth } }` (flat list, build the tree from `parentId`) |
+| `POST` | `/api/folders/:projectId` | member | `{ name, parentId? }` | `201 { folder }` |
+| `PATCH` | `/api/folders/:projectId/:id` | member | `{ name?, parentId? }` (`parentId: null` = top level) | `200 { folder }` |
+| `DELETE` | `/api/folders/:projectId/:id` | member | — | `204` |
+| `POST` | `/api/folders/:projectId/:id/copy` | member | `{ parentId? }` | `201 { folder }` — copies the folder with its subfolders and files (new files on disk); a copy next to the original is named "… (copie)" |
 
-- One note per project (`notes.project_id` is unique). `GET` returns `{ "note": null }` when nobody
-  has written anything yet — that is not an error.
-- `contentJson` is Tiptap's own document JSON, stored and returned unchanged. `search.service.ts`
-  walks it with `extractPlainText` to index the text.
-- `PUT` replaces the whole document; last save wins. The editor sends one after the user has
-  stopped typing for one second.
-- Errors: `400 invalid_input` (`contentJson` is not a JSON object), `401 unauthenticated`,
-  `403 insufficient_role` (a viewer trying to save).
+- Limits: 60 subfolders per folder (top level included) and 8 levels. Errors: `409 max_subfolders_reached`,
+  `409 max_depth_reached`, `409 folder_cycle` (moving a folder into itself), `409 folder_not_empty` (only an
+  empty folder can be deleted), `400 invalid_name`, `404 folder_not_found`.
+
+**Notes** — `/api/notes`
+
+| Method | Path | Min role | Body | Success |
+|---|---|---|---|---|
+| `GET` | `/api/notes/:projectId?cardId=` | viewer | — | `200 { notes: […] }` — metadata, `cardIds` and a `preview` (first 400 characters of the text), no full content; `cardId` keeps the notes linked to that card |
+| `POST` | `/api/notes/:projectId` | member | `{ title? }` | `201 { note }` |
+| `GET` | `/api/notes/:projectId/:noteId` | viewer | — | `200 { note }` (with `contentJson`, a read-only copy) |
+| `PATCH` | `/api/notes/:projectId/:noteId` | member | `{ title? }` | `200 { note }` |
+| `DELETE` | `/api/notes/:projectId/:noteId` | member | — | `204` (whoever has it open gets `note_deleted`) |
+| `PUT` / `DELETE` | `/api/notes/:projectId/:noteId/cards/:cardId` | member | — | `204` — link / unlink a card of the same project |
+
+- A project has any number of notes. The content is not written through HTTP: it is edited live
+  (see below). `contentJson` is Tiptap's document JSON, derived by the server from the live Yjs document
+  each time it is saved; `search.service.ts` walks it with `extractPlainText` to index the text.
+- Errors: `400 invalid_title`, `404 note_not_found` / `card_not_found`, `401 unauthenticated`, `403 insufficient_role`.
+
+**Files** — `/api/attachments` (see the file upload module) also accepts, on top of upload / list / download / delete:
+`POST …?folderId=&cardId=` (put the new file in a folder and/or link it to a card), `GET …?cardId=` (files linked to a card),
+`PATCH /:projectId/:id { folderId }` (move; `null` = top level), `POST /:projectId/:id/copy { folderId? }` (duplicate, with a new file on disk) and `PUT` / `DELETE /:projectId/:id/cards/:cardId` (link / unlink).
+Files are returned with `folderId` and `cardIds`.
+
+### Live editing (Socket.IO)
+
+Each note is a Yjs document relayed over the same Socket.IO connection as the Kanban (same JWT handshake).
+Binary fields are Yjs updates. The server keeps the document in memory while someone is editing it and
+saves it (`notes.yjs_state` + `notes.content_json`) at most every 2 seconds, and when the last editor leaves.
+
+| Event | Direction | Payload |
+|---|---|---|
+| `note_join` | client → server | `{ noteId, stateVector }` — any role, must be a member |
+| `note_sync` | server → client | `{ noteId, update, stateVector, canEdit }` — answer to `note_join`; `canEdit` is false for viewers |
+| `note_update` | both | `{ noteId, update }` — one edit; the server ignores it from viewers and relays it to the others |
+| `note_denied` | server → client | `{ noteId }` — not a member (anymore), or the note does not exist |
+| `note_awareness` | both | `{ noteId, clientId, update }` — Yjs awareness (name, colour, cursor) of one editor, viewers included; relayed only, never saved. Replayed to people who join later |
+| `note_awareness_remove` | server → client | `{ noteId, clientId }` — that editor left, remove its cursor |
+| `note_deleted` | server → client | `{ noteId }` — the note was deleted while open |
+| `note_leave` | client → server | `noteId` |
+
+The project room (same as the Kanban events) also receives `documents_changed` (`{}`) whenever the notes/files linked to cards change
+(link, unlink, deletion, upload with `?cardId=`): the board reloads how many documents each card has.
+
+The role is re-read from the database every 30 seconds, so a removal or demotion takes effect quickly.

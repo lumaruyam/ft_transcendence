@@ -17,6 +17,7 @@ import { loadConfig } from "./config/env.js";
 import { buildApp } from "./app.js";
 import { connectDatabase, disconnectDatabase } from "./db/prisma/client.js";
 import { createKanbanHub } from "./modules/kanban/hub.js";
+import { flushAllNotes } from "./modules/notes/notes.collab.js";
 
 async function main(): Promise<void> {
 	try {
@@ -50,6 +51,9 @@ async function main(): Promise<void> {
 				console.log(`\n${signal} received, shutting down gracefully...`);
 
 				try {
+					// Save the notes being edited before the database goes away
+					await flushAllNotes();
+
 					// Close Socket.IO (disconnects clients; also closes the shared HTTP
 					// server, which app.close() below then tolerates as already-stopped).
 					app.io.close();

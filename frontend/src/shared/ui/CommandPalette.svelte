@@ -55,7 +55,7 @@
       disabled: r.entityType === "attachment" || (r.entityType === "note" && !isPageEnabled("notes")),
       run: () => {
         if (r.entityType === "card") go(`${base}?card=${r.entityId}`);
-        else if (r.entityType === "note") go(`${base}/notes`);
+        else if (r.entityType === "note") go(`${base}/notes/${r.entityId}`);
       },
     }));
     return [...found, ...matching];

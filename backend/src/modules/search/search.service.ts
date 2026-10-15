@@ -24,7 +24,7 @@ function makeSnippet(text: string, query: string): string {
 
 // extractPlainText walks a Tiptap JSON document and returns only the text it contains,
 // so search never matches or displays structural keys like "type" or "content".
-function extractPlainText(node: unknown): string {
+export function extractPlainText(node: unknown): string {
 	if (node === null || typeof node !== "object") return "";
 
 	if (Array.isArray(node)) {
@@ -67,24 +67,26 @@ export async function searchCards(projectId: string, query: string): Promise<Sea
 	}));
 }
 
-//search note content within a project.
 export async function searchNotes(projectId: string, query: string): Promise<SearchResult[]> {
 	if (query.trim() === "") return [];//return empty if user searches for empty
-	//search for notes in the project in database
-	const note = await prisma.note.findUnique({ where: { projectId } });
-	if (!note) return [];
-	//take the content of this note, convert it to string, give it to const text
-	const text = extractPlainText(note.contentJson).trim();
-	if (text === "" || !text.toLowerCase().includes(query.toLowerCase())) return [];
+	const needle = query.toLowerCase();
+	const notes = await prisma.note.findMany({ where: { projectId }, orderBy: { updatedAt: "desc" } });
 
-	return [
-		{
+	const results: SearchResult[] = [];
+	for (const note of notes) {
+		const text = extractPlainText(note.contentJson).trim();
+		const inTitle = note.title.toLowerCase().includes(needle);
+		const inText = text.toLowerCase().includes(needle);
+		if (!inTitle && !inText) continue;
+		results.push({
 			entityType: "note",
 			entityId: note.id,
-			title: "Project note",
-			snippet: makeSnippet(text, query),
-		},
-	];
+			title: note.title,
+			snippet: makeSnippet(inText ? text : note.title, query),
+		});
+		if (results.length === MAX_RESULTS_PER_TYPE) break;
+	}
+	return results;
 }
 
 //search attachment file names within a project.

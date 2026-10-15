@@ -1,39 +1,122 @@
 <script lang="ts">
 	// Owner: Track 4 (Whiteboard, notes, and supporting modules)
-	// Responsible for: the project's files page — upload, list, download and delete attachments.
+	// Responsible for: the project files page
 	import { onMount } from "svelte";
-	import Icon from "../shared/ui/Icon.svelte";
 	import { ApiError } from "../api/apiClient";
+	import { getProject } from "../api/projectsApi";
+	import type { Project } from "../api/types";
+	import { fetchCanEdit } from "../documents/canEdit";
+	import { extensionBadge, humanSize } from "../documents/fileInfo";
+	import { childrenOf, pathTo, subtreeIds } from "../documents/folderTree";
 	import {
-		listAttachments,
-		uploadAttachment,
-		downloadAttachment,
+		copyFolder,
+		createFolder,
+		deleteFolder,
+		describeDocumentError,
+		listFolders,
+		updateFolder,
+		type Folder,
+		type FolderLimits,
+	} from "../documents/foldersApi";
+	import PathBar from "../documents/PathBar.svelte";
+	import Tile from "../documents/Tile.svelte";
+	import TileGrid from "../documents/TileGrid.svelte";
+	import { confirmDialog } from "../shared/confirm.svelte";
+	import { toast } from "../shared/toast.svelte";
+	import AppHeader from "../shared/ui/AppHeader.svelte";
+	import Icon from "../shared/ui/Icon.svelte";
+	import ImagePreview from "./ImagePreview.svelte";
+	import {
+		copyAttachment,
 		deleteAttachment,
+		downloadAttachment,
+		isImage,
+		listAttachments,
+		moveAttachment,
+		uploadAttachment,
 		UploadError,
 		type Attachment,
 	} from "./attachmentsApi";
 
 	const { projectId }: { projectId: string } = $props();
 
-    //data to save the statut of website
+	type Item = { kind: "file" | "folder"; id: string };
+
+	let project = $state<Project | null>(null);
 	let attachments = $state<Attachment[]>([]);
+	let folders = $state<Folder[]>([]);
+	let limits = $state<FolderLimits>({ maxSubfolders: 60, maxDepth: 8 });
+	// mirrored in the folder query param so refresh and back work
+	let current = $state<string | null>(null);
+	let loaded = $state(false);
 	let loadFailed = $state(false);
 	let readOnly = $state(false);
 	let busy = $state(false);
 	let problem = $state("");
 
-	onMount(() => void refresh());
-    
+	let previewId = $state<string | null>(null);
+	let selected = $state<Item | null>(null);
+	let clipboard = $state<(Item & { mode: "copy" | "cut" }) | null>(null);
+	let dragging = $state<Item | null>(null);
+	let dropOver = $state<string | null>(null);
+	let creating = $state(false);
+	let newName = $state("");
+	let renamingId = $state<string | null>(null);
+	let renameDraft = $state("");
+
+	const path = $derived(pathTo(folders, current));
+	const subfolders = $derived(childrenOf(folders, current));
+	const visible = $derived(attachments.filter((attachment) => attachment.folderId === current));
+	const visibleImages = $derived(visible.filter(isImage));
+	const atMaxDepth = $derived(path.length >= limits.maxDepth);
+	const atMaxChildren = $derived(subfolders.length >= limits.maxSubfolders);
+
+	$effect(() => {
+		document.title = project ? `Fichiers · ${project.name} — Transcendance` : "Fichiers — Transcendance";
+	});
+
+	onMount(() => {
+		const fromUrl = (): string | null => new URL(window.location.href).searchParams.get("folder");
+		const onPop = (): void => {
+			current = fromUrl();
+			selected = null;
+		};
+		window.addEventListener("popstate", onPop);
+		current = fromUrl();
+
+		void getProject(projectId)
+			.then((p) => (project = p))
+			.catch(() => {});
+		void fetchCanEdit(projectId).then((ok) => (readOnly = !ok));
+		void refresh();
+		return () => window.removeEventListener("popstate", onPop);
+	});
+
 	async function refresh(): Promise<void> {
 		try {
-			attachments = await listAttachments(projectId);
+			const [files, tree] = await Promise.all([listAttachments(projectId), listFolders(projectId)]);
+			attachments = files;
+			folders = tree.folders;
+			limits = tree.limits;
 			loadFailed = false;
+			if (current !== null && !folders.some((folder) => folder.id === current)) current = null;
 		} catch {
 			loadFailed = true;
+		} finally {
+			loaded = true;
 		}
 	}
 
-    //upload
+	function openFolder(folderId: string | null): void {
+		current = folderId;
+		selected = null;
+		creating = false;
+		const url = new URL(window.location.href);
+		if (folderId) url.searchParams.set("folder", folderId);
+		else url.searchParams.delete("folder");
+		window.history.pushState({}, "", url);
+	}
+
 	async function onPick(event: Event): Promise<void> {
 		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
@@ -43,12 +126,12 @@
 		problem = "";
 		busy = true;
 		try {
-			const created = await uploadAttachment(projectId, file);
+			const created = await uploadAttachment(projectId, file, current);
 			attachments = [created, ...attachments];
 		} catch (error) {
 			if (error instanceof UploadError) {
 				if (error.status === 403) readOnly = true;
-				problem = error.details[0] ?? describe(error.message);
+				problem = error.details[0] ?? describeUpload(error.message);
 			} else {
 				problem = "L'envoi a échoué. Vérifiez votre connexion.";
 			}
@@ -57,13 +140,12 @@
 		}
 	}
 
-	function describe(code: string): string {
+	function describeUpload(code: string): string {
 		if (code === "file_too_large") return "Ce fichier dépasse la limite de 10 Mo.";
 		if (code === "insufficient_role") return "Vous n'avez pas le droit d'ajouter des fichiers.";
 		return "L'envoi a échoué.";
 	}
 
-    //download
 	async function onDownload(attachment: Attachment): Promise<void> {
 		problem = "";
 		try {
@@ -73,12 +155,13 @@
 		}
 	}
 
-    //delete
 	async function onDelete(attachment: Attachment): Promise<void> {
 		problem = "";
 		try {
 			await deleteAttachment(projectId, attachment.id);
 			attachments = attachments.filter((row) => row.id !== attachment.id);
+			if (selected?.id === attachment.id) selected = null;
+			if (clipboard?.id === attachment.id) clipboard = null;
 		} catch (error) {
 			if (error instanceof ApiError && error.status === 403) {
 				readOnly = true;
@@ -89,134 +172,471 @@
 		}
 	}
 
-    //initiate
-	function humanSize(bytes: number): string {
-		if (bytes < 1024) return `${bytes} o`;
-		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} ko`;
-		return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+	async function onCreateFolder(): Promise<void> {
+		const name = newName.trim();
+		if (name === "") {
+			creating = false;
+			return;
+		}
+		try {
+			const folder = await createFolder(projectId, name, current);
+			folders = [...folders, folder];
+			creating = false;
+			newName = "";
+		} catch (error) {
+			toast(describeDocumentError(error, limits), { kind: "error" });
+		}
+	}
+
+	async function onRename(folder: Folder): Promise<void> {
+		if (renamingId !== folder.id) return;
+		const name = renameDraft.trim();
+		renamingId = null;
+		if (name === "" || name === folder.name) return;
+		try {
+			const updated = await updateFolder(projectId, folder.id, { name });
+			folders = folders.map((row) => (row.id === folder.id ? updated : row));
+		} catch (error) {
+			toast(describeDocumentError(error, limits), { kind: "error" });
+		}
+	}
+
+	async function onDeleteFolder(folder: Folder): Promise<void> {
+		const ok = await confirmDialog({
+			title: `Supprimer le dossier « ${folder.name} » ?`,
+			message: "Seul un dossier vide peut être supprimé.",
+			confirmLabel: "Supprimer",
+			danger: true,
+		});
+		if (!ok) return;
+		try {
+			await deleteFolder(projectId, folder.id);
+			folders = folders.filter((row) => row.id !== folder.id);
+			if (selected?.id === folder.id) selected = null;
+			if (clipboard?.id === folder.id) clipboard = null;
+		} catch (error) {
+			toast(describeDocumentError(error, limits), { kind: "error" });
+		}
+	}
+
+	function parentOf(item: Item): string | null {
+		return item.kind === "file"
+			? (attachments.find((row) => row.id === item.id)?.folderId ?? null)
+			: (folders.find((row) => row.id === item.id)?.parentId ?? null);
+	}
+
+	// depth and size limits are checked by the server
+	function canMoveTo(item: Item, target: string | null): boolean {
+		if (parentOf(item) === target) return false;
+		return !(item.kind === "folder" && target !== null && subtreeIds(folders, item.id).has(target));
+	}
+
+	function canCopyTo(item: Item, target: string | null): boolean {
+		return !(item.kind === "folder" && target !== null && subtreeIds(folders, item.id).has(target));
+	}
+
+	async function transfer(item: Item, target: string | null, mode: "copy" | "cut"): Promise<boolean> {
+		problem = "";
+		try {
+			if (mode === "cut") {
+				if (item.kind === "file") {
+					const moved = await moveAttachment(projectId, item.id, target);
+					attachments = attachments.map((row) => (row.id === moved.id ? moved : row));
+				} else {
+					const moved = await updateFolder(projectId, item.id, { parentId: target });
+					folders = folders.map((row) => (row.id === moved.id ? moved : row));
+				}
+			} else if (item.kind === "file") {
+				attachments = [await copyAttachment(projectId, item.id, target), ...attachments];
+			} else {
+				await copyFolder(projectId, item.id, target);
+				await refresh();
+			}
+			return true;
+		} catch (error) {
+			toast(describeDocumentError(error, limits), { kind: "error" });
+			return false;
+		}
+	}
+
+	function setClipboard(mode: "copy" | "cut"): void {
+		if (readOnly || !selected) return;
+		clipboard = { ...selected, mode };
+		toast(mode === "copy" ? "Copié" : "Coupé", { duration: 1600 });
+	}
+
+	async function paste(): Promise<void> {
+		if (readOnly || !clipboard) return;
+		const { mode, ...item } = clipboard;
+		if (mode === "cut" ? !canMoveTo(item, current) : !canCopyTo(item, current)) {
+			toast(mode === "cut" ? "Cet élément est déjà ici." : "Impossible de copier un dossier dans lui-même.", { kind: "error" });
+			return;
+		}
+		if (await transfer(item, current, mode)) {
+			if (mode === "cut") clipboard = null;
+			selected = null;
+		}
+	}
+
+	function onDragStart(event: DragEvent, item: Item): void {
+		if (readOnly) {
+			event.preventDefault();
+			return;
+		}
+		dragging = item;
+		selected = item;
+		event.dataTransfer?.setData("text/plain", item.id);
+		if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+	}
+
+	function onDragEnd(): void {
+		dragging = null;
+		dropOver = null;
+	}
+
+	function onFolderDragOver(event: DragEvent, folder: Folder): void {
+		if (!dragging || !canMoveTo(dragging, folder.id)) return;
+		event.preventDefault();
+		dropOver = folder.id;
+	}
+
+	async function dropOnto(target: string | null): Promise<void> {
+		const item = dragging;
+		dragging = null;
+		dropOver = null;
+		if (item && canMoveTo(item, target)) await transfer(item, target, "cut");
+	}
+
+	function isTyping(target: EventTarget | null): boolean {
+		const el = target as HTMLElement | null;
+		return !!el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
+	}
+
+	function onKeydown(event: KeyboardEvent): void {
+		if (isTyping(event.target)) return;
+		if (event.key === "Escape") {
+			selected = null;
+			return;
+		}
+		if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+		const key = event.key.toLowerCase();
+		if (key === "c" && selected) {
+			event.preventDefault();
+			setClipboard("copy");
+		} else if (key === "x" && selected) {
+			event.preventDefault();
+			setClipboard("cut");
+		} else if (key === "v" && clipboard) {
+			event.preventDefault();
+			void paste();
+		}
+	}
+
+	function contents(folder: Folder): string {
+		const count = attachments.filter((row) => row.folderId === folder.id).length + folders.filter((row) => row.parentId === folder.id).length;
+		return count === 0 ? "Vide" : `${count} élément${count > 1 ? "s" : ""}`;
+	}
+
+	function clipboardName(): string {
+		if (!clipboard) return "";
+		return clipboard.kind === "file"
+			? (attachments.find((row) => row.id === clipboard?.id)?.fileName ?? "")
+			: (folders.find((row) => row.id === clipboard?.id)?.name ?? "");
+	}
+
+	function focusOnMount(node: HTMLInputElement): void {
+		node.focus();
+		node.select();
 	}
 </script>
 
-<section class="page">
-	<header>
-		<h1>Fichiers</h1>
+<svelte:window onkeydown={onKeydown} />
+
+<ImagePreview {projectId} images={visibleImages} bind:openId={previewId} ondownload={(image) => void onDownload(image)} />
+
+<AppHeader project={project ?? undefined} active="files" />
+
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions, a11y_no_noninteractive_element_interactions -->
+<main class="page" onclick={(event) => event.target === event.currentTarget && (selected = null)}>
+	<header class="title">
+		<div class="heading">
+			<span class="badge"><Icon name="folder" size={20} /></span>
+			<h1>Fichiers</h1>
+		</div>
 		{#if !readOnly}
-			<label class="upload">
-				<Icon name="plus" size={16} />
-				<span>{busy ? "Envoi…" : "Ajouter un fichier"}</span>
-				<input type="file" onchange={onPick} disabled={busy} />
-			</label>
+			<div class="buttons">
+				{#if clipboard}
+					<button type="button" class="btn btn-ghost btn-sm" title={`Coller « ${clipboardName()} » ici (Ctrl+V)`} onclick={() => void paste()}>
+						<Icon name="copy" size={15} /> Coller
+					</button>
+				{/if}
+				<button
+					type="button"
+					class="btn btn-ghost btn-sm"
+					disabled={atMaxDepth || atMaxChildren}
+					title={atMaxDepth ? `Profondeur maximale atteinte (${limits.maxDepth} niveaux)` : atMaxChildren ? `Maximum de ${limits.maxSubfolders} sous-dossiers atteint` : ""}
+					onclick={() => ((creating = true), (newName = ""))}
+				>
+					<Icon name="folder" size={15} /> Nouveau dossier
+				</button>
+				<label class="btn btn-primary btn-sm upload">
+					<Icon name="plus" size={15} />
+					<span>{busy ? "Envoi…" : "Ajouter un fichier"}</span>
+					<input type="file" onchange={onPick} disabled={busy} />
+				</label>
+			</div>
 		{/if}
 	</header>
 
+	<PathBar {path} {current} onnavigate={openFolder} canDrop={(folderId) => !!dragging && canMoveTo(dragging, folderId)} ondropitem={(folderId) => void dropOnto(folderId)} />
+
 	{#if problem}
-		<p class="problem">{problem}</p>
+		<p class="problem" role="alert">{problem}</p>
 	{/if}
 
 	{#if loadFailed}
 		<p class="empty">Impossible de charger les fichiers. Rechargez la page.</p>
-	{:else if attachments.length === 0}
-		<p class="empty">Aucun fichier pour l'instant.</p>
+	{:else if loaded && !creating && subfolders.length === 0 && visible.length === 0}
+		<p class="empty">{current === null ? "Aucun fichier pour l'instant." : "Ce dossier est vide."}</p>
 	{:else}
-		<ul class="list">
-			{#each attachments as attachment (attachment.id)}
-				<li>
-					<Icon name="folder" size={16} />
-					<span class="name">{attachment.fileName}</span>
-					<span class="meta">{humanSize(attachment.fileSize)}</span>
-					<button type="button" title="Télécharger" onclick={() => void onDownload(attachment)}>
-						<Icon name="arrowRight" size={16} />
-					</button>
-					{#if !readOnly}
-						<button type="button" title="Supprimer" onclick={() => void onDelete(attachment)}>
-							<Icon name="trash" size={16} />
-						</button>
+		<TileGrid fixed>
+			{#if creating}
+				<Tile label="Nouveau dossier">
+					<span class="type folder-type"><Icon name="folder" size={12} /> DOSSIER</span>
+					<form class="new" onsubmit={(event) => (event.preventDefault(), void onCreateFolder())}>
+						<input
+							bind:value={newName}
+							maxlength="100"
+							placeholder="Nom du dossier"
+							aria-label="Nom du nouveau dossier"
+							use:focusOnMount
+							onblur={() => void onCreateFolder()}
+							onkeydown={(event) => event.key === "Escape" && ((newName = ""), (creating = false))}
+						/>
+					</form>
+				</Tile>
+			{/if}
+
+			{#each subfolders as folder (folder.id)}
+				{@const item = { kind: "folder", id: folder.id } as const}
+				<Tile
+					label={`Dossier ${folder.name}`}
+					selected={selected?.id === folder.id}
+					faded={clipboard?.mode === "cut" && clipboard.id === folder.id}
+					dropActive={dropOver === folder.id}
+					onselect={() => (selected = item)}
+					onopen={() => openFolder(folder.id)}
+					ondragstart={renamingId === folder.id ? undefined : (event) => onDragStart(event, item)}
+					ondragend={onDragEnd}
+					ondragover={(event) => onFolderDragOver(event, folder)}
+					ondragleave={() => (dropOver = null)}
+					ondrop={(event) => (event.preventDefault(), void dropOnto(folder.id))}
+				>
+					<span class="type folder-type"><Icon name="folder" size={12} /> DOSSIER</span>
+					{#if renamingId === folder.id}
+						<input
+							class="rename"
+							bind:value={renameDraft}
+							maxlength="100"
+							aria-label="Nom du dossier"
+							use:focusOnMount
+							onblur={() => void onRename(folder)}
+							onkeydown={(event) => {
+								if (event.key === "Enter") void onRename(folder);
+								if (event.key === "Escape") renamingId = null;
+							}}
+						/>
+					{:else}
+						<h2 class="file-name">{folder.name}</h2>
 					{/if}
-				</li>
+					<div class="foot"><span class="meta">{contents(folder)}</span></div>
+					{#snippet actions()}
+						<button type="button" class="icon" title="Ouvrir" aria-label="Ouvrir le dossier" onclick={() => openFolder(folder.id)}><Icon name="arrowRight" size={14} /></button>
+						{#if !readOnly}
+							<button type="button" class="icon" title="Renommer" aria-label="Renommer le dossier" onclick={() => ((renamingId = folder.id), (renameDraft = folder.name))}><Icon name="pencil" size={14} /></button>
+							<button type="button" class="icon" title="Copier" aria-label="Copier le dossier" onclick={() => ((selected = item), setClipboard("copy"))}><Icon name="copy" size={14} /></button>
+							<button type="button" class="icon" title="Couper" aria-label="Couper le dossier" onclick={() => ((selected = item), setClipboard("cut"))}><Icon name="cut" size={14} /></button>
+							<button type="button" class="icon" title="Supprimer" aria-label="Supprimer le dossier" onclick={() => void onDeleteFolder(folder)}><Icon name="trash" size={14} /></button>
+						{/if}
+					{/snippet}
+				</Tile>
 			{/each}
-		</ul>
+
+			{#each visible as attachment (attachment.id)}
+				{@const item = { kind: "file", id: attachment.id } as const}
+				<Tile
+					label={`${isImage(attachment) ? "Aperçu de" : "Télécharger"} ${attachment.fileName}`}
+					selected={selected?.id === attachment.id}
+					faded={clipboard?.mode === "cut" && clipboard.id === attachment.id}
+					onselect={() => (selected = item)}
+					onopen={() => (isImage(attachment) ? (previewId = attachment.id) : void onDownload(attachment))}
+					ondragstart={(event) => onDragStart(event, item)}
+					ondragend={onDragEnd}
+				>
+					<span class="type">{extensionBadge(attachment)}</span>
+					<h2 class="file-name">{attachment.fileName}</h2>
+					<div class="foot">
+						<span class="meta">{humanSize(attachment.fileSize)}</span>
+						{#if attachment.cardIds.length > 0}
+							<span class="chip" title="Cartes liées">{attachment.cardIds.length} carte{attachment.cardIds.length > 1 ? "s" : ""}</span>
+						{/if}
+					</div>
+					{#snippet actions()}
+						<button type="button" class="icon" title="Télécharger" aria-label="Télécharger le fichier" onclick={() => void onDownload(attachment)}><Icon name="arrowRight" size={14} /></button>
+						{#if !readOnly}
+							<button type="button" class="icon" title="Copier" aria-label="Copier le fichier" onclick={() => ((selected = item), setClipboard("copy"))}><Icon name="copy" size={14} /></button>
+							<button type="button" class="icon" title="Couper" aria-label="Couper le fichier" onclick={() => ((selected = item), setClipboard("cut"))}><Icon name="cut" size={14} /></button>
+							<button type="button" class="icon" title="Supprimer" aria-label="Supprimer le fichier" onclick={() => void onDelete(attachment)}><Icon name="trash" size={14} /></button>
+						{/if}
+					{/snippet}
+				</Tile>
+			{/each}
+		</TileGrid>
 	{/if}
-</section>
+</main>
 
 <style>
 	.page {
-		max-width: 48rem;
+		max-width: 64rem;
 		margin: 0 auto;
-		padding: 2rem 1rem;
+		padding: 2rem 1rem 3rem;
 	}
 
-	header {
+	.title {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 1.5rem;
+		flex-wrap: wrap;
+		gap: 1rem;
+		margin-bottom: 1.25rem;
+	}
+
+	.heading {
+		display: flex;
+		align-items: center;
+		gap: 0.85rem;
+	}
+
+	.buttons {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+
+	.badge {
+		display: grid;
+		place-items: center;
+		width: 42px;
+		height: 42px;
+		border-radius: var(--radius);
+		background: var(--accent-soft);
+		color: var(--accent);
 	}
 
 	h1 {
-		font-size: 1.5rem;
+		margin: 0;
+		font-family: var(--font-serif);
+		font-size: 1.6rem;
+		font-weight: 600;
+		letter-spacing: -0.01em;
 	}
 
 	.upload {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
-		font-size: 0.875rem;
 		cursor: pointer;
 	}
 
-	/* The real input is hidden; the label around it is what the user clicks. */
 	.upload input {
 		display: none;
 	}
 
 	.problem {
-		margin-bottom: 1rem;
+		margin: 0 0 1rem;
+		color: var(--danger);
 		font-size: 0.875rem;
 	}
 
 	.empty {
 		padding: 2rem 0;
 		text-align: center;
-		font-size: 0.875rem;
-		opacity: 0.6;
+		color: var(--text-faint);
+		font-size: 0.9rem;
 	}
 
-	.list {
-		list-style: none;
-	}
-
-	.list li {
-		display: flex;
+	.type {
+		align-self: flex-start;
+		display: inline-flex;
 		align-items: center;
-		gap: 0.6rem;
-		padding: 0.6rem 0;
-		border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+		gap: 4px;
+		padding: 2px 8px;
+		border-radius: var(--radius-sm);
+		background: var(--bg-sunken);
+		color: var(--text-soft);
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
 	}
 
-	.name {
-		flex: 1;
-		min-width: 0;
+	.folder-type {
+		background: var(--accent-soft);
+		color: var(--accent);
+	}
+
+	.file-name {
+		flex-shrink: 0;
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		margin: 0;
 		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		overflow-wrap: anywhere;
+		color: var(--text);
+		font-size: 0.95rem;
+		font-weight: 600;
+		line-height: 1.3;
+	}
+
+	.foot {
+		display: flex;
+		margin-top: auto;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
 	}
 
 	.meta {
-		font-size: 0.8rem;
-		opacity: 0.6;
+		color: var(--text-faint);
+		font-size: 0.78rem;
+		white-space: nowrap;
 	}
 
-	button {
+	.rename,
+	.new input {
+		position: relative;
+		z-index: 2;
+		width: 100%;
+		box-sizing: border-box;
+		padding: 0.35rem 0.5rem;
+		border: 1px solid var(--accent);
+		border-radius: var(--radius-sm);
+		background: var(--surface-raised);
+		color: var(--text);
+		font: inherit;
+	}
+
+	.icon {
 		display: inline-flex;
-		padding: 0.25rem;
+		padding: 0.3rem;
+		border: 0;
+		border-radius: var(--radius-sm);
 		background: none;
-		border: none;
-		color: inherit;
-		opacity: 0.7;
+		color: var(--text-soft);
 		cursor: pointer;
 	}
 
-	button:hover {
-		opacity: 1;
+	.icon:hover {
+		background: var(--bg-sunken);
+		color: var(--text);
 	}
 </style>
