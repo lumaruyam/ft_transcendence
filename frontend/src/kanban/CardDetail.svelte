@@ -108,6 +108,13 @@
     }
   }
 
+  const PR_LABELS: Record<string, string> = { open: "PR ouverte", merged: "PR fusionnée" };
+  const prLabel = $derived(PR_LABELS[open?.card.gitLink?.prStatus ?? ""] ?? null);
+  // link to the branch on GitHub (the repo URL is normalized by the backend)
+  const branchUrl = $derived(
+    open?.card.gitLink ? safeUrl(`${open.card.gitLink.repoUrl}/tree/${encodeURIComponent(open.card.gitLink.branchName).replace(/%2F/g, "/")}`) : null
+  );
+
   // only link http(s) URLs
   function safeUrl(url: string | null | undefined): string | null {
     try {
@@ -176,16 +183,40 @@
           {#if store.canEdit}<span class="hint">Enregistrement automatique · <kbd>Ctrl</kbd> + <kbd>Entrée</kbd> pour enregistrer tout de suite</span>{/if}
         </div>
 
-        {#if open.card.linkedBranch || open.card.linkedPrUrl}
+        {#if open.card.linkedBranch || open.card.linkedPrUrl || store.canEdit}
           <div class="git">
-            <div class="label">Git</div>
+            <div class="label-row">
+              <div class="label">Git</div>
+              {#if prLabel}<span class="chip" class:chip-accent={open.card.gitLink?.prStatus === "merged"} class:chip-warn={open.card.gitLink?.prStatus === "open"}>{prLabel}</span>{/if}
+            </div>
             {#if open.card.linkedBranch}
-              <div class="git-row"><Icon name="branch" size={16} /> <code>{open.card.linkedBranch}</code></div>
+              <div class="git-row">
+                <Icon name="branch" size={16} />
+                {#if branchUrl}
+                  <a href={branchUrl} target="_blank" rel="noopener noreferrer"><code class="selectable">{open.card.linkedBranch}</code></a>
+                {:else}
+                  <code class="selectable">{open.card.linkedBranch}</code>
+                {/if}
+              </div>
+              {#if open.card.gitLink}<div class="repo selectable">{open.card.gitLink.repoUrl.replace("https://github.com/", "")}</div>{/if}
+            {:else if store.canEdit}
+              <span class="none">Aucune branche liée.</span>
             {/if}
             {#if safeUrl(open.card.linkedPrUrl)}
               <a class="git-row" href={safeUrl(open.card.linkedPrUrl)} target="_blank" rel="noopener noreferrer">
                 <Icon name="external" size={16} /> <span>Pull request</span>
               </a>
+            {/if}
+            {#if store.canEdit}
+              <div class="git-actions">
+                <button type="button" class="btn btn-ghost btn-sm" onclick={() => (store.gitCardId = open.card.id)}>
+                  <Icon name={open.card.linkedBranch ? "pencil" : "plus"} size={14} />
+                  {open.card.linkedBranch ? "Modifier" : "Lier une branche"}
+                </button>
+                {#if open.card.gitLink}
+                  <button type="button" class="btn btn-ghost btn-sm" onclick={() => void store.unlinkBranch(open.card.id)}>Retirer</button>
+                {/if}
+              </div>
             {/if}
           </div>
         {/if}
@@ -306,6 +337,15 @@
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: var(--surface);
+  }
+  .repo {
+    font-size: 0.78rem;
+    color: var(--text-faint);
+  }
+  .git-actions {
+    display: flex;
+    gap: 4px;
+    margin-left: -8px;
   }
   .git-row {
     display: flex;

@@ -86,17 +86,25 @@ export async function linkCardToBranch(
   const [link] = await prisma.$transaction([
     prisma.gitLink.upsert({
     where: { cardId },
-    update: { repoUrl: normalizedUrl, branchName },
-    create: { cardId, repoUrl, branchName, prStatus: 'none'},
+    update: { repoUrl: normalizedUrl, branchName, prStatus: 'none' },
+    create: { cardId, repoUrl: normalizedUrl, branchName, prStatus: 'none'},
     }),
 
-  // Update card if exist field linkedBranch)
+  // a new branch starts a new lifecycle: forget the previous branch's PR
   prisma.card.update({
     where: { id: cardId },
-    data: { linkedBranch: branchName },
+    data: { linkedBranch: branchName, linkedPrUrl: null },
     }),
   ]);
   return link;
+}
+
+// unlinkCardFromBranch removes the git_links row and the branch / PR shown on the card.
+export async function unlinkCardFromBranch(cardId: string): Promise<void> {
+  await prisma.$transaction([
+    prisma.gitLink.deleteMany({ where: { cardId } }),
+    prisma.card.update({ where: { id: cardId }, data: { linkedBranch: null, linkedPrUrl: null } }),
+  ]);
 }
 
 export async function listBranches(userId: string, repoUrl: string): Promise<string[]> {

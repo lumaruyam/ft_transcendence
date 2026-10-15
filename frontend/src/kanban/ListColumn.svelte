@@ -17,6 +17,9 @@
   let column: HTMLElement;
   let cardsEl: HTMLElement;
   let title: ReturnType<typeof InlineTitle> | undefined = $state();
+  let composer: ReturnType<typeof Composer> | undefined = $state();
+  const listIndex = $derived(store.board?.lists.findIndex((l) => l.id === list.id) ?? -1);
+  const listCount = $derived(store.board?.lists.length ?? 0);
   // where a dragged card would land (null when none is over)
   let dropIndex = $state<number | null>(null);
 
@@ -115,7 +118,7 @@
       >
         <Icon name="grip" size={17} />
       </span>
-      <Popover width={200}>
+      <Popover width={220}>
         {#snippet trigger({ open, toggle })}
           <button type="button" class="icon-btn menu" aria-label="Options de la liste" aria-expanded={open} onclick={toggle}>
             <Icon name="more" size={17} />
@@ -132,6 +135,23 @@
           >
             <Icon name="pencil" size={15} /> Renommer
           </button>
+          <button
+            type="button"
+            class="item"
+            onclick={() => {
+              close();
+              composer?.show();
+            }}
+          >
+            <Icon name="plus" size={15} /> Ajouter une carte
+          </button>
+          <button type="button" class="item" disabled={listIndex <= 0} onclick={() => { close(); void store.moveList(list.id, listIndex - 1); }}>
+            <Icon name="arrowLeft" size={15} /> Déplacer à gauche
+          </button>
+          <button type="button" class="item" disabled={listIndex < 0 || listIndex >= listCount - 1} onclick={() => { close(); void store.moveList(list.id, listIndex + 1); }}>
+            <Icon name="arrowRight" size={15} /> Déplacer à droite
+          </button>
+          <div class="sep" role="separator"></div>
           <button
             type="button"
             class="item danger"
@@ -165,7 +185,7 @@
   </div>
 
   {#if store.canEdit}
-    <Composer label="Ajouter une carte" placeholder="Titre de la carte…" multiline onadd={addCard} />
+    <Composer bind:this={composer} label="Ajouter une carte" placeholder="Titre de la carte…" multiline onadd={addCard} />
   {/if}
 </section>
 
@@ -232,7 +252,7 @@
   .menu {
     width: 30px;
     height: 30px;
-    opacity: 0;
+    opacity: 0.55;
     transition: opacity 0.12s;
   }
   header:hover .menu,
@@ -275,8 +295,17 @@
     font-size: 0.9rem;
     text-align: left;
   }
-  .item:hover {
+  .item:hover:not(:disabled) {
     background: var(--bg-sunken);
+  }
+  .item:disabled {
+    color: var(--text-faint);
+    cursor: default;
+  }
+  .sep {
+    height: 1px;
+    margin: 5px 4px;
+    background: var(--line);
   }
   .item.danger {
     color: var(--danger);
