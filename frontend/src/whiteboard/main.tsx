@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { Excalidraw } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import { apiRequest, ApiError } from "../api/apiClient";
+import "./suppressUnload";
 
 //Checked against the installed package: Excalidraw 0.17 ships its CSS inside the bundle, so there is
 //no "@excalidraw/excalidraw/index.css" to import — that entry only exists from 0.18 on.
