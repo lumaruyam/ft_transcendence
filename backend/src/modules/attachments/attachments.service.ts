@@ -12,7 +12,8 @@ import { assertFolderUsable, cardInProject } from "../folders/folders.service.js
 import { notifyProject } from "../notifications/notifications.service.js";
 
 // /app/uploads inside the container, backend/uploads locally (both gitignored).
-const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
+// UPLOADS_DIR overrides the folder (the tests use a temporary one); by default "uploads" next to where the backend runs
+const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR ?? path.join(process.cwd(), "uploads"));
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MiB
 

@@ -86,6 +86,16 @@ create an OAuth App on <https://github.com/settings/developers> whose callback U
 (default `https://localhost:8443/api/auth/oauth/github/callback`), then run `./transcendence oauth`. Details, troubleshooting and the HTTPS
 setup are in [`docs/deployment.md`](docs/deployment.md).
 
+### Tests
+
+```bash
+cd backend && npm ci && npm test
+```
+
+Eleven end-to-end suites (about 230 checks, around four minutes) run against the real application and a throwaway PostgreSQL started in Docker (removed at the end, your data is never
+touched): signed GitHub webhooks, OAuth against a stubbed GitHub, permissions over every project route and on open sockets, notifications, the public API, real time, notes edited by
+several people, and concurrent requests. `npm test -- notifications oauth` runs only some of them; `npm run test:types` type-checks them. See [`backend/tests/`](backend/tests/).
+
 ### Start over
 
 `./transcendence stop && docker compose down -v` deletes the containers **and all the data**; the next `./transcendence start` begins from nothing.
@@ -466,7 +476,7 @@ the project is built around, and it ties the other modules together (OAuth gives
 
 **Why it deserves Major status (2 points).** It is not a thin wrapper around an API: it combines a third-party OAuth integration, a cryptographically verified inbound channel, an idempotent state machine, an audit trail, automatic remote configuration, and
 the real-time and notification layers, across the backend (`backend/src/modules/git/`), the database (`git_links`, `webhook_events`) and a dedicated interface (the branch dialog on every card). It is tested end to end with signed deliveries
-(push, opened, reopened, merged, closed, regression guards).
+(push, opened, reopened, merged, closed, regression guards): `backend/tests/e2e/git-webhooks.e2e.ts`.
 *Team:* <!-- TODO(team): member(s) -->
 
 ### 7. ORM (Minor, 1 pt)
@@ -545,5 +555,5 @@ AI assistants (Claude Code) were used as a tool, on specific tasks, and everythi
 - GitHub cannot reach `localhost`: the repository webhook is registered automatically only when `WEBHOOK_PUBLIC_URL` is set; otherwise add it by hand to try the Git integration.
 - Real-time rooms live in the memory of one backend process: the database side is safe with several instances (serializable transactions), but live delivery across instances would need a Socket.IO adapter.
 - Events missed during a connection drop are not replayed: the board refetches its state when the connection returns.
-- The automated end-to-end tests used during development are not part of the repository yet.
+- The tests cover the backend; the frontend has no automated tests (it was checked by hand in the browser).
 <!-- TODO(team): add any limitation specific to your own modules. -->
