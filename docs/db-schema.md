@@ -12,6 +12,214 @@ back to the snake_case table/column names below via `@@map` / `@map` directives 
 `backend/prisma/schema.prisma`, so the physical Postgres schema stays exactly as
 documented here regardless of which ORM reads it.
 
+## Diagram
+
+Every table and foreign key of `backend/prisma/schema.prisma` (PK primary key, FK foreign key, UK unique). It
+renders as a diagram on GitHub. `project_members`, `card_tags`, `card_notes` and `card_attachments` are join
+tables with a composite primary key. When the schema changes, update this diagram together with the tables below.
+
+```mermaid
+erDiagram
+    users {
+        string id PK
+        string email UK
+        string password_hash
+        string password_salt
+        string name
+        string avatar
+        datetime created_at
+        datetime updated_at
+    }
+    oauth_accounts {
+        string id PK
+        string user_id FK
+        string provider
+        string provider_id
+        string access_token
+        string refresh_token
+        string scopes
+        datetime expires_at
+        datetime created_at
+        datetime updated_at
+    }
+    projects {
+        string id PK
+        string name
+        string owner_id FK
+        datetime created_at
+        datetime updated_at
+    }
+    project_members {
+        string project_id PK,FK
+        string user_id PK,FK
+        string role
+    }
+    project_invites {
+        string id PK
+        string project_id FK
+        string token_hash UK
+        string role
+        int max_uses
+        int use_count
+        datetime expires_at
+        string created_by FK
+        datetime created_at
+        string revoked_by FK
+        datetime revoked_at
+    }
+    boards {
+        string id PK
+        string project_id FK
+        string title
+        datetime created_at
+    }
+    lists {
+        string id PK
+        string board_id FK
+        string title
+        int position
+    }
+    cards {
+        string id PK
+        string list_id FK
+        string title
+        string description
+        string linked_branch
+        string linked_pr_url
+        string status
+        int position
+        datetime created_at
+        datetime updated_at
+    }
+    tags {
+        string id PK
+        string project_id FK
+        string name
+        string color
+        datetime created_at
+    }
+    card_tags {
+        string card_id PK,FK
+        string tag_id PK,FK
+    }
+    folders {
+        string id PK
+        string project_id FK
+        string parent_id FK
+        string name
+        string created_by
+        datetime created_at
+    }
+    notes {
+        string id PK
+        string project_id FK
+        string title
+        json content_json
+        bytes yjs_state
+        string updated_by FK
+        datetime created_at
+        datetime updated_at
+    }
+    whiteboards {
+        string id PK
+        string project_id UK,FK
+        json scene_json
+        string updated_by FK
+        datetime updated_at
+    }
+    whiteboard_files {
+        string id PK
+        string project_id FK
+        string file_id
+        string mime_type
+        string data_url
+        datetime created_at
+    }
+    attachments {
+        string id PK
+        string project_id FK
+        string folder_id FK
+        string file_url
+        string file_name
+        int file_size
+        string file_type
+        string uploaded_by FK
+        datetime uploaded_at
+    }
+    card_notes {
+        string card_id PK,FK
+        string note_id PK,FK
+    }
+    card_attachments {
+        string card_id PK,FK
+        string attachment_id PK,FK
+    }
+    git_links {
+        string card_id PK,FK
+        string repo_url
+        string branch_name
+        string pr_status
+    }
+    notifications {
+        string id PK
+        string user_id FK
+        string type
+        json payload
+        datetime read_at
+        datetime created_at
+    }
+    webhook_events {
+        string id PK
+        string provider
+        string repo
+        string event_type
+        json payload
+        datetime processed_at
+        datetime created_at
+    }
+    api_keys {
+        string id PK
+        string project_id FK
+        string user_id FK
+        string key_hash
+        int rate_limit
+        datetime created_at
+    }
+    users ||--o{ oauth_accounts : "user_id"
+    users ||--o{ projects : "owner_id"
+    projects ||--o{ project_members : "project_id"
+    users ||--o{ project_members : "user_id"
+    projects ||--o{ project_invites : "project_id"
+    users |o--o{ project_invites : "created_by"
+    users |o--o{ project_invites : "revoked_by"
+    projects ||--o{ boards : "project_id"
+    boards ||--o{ lists : "board_id"
+    lists ||--o{ cards : "list_id"
+    projects ||--o{ tags : "project_id"
+    cards ||--o{ card_tags : "card_id"
+    tags ||--o{ card_tags : "tag_id"
+    projects ||--o{ folders : "project_id"
+    folders |o--o{ folders : "parent_id"
+    projects ||--o{ notes : "project_id"
+    users |o--o{ notes : "updated_by"
+    projects ||--o{ whiteboards : "project_id"
+    users |o--o{ whiteboards : "updated_by"
+    projects ||--o{ whiteboard_files : "project_id"
+    projects ||--o{ attachments : "project_id"
+    folders |o--o{ attachments : "folder_id"
+    users |o--o{ attachments : "uploaded_by"
+    cards ||--o{ card_notes : "card_id"
+    notes ||--o{ card_notes : "note_id"
+    cards ||--o{ card_attachments : "card_id"
+    attachments ||--o{ card_attachments : "attachment_id"
+    cards ||--o{ git_links : "card_id"
+    users ||--o{ notifications : "user_id"
+    projects |o--o{ api_keys : "project_id"
+    users |o--o{ api_keys : "user_id"
+```
+
+## Tables
+
 | Table | Key columns | Notes |
 |---|---|---|
 | `users` | id, email, password_hash, password_salt, name, avatar | Mandatory email/password baseline. OAuth identity/token lives in `oauth_accounts`, not here |
@@ -21,17 +229,18 @@ documented here regardless of which ORM reads it.
 | `project_invites` | id, project_id, token_hash (unique), role, max_uses (nullable), use_count, expires_at (nullable), created_by, created_at, revoked_by (nullable, FK `users.id`), revoked_at (nullable) | Invite-link membership flow (`backend/src/modules/projects/invites.ts`). `token_hash` stores a hash of the invite token — the plaintext is returned once at creation and never persisted. An invite **does not replace or duplicate `project_members`**: joining an invite is the *action* that inserts a `project_members` row; the invite row itself is never consulted for authorization afterwards, only for join-time validity (not expired, not revoked, under `max_uses`) |
 | `boards` | id, project_id, title | One board per project in the core plan |
 | `lists` | id, board_id, title, position | Kanban columns |
-| `cards` | id, title, list_id, linked_branch, linked_pr_url, status, position | Core Kanban entity; `linked_branch`/`linked_pr_url`/`status` driven by the Git integration module |
+| `cards` | id, title, description (nullable), list_id, linked_branch, linked_pr_url, status, position, created_at, updated_at | Core Kanban entity; `linked_branch`/`linked_pr_url`/`status` driven by the Git integration module |
 | `notes` | id, project_id, title, content_json, yjs_state, updated_by, created_at, updated_at | Any number per project, edited live with Yjs; `yjs_state` is the source of truth, `content_json` a derived copy for search |
 | `folders` | id, project_id, parent_id (nullable), name, created_by, created_at | Folder tree of the Files page (notes have no folders). At most 60 subfolders per folder and 8 levels (`FOLDER_MAX_SUBFOLDERS`, `FOLDER_MAX_DEPTH`), enforced by the service. Only an empty folder can be deleted |
 | `card_notes` | card_id, note_id | Many-to-many join between cards and notes, composite primary key |
 | `card_attachments` | card_id, attachment_id | Many-to-many join between cards and files, composite primary key |
 | `whiteboards` | id, project_id (unique), scene_json, updated_by (nullable), updated_at | One Excalidraw scene per project, autosaved on change, last-save-wins |
+| `whiteboard_files` | id, project_id, file_id, mime_type, data_url, created_at | Images dropped on the whiteboard, shared with everyone who opens it. Unique per (project_id, file_id): the same image is stored once. Cascade delete with the project |
 | `tags` | id, project_id, name, color (default `#6b7280`) | Project-scoped card labels, unique per (project_id, name); 5 defaults are created with each project |
 | `card_tags` | card_id, tag_id | Many-to-many join between cards and tags, composite primary key |
 | `attachments` | id, project_id, folder_id (nullable), file_url, file_name, file_size, file_type, uploaded_by (nullable), uploaded_at | `file_url` is the name on disk (a generated uuid plus extension, never the user's file name); `file_name` is the original name, shown to users and searched |
 | `git_links` | card_id, repo_url, branch_name, pr_status | Drives the webhook-based card status automation |
-| `notifications` | id, user_id, type, payload, read_at, created_at | Fires on creation/update/deletion actions |
+| `notifications` | id, user_id, type, payload, read_at, created_at | One row per person told about an action (see the notifications section of `api-spec.md`). `payload` holds the message, project, actor and link. Indexed on (user_id, created_at); read rows are purged after 30 days |
 | `webhook_events` | id, provider, repo, event_type, payload, processed_at, created_at | Audit log of every Git webhook received |
 | `api_keys` | id, project_id (nullable), user_id (nullable), key_hash, rate_limit, created_at | Supports the Public API major module |
 
@@ -57,10 +266,20 @@ documented here regardless of which ORM reads it.
 - `tags.project_id -> projects.id` (cascade delete)
 - `card_tags.card_id -> cards.id` and `card_tags.tag_id -> tags.id` (cascade delete)
 - `attachments.project_id -> projects.id`, `attachments.folder_id -> folders.id`, `attachments.uploaded_by -> users.id`
+- `whiteboard_files.project_id -> projects.id` (cascade delete)
 - `git_links.card_id -> cards.id` (one-to-one)
-- `notifications.user_id -> users.id`
+- `notifications.user_id -> users.id` (cascade delete)
 - `api_keys.project_id -> projects.id` (nullable — a key may be user-scoped instead)
 - `api_keys.user_id -> users.id` (Added on 03/09/2026)
 
-<!-- TODO: include an ER diagram once the schema stabilizes -->
-<!-- TODO: once `npx prisma migrate dev` has been run at least once, link to the generated migration files under backend/prisma/migrations/ as the authoritative history -->
+## Migrations and ORM usage
+
+- The history of the schema is the SQL under `backend/prisma/migrations/`, one folder per change, applied in
+  order by `npx prisma migrate deploy` when the backend container starts (`docker-compose.yml`). They are kept
+  identical to `schema.prisma`: `npx prisma migrate diff --from-migrations prisma/migrations
+  --to-schema-datamodel prisma/schema.prisma --shadow-database-url <empty database> --exit-code` reports no
+  difference.
+- All data access goes through the Prisma client (`backend/src/db/prisma/client.ts`), including transactions
+  (`$transaction`) and the Serializable ones used for concurrent writes (card moves, whiteboard saves). There is
+  **no raw SQL** in the backend: the previous health-check `SELECT 1` and the whiteboard row lock
+  (`SELECT ... FOR UPDATE`) were replaced by an ORM read and by a Serializable transaction with retry.
