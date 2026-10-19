@@ -22,6 +22,14 @@ export interface SignupInput {
 // Simple check for email format to catch obviously malformed input that passed the frontend form
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
+export const MAX_NAME_LENGTH = 60;
+
+// validateDisplayName returns what is wrong with a display name (signup and profile edit share the rule)
+export function validateDisplayName(name: unknown): string | null {
+	if (typeof name !== "string" || name.trim().length === 0) return "name is required";
+	if (name.trim().length > MAX_NAME_LENGTH) return `name must be at most ${MAX_NAME_LENGTH} characters`;
+	return null;
+}
 
 // validateSignupInput checks required fields, email format, and password strength.
 export function validateSignupInput(input: SignupInput): string[] {
@@ -36,8 +44,9 @@ export function validateSignupInput(input: SignupInput): string[] {
 	if (!/[a-zA-Z]/.test(input.password) || !/[0-9]/.test(input.password)) {
 		errors.push("password must contain at least one letter and one number");
 	}
-	if (!input.name || input.name.trim().length === 0) {
-		errors.push("name is required");
+	const nameError = validateDisplayName(input.name);
+	if (nameError) {
+		errors.push(nameError);
 	}
 	return errors;
 }

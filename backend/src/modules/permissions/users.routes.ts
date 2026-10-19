@@ -4,12 +4,15 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "./permissions.middleware.js";
-import { getUser, deleteUser, UserNotFoundError, TransferTargetRequiredError, TransferTargetIsSelfError, LastAdminOfMembershipError } from "./users.service.js";
+import { getUser, getVisibleProfile, updateUser, deleteUser, UserNotFoundError, TransferTargetRequiredError, TransferTargetIsSelfError, LastAdminOfMembershipError } from "./users.service.js";
 import { NotAProjectMemberError } from "../projects/projects.service.js";
+import { validateDisplayName } from "../auth/auth.validation.js";
 
 
 export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
 	app.get("/me", { preHandler: requireAuth }, getMeHandler);
+	app.patch("/me", { preHandler: requireAuth }, updateMeHandler);
+	app.get("/:userId", { preHandler: requireAuth }, getUserHandler);
 	app.delete("/:userId", { preHandler: requireAuth }, deleteUserHandler);
 }
 
@@ -22,6 +25,34 @@ async function getMeHandler(request: FastifyRequest, reply: FastifyReply): Promi
 		return;
 	}
 	reply.code(200).send({ id: user.id, email: user.email, name: user.name });
+}
+
+// updateMeHandler edits the caller's own display name — PATCH /api/users/me. The email is the login identity and
+// is not editable here.
+async function updateMeHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const body = request.body as { name?: unknown } | undefined;
+	if (body === undefined || body === null || typeof body !== "object" || body.name === undefined) {
+		reply.code(400).send({ error: "invalid_input", details: ["name is required"] });
+		return;
+	}
+	const problem = validateDisplayName(body.name);
+	if (problem) {
+		reply.code(400).send({ error: "invalid_input", details: [problem] });
+		return;
+	}
+	const user = await updateUser(request.userId as string, { name: (body.name as string).trim() });
+	reply.code(200).send({ id: user.id, email: user.email, name: user.name });
+}
+
+// getUserHandler shows a profile to somebody allowed to see it — GET /api/users/:userId. Strangers get 404.
+async function getUserHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const { userId } = request.params as { userId: string };
+	const profile = await getVisibleProfile(request.userId as string, userId);
+	if (!profile) {
+		reply.code(404).send({ error: "user_not_found" });
+		return;
+	}
+	reply.code(200).send({ user: profile });
 }
 
 async function deleteUserHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -55,6 +86,7 @@ async function deleteUserHandler(request: FastifyRequest, reply: FastifyReply): 
 		}
 		if (err instanceof LastAdminOfMembershipError) {
 			reply.code(409).send({ error: "last_admin_of_membership", projectIds:err.projectIds })
+			return;
 		}
 		throw err;
 	}

@@ -3,7 +3,7 @@
   import PasswordField from "../auth/PasswordField.svelte";
   import { signup, storeAuthSession, AuthApiError } from "../auth/authClient";
   import { startOAuthLogin } from "../auth/oauthFlow";
-  import { validateEmail, validateName, validateNewPassword } from "../auth/validation";
+  import { MAX_NAME_LENGTH, validateEmail, validateName, validateNewPassword } from "../auth/validation";
   import Icon from "../shared/ui/Icon.svelte";
   import { loginUrl, nextFromUrl } from "../shared/session";
 
@@ -67,6 +67,7 @@
         id="name"
         class="input"
         bind:value={name}
+        maxlength={MAX_NAME_LENGTH}
         autocomplete="name"
         autofocus
         aria-invalid={errors.name ? "true" : undefined}

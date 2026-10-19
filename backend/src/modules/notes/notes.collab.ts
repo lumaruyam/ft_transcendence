@@ -3,11 +3,10 @@
 import type { Socket } from "socket.io";
 import * as Y from "yjs";
 import { getIOIfReady } from "../kanban/hub.js";
-import { getUserRole, ROLE_RANK, type Role } from "../permissions/roles.service.js";
+import { getUserRole, ROLE_RANK, SOCKET_ROLE_TTL_MS, type Role } from "../permissions/roles.service.js";
 import { getNoteProjectId, loadNoteDoc, saveNoteDoc } from "./notes.service.js";
 
 const SAVE_DELAY_MS = 2000;
-const ROLE_TTL_MS = 30_000;
 const MAX_UPDATE_BYTES = 1_000_000;
 const MAX_AWARENESS_BYTES = 10_000;
 
@@ -128,7 +127,7 @@ export function registerNoteCollabHandlers(socket: Socket): void {
 	async function currentRole(noteId: string): Promise<Role | null> {
 		const cached = roles.get(noteId);
 		if (!cached) return null;
-		if (Date.now() - cached.checkedAt < ROLE_TTL_MS) return cached.role;
+		if (Date.now() - cached.checkedAt < SOCKET_ROLE_TTL_MS) return cached.role;
 		const role = await getUserRole(cached.projectId, socket.data.userId);
 		if (!role) {
 			await leave(noteId);

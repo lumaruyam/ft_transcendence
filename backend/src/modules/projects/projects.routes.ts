@@ -36,6 +36,7 @@ export async function registerProjectsRoutes(app: FastifyInstance): Promise<void
 
 	app.get("/:projectId/members", { preHandler: [requireAuth, requireRole(ROLES.VIEWER)] }, listMembersHandler);
 	app.post("/:projectId/members", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, addMemberHandler);
+	app.put("/:projectId/members/:userId", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, setMemberRoleHandler);
 	app.delete("/:projectId/members/:userId", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, removeMemberHandler);
 	app.post("/:projectId/transfer-ownership", { preHandler: [requireAuth, requireRole(ROLES.ADMIN)] }, transferOwnershipHandler);
 }
@@ -150,7 +151,7 @@ async function listMembersHandler(request: FastifyRequest, reply: FastifyReply):
 	reply.code(200).send({ members });
 }
 
-// addMemberHandler adds a user to the project with a given role (admin only)
+// addMemberHandler adds a user to the project with a given role, or changes the role of a member (admin only)
 async function addMemberHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId } = request.params as { projectId: string };
 	const body = request.body as { userId?: string; role?: unknown } | undefined;
@@ -159,11 +160,32 @@ async function addMemberHandler(request: FastifyRequest, reply: FastifyReply): P
 		reply.code(400).send({ error: "invalid_input", details: ["userId and a valid role are required"] });
 		return;
 	}
+	await applyMemberRole(request, reply, projectId, body.userId, body.role);
+}
+
+// setMemberRoleHandler changes the role of an existing member — PUT /api/projects/:projectId/members/:userId
+// (admin only). Unlike the POST above it never adds somebody: a user who is not a member gets 404.
+async function setMemberRoleHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const { projectId, userId } = request.params as { projectId: string; userId: string };
+	const body = request.body as { role?: unknown } | undefined;
+
+	if (!isKnownRole(body?.role)) {
+		reply.code(400).send({ error: "invalid_input", details: ["a valid role is required (admin, member or viewer)"] });
+		return;
+	}
+	if ((await getUserRole(projectId, userId)) === null) {
+		reply.code(404).send({ error: "not_a_project_member" });
+		return;
+	}
+	await applyMemberRole(request, reply, projectId, userId, body.role);
+}
+
+async function applyMemberRole(request: FastifyRequest, reply: FastifyReply, projectId: string, userId: string, role: Role): Promise<void> {
 	try {
-		const previousRole = await getUserRole(projectId, body.userId);
-		await addMember(projectId, body.userId, body.role);
+		const previousRole = await getUserRole(projectId, userId);
+		await addMember(projectId, userId, role);
 		reply.code(204).send();
-		void tellMemberChange(request, projectId, body.userId, previousRole === null ? "added" : "role", body.role);
+		void tellMemberChange(request, projectId, userId, previousRole === null ? "added" : "role", role);
 	} catch (err) {
 		if (err instanceof UserNotFoundError) {
 			reply.code(404).send({ error: "user_not_found" });

@@ -6,6 +6,11 @@ export async function listNotifications(limit = 30): Promise<{ notifications: No
   return apiRequest<{ notifications: NotificationRow[]; unreadCount: number }>({ method: "GET", path: `/notifications?limit=${limit}` });
 }
 
+// edits the display name of the signed-in user; the e-mail is the login identity and cannot be changed
+export function updateProfile(name: string): Promise<{ id: string; email: string; name: string }> {
+  return apiRequest({ method: "PATCH", path: "/users/me", body: { name } });
+}
+
 export async function markAllNotificationsRead(): Promise<void> {
   await apiRequest<{ updated: number }>({ method: "PUT", path: "/notifications/read-all" });
 }

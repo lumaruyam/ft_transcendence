@@ -1,10 +1,11 @@
-<!-- The backend has no profile edit endpoint: name and e-mail are read-only. -->
+<!-- The display name can be edited (PATCH /api/users/me); the e-mail is the login identity and is read-only. -->
 <script lang="ts">
   import { ApiError } from "../api/apiClient";
-  import { deleteAccount } from "../api/accountApi";
+  import { deleteAccount, updateProfile } from "../api/accountApi";
+  import { MAX_NAME_LENGTH, validateName } from "../auth/validation";
   import { listMembers, listMyProjects } from "../api/projectsApi";
   import type { Member, Project } from "../api/types";
-  import { clearAuthSession, getStoredUser, logout } from "../auth/authClient";
+  import { clearAuthSession, getStoredUser, logout, storeUser } from "../auth/authClient";
   import { confirmDialog } from "../shared/confirm.svelte";
   import { errorMessage } from "../shared/errors";
   import { ensureUser } from "../shared/session";
@@ -17,6 +18,30 @@
   let user = $state(getStoredUser());
   let busy = $state(false);
 
+  // display name form
+  let name = $state(getStoredUser()?.name ?? "");
+  let nameError = $state<string | null>(null);
+  let savingName = $state(false);
+  const nameChanged = $derived(name.trim() !== (user?.name ?? ""));
+
+  async function onSaveName(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    nameError = validateName(name);
+    if (nameError || !user || !nameChanged) return;
+    savingName = true;
+    try {
+      const updated = await updateProfile(name.trim());
+      user = { ...user, name: updated.name };
+      storeUser(user);
+      name = updated.name;
+      toast("Nom mis à jour", { kind: "success" });
+    } catch (err) {
+      nameError = errorMessage(err);
+    } finally {
+      savingName = false;
+    }
+  }
+
   // step to hand over projects before deleting the account
   let dialog: HTMLDialogElement;
   let handover = $state<{ projects: Project[]; candidates: Member["user"][]; reason: "transfer" | "last_admin" } | null>(null);
@@ -24,7 +49,10 @@
 
   $effect(() => {
     document.title = "Paramètres du compte — Transcendance";
-    void ensureUser().then((u) => (user = u));
+    void ensureUser().then((u) => {
+      user = u;
+      if (u && !nameChanged) name = u.name;
+    });
   });
 
   async function onLogout(): Promise<void> {
@@ -99,7 +127,32 @@
       <div class="email selectable">{user?.email ?? ""}</div>
     </div>
   </section>
-  <p class="hint">Le nom et l'adresse e-mail ne sont pas modifiables pour l'instant.</p>
+
+  <form class="panel" onsubmit={onSaveName}>
+    <div class="field">
+      <label for="display-name">Nom affiché</label>
+      <input
+        id="display-name"
+        class="input"
+        bind:value={name}
+        maxlength={MAX_NAME_LENGTH}
+        autocomplete="name"
+        aria-describedby={nameError ? "display-name-err" : "display-name-hint"}
+        aria-invalid={nameError ? "true" : undefined}
+      />
+      {#if nameError}
+        <span class="field-error" id="display-name-err" role="alert">{nameError}</span>
+      {:else}
+        <span class="hint" id="display-name-hint">Visible par les membres de vos projets. L'adresse e-mail ne peut pas être modifiée.</span>
+      {/if}
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" disabled={!nameChanged || savingName}>
+        {#if savingName}<span class="spinner"></span>{/if} Enregistrer
+      </button>
+      {#if nameChanged}<button type="button" class="btn btn-ghost" onclick={() => ((name = user?.name ?? ""), (nameError = null))}>Annuler</button>{/if}
+    </div>
+  </form>
 
   <section class="panel">
     <div>
@@ -180,6 +233,10 @@
 </dialog>
 
 <style>
+  .actions {
+    display: flex;
+    gap: 8px;
+  }
   main {
     display: flex;
     flex-direction: column;

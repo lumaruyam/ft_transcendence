@@ -31,6 +31,10 @@ export const ROLE_RANK: Record<Role, number> = {
 	admin: 2,
 };
 
+// A live connection remembers the role of its user for this long before asking the database again, so a
+// demotion or a removal takes effect on open sockets within this delay (see notes.collab.ts, whiteboard.realtime.ts)
+export const SOCKET_ROLE_TTL_MS = 30_000;
+
 // getUserRole looks up a user's role within a project, used by requireRole and by frontend view-gating
 export async function getUserRole(projectId: string, userId: string): Promise<Role | null> {
 	const member = await prisma.projectMember.findUnique({

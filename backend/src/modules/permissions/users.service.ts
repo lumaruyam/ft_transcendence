@@ -19,7 +19,6 @@ import { transferProjectOwnership, NotAProjectMemberError } from "../projects/pr
 
 export interface UpdateUserInput {
 	name?: string;
-	avatar?: string;
 }
 
 // listUsers returns all users, for the admin user-management view
@@ -32,9 +31,46 @@ export async function getUser(id: string): Promise<User | null> {
 	return prisma.user.findUnique({ where: { id }});
 }
 
-// updateUser applies an admin edit to a user's account
+// updateUser applies an edit to a user's own account (display name)
 export async function updateUser(id: string, input: UpdateUserInput): Promise<User> {
 	return prisma.user.update({ where: { id }, data: input });
+}
+
+export interface VisibleProfile {
+	id: string;
+	name: string;
+	avatar: string | null;
+	createdAt: Date;
+	//only the person themself and the admins of a project they share see it
+	email?: string;
+	//the projects the two people have in common, with the role of the person looked at
+	projects: { id: string; name: string; role: string }[];
+}
+
+// getVisibleProfile is what `viewerId` may see of `targetId`: their own profile, or the profile of somebody who
+// belongs to at least one of the same projects. null when the user does not exist or is a stranger, so ids cannot
+// be probed. The email is kept for the person themself and for the admins of a shared project.
+export async function getVisibleProfile(viewerId: string, targetId: string): Promise<VisibleProfile | null> {
+	const target = await prisma.user.findUnique({ where: { id: targetId } });
+	if (!target) return null;
+	const base = { id: target.id, name: target.name, avatar: target.avatar, createdAt: target.createdAt };
+
+	if (viewerId === targetId) {
+		const memberships = await prisma.projectMember.findMany({ where: { userId: targetId }, include: { project: { select: { name: true } } } });
+		return { ...base, email: target.email, projects: memberships.map((m) => ({ id: m.projectId, name: m.project.name, role: m.role })) };
+	}
+
+	const shared = await prisma.projectMember.findMany({
+		where: { userId: targetId, project: { members: { some: { userId: viewerId } } } },
+		include: { project: { select: { name: true, members: { where: { userId: viewerId }, select: { role: true } } } } },
+	});
+	if (shared.length === 0) return null;
+	const viewerIsAdmin = shared.some((m) => m.project.members[0]?.role === "admin");
+	return {
+		...base,
+		...(viewerIsAdmin ? { email: target.email } : {}),
+		projects: shared.map((m) => ({ id: m.projectId, name: m.project.name, role: m.role })),
+	};
 }
 
 export class UserNotFoundError extends Error {

@@ -9,8 +9,12 @@ export function validateEmail(email: string): string | null {
   return null;
 }
 
+export const MAX_NAME_LENGTH = 60;
+
 export function validateName(name: string): string | null {
-  return name.trim() ? null : "Entrez le nom à afficher.";
+  if (!name.trim()) return "Entrez le nom à afficher.";
+  if (name.trim().length > MAX_NAME_LENGTH) return `Le nom ne peut pas dépasser ${MAX_NAME_LENGTH} caractères.`;
+  return null;
 }
 
 export interface PasswordChecks {

@@ -101,6 +101,55 @@ Retry-After: 37
 { "error": "rate_limit_exceeded", "limit": 100, "retryAfter": 37 }
 ```
 
+## Users, roles and permissions
+
+Advanced permissions major module, in `backend/src/modules/permissions/` (`roles.service.ts`,
+`permissions.middleware.ts`, `users.*`) and `projects/members.service.ts`.
+
+**Roles are per project** and stored in `project_members.role`, the only source of truth for authorization
+(never an invite, never the JWT): `viewer` < `member` < `admin`. The creator of a project is its owner and is
+always an admin. Every protected route runs `requireAuth`, then `requireRole(min)` (or `requireProjectRole`, which
+first finds the project of a card, list, board or tag). An unknown token gives `401`, a missing or too low role
+`403 insufficient_role`.
+
+| | viewer | member | admin | owner |
+|---|---|---|---|---|
+| Read the board, cards, notes, files, whiteboard, members, tags, search | yes | yes | yes | yes |
+| Create / edit / move / delete cards, lists, tags, notes, folders, files; draw on the whiteboard; link a card to a branch | | yes | yes | yes |
+| Rename the project, add / remove members, change roles, invite links, API keys, Git webhook log, delete the board | | | yes | yes |
+| Delete the project, hand over ownership | | | | yes |
+
+The owner cannot be demoted or removed, and the last admin of a project cannot be demoted or removed
+(`409 owner_role_immutable`, `last_admin`, `cannot_remove_owner`).
+
+**The interface follows the role** (kanban, notes, files and whiteboard are read-only for a viewer; the project
+settings sections are for admins), and the server enforces it anyway.
+
+**Open connections follow it too.** A Socket.IO connection must be a member to join a project room, a note or the
+whiteboard. Viewers can watch but their edits are dropped. The role is looked up again every 30 s
+(`SOCKET_ROLE_TTL_MS`), so a demoted member stops being able to edit, and a removed one stops receiving, without
+reconnecting.
+
+### Users
+
+| Method | Path | Who | Effect |
+|---|---|---|---|
+| `GET` | `/api/users/me` | signed in | `200 { id, email, name }` |
+| `PATCH` | `/api/users/me` | signed in | `{ "name" }` (1 to 60 characters, trimmed) -> `200 { id, email, name }`. The e-mail is the login identity and cannot be changed |
+| `GET` | `/api/users/:userId` | self, or somebody who shares a project | `200 { user: { id, name, avatar, createdAt, projects: [ { id, name, role } ], email? } }`. `email` only for the person themself and the admins of a shared project. Anybody else gets `404` (ids cannot be probed) |
+| `DELETE` | `/api/users/:userId` | self only (`403` otherwise) | `204`. Owning a shared project needs `{ "transferTo": <member id> }` (`400 transfer_target_required`); being the last admin of one needs a handover too (`409 last_admin_of_membership`). Projects with nobody else are deleted with the account |
+
+### Members and roles (project admin)
+
+| Method | Path | Body | Effect |
+|---|---|---|---|
+| `GET` | `/api/projects/:projectId/members` | | any member: the members with their role and profile |
+| `POST` | `/api/projects/:projectId/members` | `{ userId, role }` | adds the user, or changes the role if already a member |
+| `PUT` | `/api/projects/:projectId/members/:userId` | `{ role }` | changes the role of a member (`404 not_a_project_member` for somebody else: it never adds) |
+| `DELETE` | `/api/projects/:projectId/members/:userId` | | removes the member |
+
+The person concerned and the rest of the project are notified of each change.
+
 ## Internal endpoints — notifications
 
 Minor module "Notification system", in `backend/src/modules/notifications/`. JWT routes, called by the bell in
