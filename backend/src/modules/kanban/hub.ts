@@ -2,9 +2,9 @@
 
 import { Server as SocketIOServer } from "socket.io";
 import type { Server as HttpServer } from "http";
-import { broadcastPresence, handleReconnect } from "./presence.js";
+import { broadcastLeftIfGone, handleReconnect } from "./presence.js";
 import { validateJwt, JwtExpiredError } from "../auth/jwt.service.js";
-import { userRoom } from "./broadcast.js";
+import { userRoom } from "./rooms.js";
 import { getUserRole } from "../permissions/roles.service.js";
 import { registerWhiteboardEvents } from "../whiteboard/whiteboard.realtime.js";
 import { registerNoteCollabHandlers } from "../notes/notes.collab.js";
@@ -68,7 +68,7 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
       if (typeof projectId !== "string" || projectId.length === 0) return;
       if (!socket.rooms.has(projectId)) return;
       socket.leave(projectId);
-      broadcastPresence(projectId, socket.data.userId, "left");
+      void broadcastLeftIfGone(projectId, socket.data.userId, socket.id);
       if (socket.data.projectId === projectId) {
         socket.data.projectId = undefined;
       }
@@ -76,7 +76,7 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
 
     socket.on("disconnect", () => {
       if (socket.data.projectId) {
-        broadcastPresence(socket.data.projectId, socket.data.userId, "left");
+        void broadcastLeftIfGone(socket.data.projectId, socket.data.userId, socket.id);
       }
     });
   });

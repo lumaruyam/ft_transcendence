@@ -4,6 +4,7 @@
 import type { Socket } from "socket.io";
 import { prisma } from "../../db/prisma/client.js";
 import { ROLE_RANK, SOCKET_ROLE_TTL_MS, getUserRole, type Role } from "../permissions/roles.service.js";
+import { whiteboardRoom } from "../kanban/rooms.js";
 import { MAX_ELEMENTS_PER_MESSAGE, validateElements } from "./whiteboard.elements.js";
 
 //Per-socket limits: a token bucket for scene updates, a minimum gap between cursor updates.
@@ -11,8 +12,6 @@ const UPDATE_BURST = 40;
 const UPDATE_REFILL_PER_SEC = 20;
 const POINTER_MIN_GAP_MS = 20;
 
-// A separate room from the kanban one: scene traffic is chatty and kanban pages must not receive it.
-const whiteboardRoom = (projectId: string): string => `whiteboard:${projectId}`;
 
 interface JoinedWhiteboard {
 	projectId: string;

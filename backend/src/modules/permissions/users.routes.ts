@@ -7,6 +7,7 @@ import { requireAuth } from "./permissions.middleware.js";
 import { getUser, getVisibleProfile, updateUser, deleteUser, UserNotFoundError, TransferTargetRequiredError, TransferTargetIsSelfError, LastAdminOfMembershipError } from "./users.service.js";
 import { NotAProjectMemberError } from "../projects/projects.service.js";
 import { validateDisplayName } from "../auth/auth.validation.js";
+import { announceMembersChanged, evictFromProject } from "../kanban/membership.events.js";
 
 
 export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
@@ -65,8 +66,13 @@ async function deleteUserHandler(request: FastifyRequest, reply: FastifyReply): 
 	}
 
 	try {
-		await deleteUser(userId, { transferTo: body?.transferTo });
+		const { leftProjectIds } = await deleteUser(userId, { transferTo: body?.transferTo });
 		reply.code(204).send();
+		// their open tabs leave the projects' rooms, and the people still there see the member list change
+		for (const projectId of leftProjectIds) {
+			await evictFromProject(projectId, userId);
+			announceMembersChanged(projectId);
+		}
 		} catch (err) {
 		if (err instanceof UserNotFoundError) {
 			reply.code(404).send({ error: "user_not_found" });

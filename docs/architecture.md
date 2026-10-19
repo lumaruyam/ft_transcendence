@@ -201,7 +201,26 @@ all.
    side mirrors `project_members`, it isn't a separate permission system. The kanban HTTP
    routes enforce the same rule with `requireProjectRole` (`kanban.permissions.ts`):
    viewer to read, member to edit, admin to delete a board.
-5. This is silent state sync — not a user-facing notification (see `notifications/`
+   Presence is per person, not per connection: closing one of two tabs does not announce
+   `left`, only the person's last connection does (`broadcastLeftIfGone`).
+5. Rooms (`kanban/rooms.ts`): the project room (kanban events), `whiteboard:<project>` and
+   `note:<note>` (separate because their traffic is chatty) and `user:<id>` (personal: every
+   tab of one user, used for notifications and for being told one was removed).
+6. Who may be in a project is live too (`kanban/membership.events.ts`). `members_changed`
+   (a member added, a role changed, one removed or leaving) makes open boards reload the
+   member list, which is what decides who may edit; `project_updated` carries a new name.
+   A removed member is **evicted** from every room of the project on all their tabs and
+   gets `removed_from_project`, so they stop receiving events at once; `project_deleted`
+   goes to everybody connected before the rows are deleted, then the rooms are closed.
+   Whiteboard and note sockets also re-read the role every 30 s (`SOCKET_ROLE_TTL_MS`).
+7. Dropped connections: Socket.IO reconnects by itself, and a room lives on the server
+   side socket, so the client (`kanban/wsClient.ts`) joins again on **every** `connect`.
+   Events sent while it was away are not replayed: after a reconnect the board store
+   refetches the project, board, members and tags, and the fresh `presence_snapshot`
+   replaces the list of who is online. While offline the board shows a "Connexion perdue"
+   banner. An expired or invalid token is refused at the handshake (`unauthorized`,
+   `token_expired`) and sends the user back to the login page.
+8. This is silent state sync — not a user-facing notification (see `notifications/`
    for that, triggered separately by the mutation itself, not by the broadcast).
 
 ## 7. Git webhook-to-card-status automation flow

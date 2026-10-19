@@ -109,8 +109,9 @@ export interface DeleteUserOptions {
 
 // deleteUser removes a user account and transfer owner if there's another member
 // in the project, then delete the user
-export async function deleteUser(id: string, options: DeleteUserOptions = {}): Promise<void> {
-	await prisma.$transaction(
+// Returns the projects the user was a member of and that go on without them: their other members need to know.
+export async function deleteUser(id: string, options: DeleteUserOptions = {}): Promise<{ leftProjectIds: string[] }> {
+	return prisma.$transaction(
 		async (tx) => {
 				const user = await tx.user.findUnique({ where: { id } });
 				if (!user) {
@@ -173,7 +174,10 @@ export async function deleteUser(id: string, options: DeleteUserOptions = {}): P
 
 				await tx.notification.deleteMany({ where: { userId: id } });
 				await tx.apiKey.deleteMany({ where: { userId: id } });
+				const memberOf = await tx.projectMember.findMany({ where: { userId: id }, select: { projectId: true } });
+				const deleted = new Set(soloProjects.map((project) => project.id));
 				await tx.user.delete({ where: { id } });
+				return { leftProjectIds: memberOf.map((m) => m.projectId).filter((projectId) => !deleted.has(projectId)) };
 		},
 		{ isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
 	);

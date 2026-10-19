@@ -17,6 +17,7 @@ import { requireAuth, requireRole } from "../permissions/permissions.middleware.
 import { ROLES, ROLE_RANK, getUserRole, type Role } from "../permissions/roles.service.js";
 import { getUser } from "../permissions/users.service.js";
 import { notifyProject } from "../notifications/notifications.service.js";
+import { announceMembersChanged, announceProjectDeleted, announceProjectUpdated, evictFromProject } from "../kanban/membership.events.js";
 import { createProject, getProject, updateProject, deleteProject, listProjectsForUser, transferProjectOwnership, InvalidProjectInputError, NotAProjectMemberError, type CreateProjectInput, type UpdateProjectInput, } from "./projects.service.js";
 import { addMember, removeMember, listMembers, UserNotFoundError, LastAdminError, OwnerRoleError } from "./members.service.js";
 
@@ -82,6 +83,7 @@ async function updateProjectHandler(request: FastifyRequest, reply: FastifyReply
 	try {
 		const project = await updateProject(projectId, { name: body?.name });
 		reply.code(200).send({ project });
+		announceProjectUpdated(project);
 		if (body?.name !== undefined) {
 			void notifyProject({ projectId, actorId: request.userId as string, type: "project_updated", text: `a renommé le projet en « ${project.name} »`, entityId: projectId, path: `/app/${projectId}`, coalesce: true });
 		}
@@ -108,6 +110,7 @@ async function deleteProjectHandler(request: FastifyRequest, reply: FastifyReply
 	}
 	//the members are deleted with the project: they are told before, and there is no page left to open
 	await notifyProject({ projectId, actorId: request.userId as string, type: "project_deleted", text: `a supprimé le projet « ${project.name} »`, entityId: projectId, path: null });
+	await announceProjectDeleted(projectId);
 	await deleteProject(projectId);
 	reply.code(204).send();
 }
@@ -185,6 +188,7 @@ async function applyMemberRole(request: FastifyRequest, reply: FastifyReply, pro
 		const previousRole = await getUserRole(projectId, userId);
 		await addMember(projectId, userId, role);
 		reply.code(204).send();
+		announceMembersChanged(projectId);
 		void tellMemberChange(request, projectId, userId, previousRole === null ? "added" : "role", role);
 	} catch (err) {
 		if (err instanceof UserNotFoundError) {
@@ -210,6 +214,8 @@ async function removeMemberHandler(request: FastifyRequest, reply: FastifyReply)
 		const wasMember = (await getUserRole(projectId, userId)) !== null;
 		await removeMember(projectId, userId);
 		reply.code(204).send();
+		await evictFromProject(projectId, userId);
+		announceMembersChanged(projectId);
 		if (wasMember) void tellMemberChange(request, projectId, userId, "removed");
 	} catch (err) {
 		if (err instanceof LastAdminError) {

@@ -19,8 +19,8 @@ export interface SocketConnection {
 
 // createSocketConnection opens a Socket.IO connection to the backend hub and returns a handle for emitting/subscribing
 // url is the server origin (pass window.location.origin).
-// The JWT travels in the handshake auth payload (socket.handshake.auth.token); hub.ts does not verify it
-// yet (TODO there), so until it does, the backend accepts any connection.
+// The JWT travels in the handshake auth payload (socket.handshake.auth.token). hub.ts verifies it before accepting
+// the connection and refuses it with the error message "unauthorized" or "token_expired" (see onConnectError).
 export function createSocketConnection(url: string, authToken: string): SocketConnection {
 	// Socket.IO's built-in reconnection (with backoff) replaces the manual reconnect logic a raw WebSocket wrapper would need
 	const socket = io(url, { auth: { token: authToken }});

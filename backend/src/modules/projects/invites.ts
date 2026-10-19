@@ -28,6 +28,7 @@ import { requireAuth, requireRole } from "../permissions/permissions.middleware.
 import { getUserRole, ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js";
 import { addMember } from "./members.service.js";
 import { notifyProject } from "../notifications/notifications.service.js";
+import { announceMembersChanged } from "../kanban/membership.events.js";
 
 // INVITE_JOIN_RATE_LIMIT is the dedicated @fastify/rate-limit policy for POST
 // /api/projects/invites/:token/join, registered as this route's `config.rateLimit` override
@@ -266,6 +267,7 @@ async function joinInviteHandler(request: FastifyRequest, reply: FastifyReply): 
 	try {
 		const projectId = await joinInvite(token, request.userId as string);
 		reply.code(204).send();
+		announceMembersChanged(projectId);
 		void notifyProject({ projectId, actorId: request.userId as string, type: "member_joined", text: "a rejoint le projet", entityId: request.userId as string, path: `/app/${projectId}` });
 	} catch (err) {
 		if (err instanceof InviteNotFoundError) {

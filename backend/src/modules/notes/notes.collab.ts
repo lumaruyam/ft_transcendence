@@ -3,6 +3,7 @@
 import type { Socket } from "socket.io";
 import * as Y from "yjs";
 import { getIOIfReady } from "../kanban/hub.js";
+import { noteRoom } from "../kanban/rooms.js";
 import { getUserRole, ROLE_RANK, SOCKET_ROLE_TTL_MS, type Role } from "../permissions/roles.service.js";
 import { getNoteProjectId, loadNoteDoc, saveNoteDoc } from "./notes.service.js";
 
@@ -32,7 +33,7 @@ interface AwarenessMessage {
 const live = new Map<string, LiveNote>();
 const loading = new Map<string, Promise<LiveNote>>();
 
-const roomOf = (noteId: string): string => `note:${noteId}`;
+const roomOf = noteRoom;
 
 export function registerNoteCollabHandlers(socket: Socket): void {
 	//cached role per joined note refreshed so a demotion or removal takes effect
