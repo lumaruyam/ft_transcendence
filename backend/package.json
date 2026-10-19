@@ -24,7 +24,6 @@
     "@fastify/helmet": "^13.0.0",
     "@fastify/multipart": "^10.0.0",
     "@fastify/rate-limit": "^11.0.0",
-    "@gitbeaker/rest": "^40.0.0",
     "@prisma/client": "^5.0.0",
     "@tiptap/core": "^3.31.4",
     "@tiptap/pm": "^3.31.4",

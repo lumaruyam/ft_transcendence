@@ -67,11 +67,15 @@ If time remains after the core plan above is fully working, the team may attempt
 
 Boards, lists, and cards. Every mutation (create, edit, move, delete) is written to the database and then broadcast over WebSocket (Socket.IO) to everyone currently viewing that project, so their screen updates without a page refresh. This broadcast is silent state sync, not a user-facing notification. Presence (who's currently online) is tracked the same way: broadcast a "joined"/"left" event on connect/disconnect.
 
-### 3.2 Whiteboard (save-and-share, not live in the core plan)
+### 3.2 Whiteboard (save-and-share in the core plan; live collaboration was added later)
+
+> **Status:** the live editing described as a stretch goal was built: strokes are relayed over Socket.IO and merged on the server (`whiteboard.realtime.ts`, `whiteboard.elements.ts`). The text below is the original plan.
 
 Built on the open-source Excalidraw component. One user draws at a time; there is no live syncing of strokes as they're drawn in the core plan. The scene is stored as Excalidraw's own JSON in the database (one `whiteboards` row per project) and autosaved on a debounce timer once the user stops drawing, so the board stays re-editable for whoever opens it next — the same load-latest / autosave / last-save-wins shape as the notes page below. No WebSocket involvement and no conflict handling. Exporting the board to an image is available through Excalidraw's own menu, as a client-side download; it does not go through the File upload module.
 
-### 3.3 Shared notes (save-and-share, not live)
+### 3.3 Shared notes (save-and-share, not live in the core plan)
+
+> **Status:** notes are edited live with Yjs and Tiptap (`notes.collab.ts`), which this plan had put out of scope. The text below is the original plan.
 
 A Notion-style rich text page per project, built with a rich text editor library. Content is stored as structured data (JSON) in the database. Whoever opens a note loads the latest saved version; edits autosave periodically (e.g. on a debounce timer after typing stops), which is a normal HTTP request, not a live socket connection. If two people edit the same note around the same time, the most recent save wins. True simultaneous co-editing (multiple cursors typing in the same paragraph at once) is intentionally out of scope for the same reason as the whiteboard's core scope — it needs the same class of conflict-resolution machinery (CRDT/OT) applied to a harder problem.
 
@@ -82,13 +86,13 @@ Links Kanban cards to Git branches; listens to GitHub webhooks and automatically
 ## 4. Tech stack
 
 - **Backend: Node.js + TypeScript**, built on **Fastify**. Key libraries: **Socket.IO** for the Kanban WebSocket hub, **jsonwebtoken** (or `jose`) for auth tokens, **Octokit** for GitHub API calls, **Prisma** for database access (covers the ORM module), and **`@fastify/rate-limit`** as the standardized rate-limiting strategy for all routes (global default plus per-route overrides, e.g. the invite join endpoint — see `docs/architecture.md` "Rate limiting strategy"). This replaces the project's original Go-based plan (`gorilla/websocket`, `golang-jwt`, `go-github`, `chi`, GORM) — chosen instead for a TypeScript-first stack shared end-to-end with the frontend, and for Prisma's typed schema/migration workflow. All backend REST routes are mounted under the canonical `/api` base path (not `/api/v1`) — see `docs/api-spec.md`.
-- **Frontend: vanilla TypeScript, or Svelte if the Kanban UI's drag-and-drop and reactivity get unwieldy in plain DOM code.** No React as the app's primary framework.
+- **Frontend: Svelte 5 with TypeScript, built by Vite as a multi-page app** (decided: the kanban's drag-and-drop, live updates and per-role read-only mode are not manageable in plain DOM code). No React as the app's primary framework. See `docs/tech-stack.md`.
 - **Whiteboard: the `@excalidraw/excalidraw` package**, mounted as a small isolated React tree just on the whiteboard page/route, since Excalidraw ships as a React component.
-- **Notes: a rich text editor library such as Tiptap**, framework-agnostic, integrates cleanly with vanilla TS or Svelte without needing a React mount point.
+- **Notes: Tiptap** (framework-agnostic, integrates with Svelte without a React mount point), edited live with Yjs (see section 3.3: the live editing that was first out of scope was built).
 - **Real-time sync: Socket.IO, no CRDT or operational transform, used by Kanban.** Every card mutation is broadcast immediately after being saved to the database.
 - **Database: PostgreSQL**, accessed through **Prisma**.
 - **Auth: email/password with hashed and salted passwords as the mandatory baseline, plus JWT for session tokens, plus OAuth2 (GitHub) as an additional login method** — OAuth doubles as the credential source for Git integration.
-- **CSS: a CSS framework or styling solution chosen by the team** (e.g. Tailwind CSS), applied consistently across Kanban, whiteboard, and notes pages.
+- **CSS: a custom design system** (CSS variables, light and dark themes, shared Svelte components in `frontend/src/shared/ui/`), applied consistently across Kanban, whiteboard, and notes pages.
 - **Infra: Docker Compose**, with containers for the frontend build, the Node.js backend (which also hosts the Socket.IO WebSocket hub on the same HTTP server), PostgreSQL, and a reverse proxy (e.g. Nginx) handling HTTPS termination for all browser-facing traffic.
 
 ## 5. Database schema outline
