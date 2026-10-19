@@ -3,6 +3,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
 import { answer } from "./documentError.js";
+import { notifyProject } from "../notifications/notifications.service.js";
 import { copyFolder } from "./folders.copy.js";
 import {
 	createFolder,
@@ -78,7 +79,13 @@ async function createHandler(request: FastifyRequest, reply: FastifyReply): Prom
 			parentId: body.parentId ?? null,
 		});
 		reply.code(201).send({ folder });
+		tell(request, projectId, "folder_created", `a créé le dossier « ${folder.name} »`, folder.id);
 	});
+}
+
+//the members hear about a change of the folder tree once it has succeeded
+function tell(request: FastifyRequest, projectId: string, type: string, text: string, entityId: string, coalesce = false): void {
+	void notifyProject({ projectId, actorId: request.userId as string, type, text, entityId, path: `/app/${projectId}/files`, coalesce });
 }
 
 async function updateHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -87,14 +94,16 @@ async function updateHandler(request: FastifyRequest, reply: FastifyReply): Prom
 	await answer(reply, async () => {
 		const folder = await updateFolder(projectId, id, body);
 		reply.code(200).send({ folder });
+		tell(request, projectId, "folder_updated", body.name !== undefined ? `a renommé le dossier « ${folder.name} »` : `a déplacé le dossier « ${folder.name} »`, id, true);
 	});
 }
 
 async function deleteHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId, id } = request.params as { projectId: string; id: string };
 	await answer(reply, async () => {
-		await deleteFolder(projectId, id);
+		const folder = await deleteFolder(projectId, id);
 		reply.code(204).send();
+		tell(request, projectId, "folder_deleted", `a supprimé le dossier « ${folder.name} »`, id);
 	});
 }
 
@@ -104,5 +113,6 @@ async function copyHandler(request: FastifyRequest, reply: FastifyReply): Promis
 	await answer(reply, async () => {
 		const folder = await copyFolder(projectId, request.userId as string, id, parentId ?? null);
 		reply.code(201).send({ folder });
+		tell(request, projectId, "folder_created", `a copié le dossier « ${folder.name} »`, folder.id);
 	});
 }

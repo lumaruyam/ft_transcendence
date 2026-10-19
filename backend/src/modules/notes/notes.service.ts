@@ -10,6 +10,7 @@ import { notifyDocumentsChanged } from "../folders/documentEvents.js";
 import { DocumentError } from "../folders/documentError.js";
 import { cardInProject } from "../folders/folders.service.js";
 import { extractPlainText } from "../search/search.service.js";
+import { notifyProject } from "../notifications/notifications.service.js";
 
 //must match the fragment name used by the Tiptap Collaboration extension
 const FIELD = "default";
@@ -140,10 +141,23 @@ export async function loadNoteDoc(noteId: string): Promise<Y.Doc> {
 export async function saveNoteDoc(noteId: string, doc: Y.Doc, userId: string | null): Promise<void> {
 	const yjsState = Buffer.from(Y.encodeStateAsUpdate(doc));
 	const contentJson = yDocToProsemirrorJSON(doc, FIELD) as unknown as Prisma.InputJsonObject;
-	await prisma.note.update({
+	const note = await prisma.note.update({
 		where: { id: noteId },
 		data: { yjsState, contentJson, ...(userId ? { updatedBy: userId } : {}) },
+		select: { projectId: true, title: true },
 	});
+	//the live editor saves every few seconds while people type: the notification is refreshed, not repeated
+	if (userId) {
+		void notifyProject({
+			projectId: note.projectId,
+			actorId: userId,
+			type: "note_updated",
+			text: `a modifié la note « ${note.title} »`,
+			entityId: noteId,
+			path: `/app/${note.projectId}/notes/${noteId}`,
+			coalesce: true,
+		});
+	}
 }
 
 async function requireNote(projectId: string, noteId: string): Promise<void> {

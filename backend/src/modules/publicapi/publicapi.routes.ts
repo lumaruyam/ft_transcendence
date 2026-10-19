@@ -11,6 +11,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireRole } from "../permissions/permissions.middleware.js";
 import { ROLES } from "../permissions/roles.service.js";
 import { createCard, updateCard, deleteCard } from "../kanban/card.service.js";
+import { notifyProject } from "../notifications/notifications.service.js";
 import { requireApiKey, enforceKeyProjectScope, API_KEY_ROUTE_CONSTRAINT } from "./apikey.middleware.js";
 import { rateLimitMiddleware } from "./ratelimit.middleware.js";
 import { registerApiKeyManagementRoutes } from "./apikeys.routes.js";
@@ -30,6 +31,28 @@ export async function registerPublicApiRoutes(app: FastifyInstance): Promise<voi
 
 	// JWT-authenticated key management (issue/list/revoke)
 	await app.register(registerApiKeyManagementRoutes);
+}
+
+// Cards changed through the API are told to the project like the ones changed in the app. The actor is the
+// owner of the key; a key with no user gets an impersonal sentence instead.
+function tellProject(
+	request: FastifyRequest,
+	projectId: string,
+	type: string,
+	entityId: string,
+	text: { named: string; anonymous: string },
+	coalesce = false,
+): void {
+	const actorId = request.apiKey?.userId ?? null;
+	void notifyProject({
+		projectId,
+		actorId,
+		type,
+		text: actorId ? text.named : text.anonymous,
+		entityId,
+		path: `/app/${projectId}`,
+		coalesce,
+	});
 }
 
 // getProjectsHandler lists the caller's projects — GET /api/projects
@@ -71,6 +94,10 @@ async function createCardHandler(request: FastifyRequest, reply: FastifyReply): 
 	// Broadcasting to the project's Socket.IO room happens inside kanban's createCard
 	const card = await createCard(body.value);
 	reply.code(201).send({ card: toPublicCard(card, projectId) });
+	tellProject(request, projectId, "card_created", card.id, {
+		named: `a créé la carte « ${card.title} » via l'API`,
+		anonymous: `Une carte a été créée via l'API : « ${card.title} »`,
+	});
 }
 
 // updateCardHandler updates a card via the public API — PUT /api/projects/{id}/cards/{cardId}
@@ -95,6 +122,10 @@ async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): 
 		return;
 	}
 	reply.code(200).send({ card: toPublicCard(card, projectId) });
+	tellProject(request, projectId, "card_updated", card.id, {
+		named: `a modifié la carte « ${card.title} » via l'API`,
+		anonymous: `Une carte a été modifiée via l'API : « ${card.title} »`,
+	}, true);
 }
 
 // deleteCardHandler deletes a card via the public API — DELETE /api/projects/{id}/cards/{cardId}
@@ -106,8 +137,14 @@ async function deleteCardHandler(request: FastifyRequest, reply: FastifyReply): 
 		return;
 	}
 
-	await deleteCard(cardId);
+	const deleted = await deleteCard(cardId);
 	reply.code(204).send();
+	if (deleted) {
+		tellProject(request, projectId, "card_deleted", cardId, {
+			named: `a supprimé la carte « ${deleted.title} » via l'API`,
+			anonymous: `Une carte a été supprimée via l'API : « ${deleted.title} »`,
+		});
+	}
 }
 
 

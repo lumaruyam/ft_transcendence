@@ -14,6 +14,15 @@ export function broadcastToProject(projectId: string, event: KanbanEvent): void 
   getIOIfReady()?.to(projectId).emit(event.type, event.payload);
 }
 
+// broadcastToUser sends an event to every open tab of one user (each connection joins its user's room, see hub.ts).
+export function broadcastToUser(userId: string, event: KanbanEvent): void {
+  getIOIfReady()?.to(userRoom(userId)).emit(event.type, event.payload);
+}
+
+export function userRoom(userId: string): string {
+  return `user:${userId}`;
+}
+
 // buildCardMutationEvent constructs the event payload for a card create/update/move/delete, called from card.service.ts.
 export function buildCardMutationEvent(eventType: string, card: Card): KanbanEvent {
   return { type: eventType, payload: card };

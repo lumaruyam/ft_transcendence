@@ -2,6 +2,7 @@
 //Responsible for: loading and autosaving a project's Excalidraw scene, stored as JSON so it stays re-editable. Saves are merged element by element.
 import type { Whiteboard, WhiteboardFile, Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
+import { notifyProject } from "../notifications/notifications.service.js";
 import { MAX_ELEMENTS_PER_SCENE, mergeScene, validateElements, type SceneElement } from "./whiteboard.elements.js";
 
 //load a project's saved scene, or null if nobody has drawn yet.
@@ -19,7 +20,7 @@ export async function saveWhiteboard(
 	sceneJson: Prisma.InputJsonObject,
 	elements: SceneElement[],
 ): Promise<Whiteboard> {
-	return prisma.$transaction(async (tx) => {
+	const whiteboard = await prisma.$transaction(async (tx) => {
 		//lock the row so two simultaneous saves merge one after the other instead of both reading the old scene
 		await tx.$queryRaw`SELECT id FROM whiteboards WHERE project_id = ${projectId} FOR UPDATE`;
 		const existing = await tx.whiteboard.findUnique({ where: { projectId } });
@@ -34,6 +35,17 @@ export async function saveWhiteboard(
 			create: { projectId, sceneJson: scene, updatedBy: userId },
 		});
 	});
+	//the board autosaves while someone draws: the notification is refreshed, not repeated
+	void notifyProject({
+		projectId,
+		actorId: userId,
+		type: "whiteboard_updated",
+		text: "a modifié le tableau blanc",
+		entityId: whiteboard.id,
+		path: `/app/${projectId}/whiteboard`,
+		coalesce: true,
+	});
+	return whiteboard;
 }
 
 export class SceneTooLargeError extends Error {}

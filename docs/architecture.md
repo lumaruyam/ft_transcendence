@@ -222,7 +222,7 @@ all.
    calling back into `kanban/card.service.ts` so the move also broadcasts over
    Socket.IO exactly like a user-driven move would (§6) — clients don't need to know
    the difference.
-5. A notification fires via `notifications.service.ts` once the card moves.
+5. A notification fires via `notifications.service.ts` (`notifyProject`) once the card moves; the same dispatcher serves every other action, see the notifications section of `docs/api-spec.md`.
 
 ## 8. Rate limiting strategy
 

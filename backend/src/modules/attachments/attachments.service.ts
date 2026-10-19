@@ -9,7 +9,7 @@ import { prisma } from "../../db/prisma/client.js";
 import { DocumentError } from "../folders/documentError.js";
 import { notifyDocumentsChanged } from "../folders/documentEvents.js";
 import { assertFolderUsable, cardInProject } from "../folders/folders.service.js";
-import { createNotification } from "../notifications/notifications.service.js";
+import { notifyProject } from "../notifications/notifications.service.js";
 
 // /app/uploads inside the container, backend/uploads locally (both gitignored).
 const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
@@ -92,27 +92,16 @@ export async function uploadAttachment(uploadedBy: string, input: UploadAttachme
 		include: { cardLinks: { select: { cardId: true } } },
 	});
 
-	await notifyProjectMembers(attachment, uploadedBy);
+	void notifyProject({
+		projectId: attachment.projectId,
+		actorId: uploadedBy,
+		type: "file_uploaded",
+		text: `a ajouté le fichier « ${attachment.fileName} »`,
+		entityId: attachment.id,
+		path: `/app/${attachment.projectId}/files`,
+	});
 	if (input.cardId) notifyDocumentsChanged(input.projectId);
 	return withLinks(attachment);
-}
-
-//Everyone on the project except the uploader hears about a new file.
-async function notifyProjectMembers(attachment: Attachment, uploadedBy: string): Promise<void> {
-	const members = await prisma.projectMember.findMany({
-		where: { projectId: attachment.projectId, userId: { not: uploadedBy } },
-		select: { userId: true },
-	});
-
-	await Promise.all(
-		members.map((member) =>
-			createNotification(member.userId, "file_uploaded", {
-				attachmentId: attachment.id,
-				projectId: attachment.projectId,
-				fileName: attachment.fileName,
-			}),
-		),
-	);
 }
 
 export async function listAttachments(projectId: string, cardId?: string): Promise<AttachmentWithLinks[]> {

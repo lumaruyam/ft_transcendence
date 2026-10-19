@@ -7,7 +7,7 @@
 import { prisma } from "../../db/prisma/client.js";
 import { updateCard } from "../kanban/card.service.js";
 import { normalizeRepoUrl } from "./branchLink.service.js";
-import { createNotification } from "../notifications/notifications.service.js";
+import { notifyProject } from "../notifications/notifications.service.js";
 
 export const CARD_STATUS = {
     todo: "todo",
@@ -62,29 +62,19 @@ export async function processPushEvent(payload: GitHubPushPayload): Promise<void
     await transitionCardStatus(cardId, CARD_STATUS.inProgress, { onlyFrom: [CARD_STATUS.todo] });
 }
 
-async function dispatchCardNotification(cardId: string, message: string, url?: string): Promise<void> {
-  try {
-    // find the project the card belongs to
+// the whole project hears about what GitHub did to a card; the change has no acting user, so the message is the
+// whole sentence and nobody is left out. `url` (the pull request) is opened in a new tab from the notification.
+async function dispatchCardNotification(cardId: string, type: string, message: string, url?: string): Promise<void> {
     const card = await prisma.card.findUnique({
-      where: { id: cardId },
-      select: { list: { select: { board: { select: { projectId: true } } } } },
+        where: { id: cardId },
+        select: { list: { select: { board: { select: { projectId: true } } } } },
     });
     const projectId = card?.list?.board?.projectId;
     if (!projectId) {
         console.warn(`[Notif] Project not found for card ${cardId}`);
         return;
     }
-    const members = await prisma.projectMember.findMany({
-        where: { projectId },
-        select: { userId: true },
-    });
-    // every member is told: the change comes from GitHub, so there is no acting user to leave out
-    await Promise.all(
-        members.map((member) =>
-            createNotification(member.userId, "card", { cardId, message, url: url ?? null })));
-  } catch (err) {
-    console.warn(`[Notif] Failed to dispatch for card ${cardId}:`, err);
-  }
+    await notifyProject({ projectId, actorId: null, type, text: message, entityId: cardId, path: url ?? `/app/${projectId}` });
 }
 
 // processPullRequestEvent handles a `pull_request` webhook payload (opened or reopened).
@@ -97,7 +87,7 @@ export async function processPullRequestEvent(payload: GitHubPullRequestPayload)
         return;
     const moved = await transitionCardStatus(cardId, CARD_STATUS.prPending, { prUrl: pull_request.html_url, prStatus: 'open' });
     if (moved)
-        await dispatchCardNotification(cardId, `Pull request ${action}: "${pull_request.title}"`, pull_request.html_url);
+        await dispatchCardNotification(cardId, "git_pr_opened", `Pull request ${action === 'reopened' ? 'rouverte' : 'ouverte'} : « ${pull_request.title} ». La carte passe en « ${CARD_STATUS.prPending} »`, pull_request.html_url);
 }
 
 // processMergeEvent handles a merged pull request: the card is Done once the branch reaches the default branch.
@@ -113,7 +103,7 @@ export async function processMergeEvent(payload: GitHubPullRequestPayload): Prom
         return;
     const moved = await transitionCardStatus(cardId, CARD_STATUS.done, { prUrl: pull_request.html_url, prStatus: 'merged' });
     if (moved)
-        await dispatchCardNotification(cardId, `Pull request merged: "${pull_request.title}". Card moved to Done.`, pull_request.html_url);
+        await dispatchCardNotification(cardId, "git_pr_merged", `Pull request fusionnée : « ${pull_request.title} ». La carte passe en « ${CARD_STATUS.done} »`, pull_request.html_url);
 }
 
 // processClosedWithoutMergeEvent handles a pull request closed without merging: the work is not done,
@@ -127,7 +117,7 @@ export async function processClosedWithoutMergeEvent(payload: GitHubPullRequestP
         return;
     const moved = await transitionCardStatus(cardId, CARD_STATUS.inProgress, { prStatus: 'closed', onlyFrom: [CARD_STATUS.prPending] });
     if (moved)
-        await dispatchCardNotification(cardId, `Pull request closed without merge: "${pull_request.title}"`, pull_request.html_url);
+        await dispatchCardNotification(cardId, "git_pr_closed", `Pull request fermée sans fusion : « ${pull_request.title} ». La carte repasse en « ${CARD_STATUS.inProgress} »`, pull_request.html_url);
 }
 
 // matchCardByGitLink finds the card linked to a given repo+branch, per the git_links table.

@@ -62,7 +62,7 @@ export async function updateFolder(
 	return prisma.folder.update({ where: { id }, data });
 }
 
-export async function deleteFolder(projectId: string, id: string): Promise<void> {
+export async function deleteFolder(projectId: string, id: string): Promise<Folder> {
 	const folder = await prisma.folder.findFirst({
 		where: { id, projectId },
 		include: { _count: { select: { children: true, attachments: true } } },
@@ -70,7 +70,7 @@ export async function deleteFolder(projectId: string, id: string): Promise<void>
 	if (!folder) throw new DocumentError("folder_not_found", 404);
 	const { children, attachments } = folder._count;
 	if (children + attachments > 0) throw new DocumentError("folder_not_empty", 409);
-	await prisma.folder.delete({ where: { id } });
+	return prisma.folder.delete({ where: { id } });
 }
 
 export async function assertFolderUsable(projectId: string, folderId: string | null): Promise<void> {

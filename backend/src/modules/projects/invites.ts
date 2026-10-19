@@ -27,6 +27,7 @@ import { prisma } from "../../db/prisma/client.js";
 import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
 import { getUserRole, ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js";
 import { addMember } from "./members.service.js";
+import { notifyProject } from "../notifications/notifications.service.js";
 
 // INVITE_JOIN_RATE_LIMIT is the dedicated @fastify/rate-limit policy for POST
 // /api/projects/invites/:token/join, registered as this route's `config.rateLimit` override
@@ -145,9 +146,9 @@ export async function createInvite(
 
 // joinInvite is called when a logged-in user redeems an invite token. This is the only place
 // invite validity is checked; once it succeeds, the invite is irrelevant to future authorization
-export async function joinInvite(token: string, userId: string): Promise<void> {
+export async function joinInvite(token: string, userId: string): Promise<string> {
 	const tokenHash = hashToken(token);
-	await prisma.$transaction(async (tx) => {
+	return prisma.$transaction(async (tx) => {
 		const invite = await tx.projectInvite.findUnique({ where: { tokenHash } });
 
 	if (!invite) {
@@ -182,6 +183,7 @@ export async function joinInvite(token: string, userId: string): Promise<void> {
 	// addMember (members.service.ts) inserts the row into project_members
 	// which is what authorization reads from now on, never this invite again
 	await addMember(invite.projectId, userId, invite.role as Role, tx);
+	return invite.projectId;
 	});
 }
 
@@ -262,8 +264,9 @@ async function joinInviteHandler(request: FastifyRequest, reply: FastifyReply): 
 	const { token } = request.params as { token: string };
 
 	try {
-		await joinInvite(token, request.userId as string);
+		const projectId = await joinInvite(token, request.userId as string);
 		reply.code(204).send();
+		void notifyProject({ projectId, actorId: request.userId as string, type: "member_joined", text: "a rejoint le projet", entityId: request.userId as string, path: `/app/${projectId}` });
 	} catch (err) {
 		if (err instanceof InviteNotFoundError) {
 			reply.code(404).send({ error: "invite_not_found" });

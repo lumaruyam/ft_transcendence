@@ -1,7 +1,9 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import Popover from "./Popover.svelte";
-  import { listNotifications, markNotificationRead } from "../../api/accountApi";
+  import { listNotifications, markAllNotificationsRead, markNotificationRead } from "../../api/accountApi";
+  import { createSocketConnection } from "../../api/wsClientWrapper";
+  import { getStoredToken } from "../../auth/authClient";
   import type { NotificationRow } from "../../api/types";
   import { timeAgo } from "../format";
   import { toast } from "../toast.svelte";
@@ -18,11 +20,14 @@
     return () => clearTimeout(timer);
   });
 
-  const unread = $derived(items.filter((n) => !n.readAt).length);
+  // total unread on the server: the list only holds the newest ones
+  let unread = $state(0);
 
   async function refresh(): Promise<void> {
     try {
-      items = (await listNotifications()).slice(0, 30);
+      const result = await listNotifications();
+      items = result.notifications;
+      unread = result.unreadCount;
       failed = false;
     } catch {
       failed = true;
@@ -38,30 +43,61 @@
     return () => window.removeEventListener("focus", onFocus);
   });
 
+  // new notifications arrive live: this tab has its own connection, joined to the user's personal room on the server
+  $effect(() => {
+    const token = getStoredToken();
+    if (!token) return;
+    const connection = createSocketConnection(window.location.origin, token);
+    connection.onAny((event, data) => {
+      if (event !== "notification") return;
+      const incoming = data as NotificationRow;
+      const known = items.findIndex((n) => n.id === incoming.id);
+      if (known >= 0) {
+        // an update of a notification that is still unread: it goes back on top with its new wording
+        items = [incoming, ...items.filter((n) => n.id !== incoming.id)];
+      } else {
+        items = [incoming, ...items].slice(0, 30);
+        unread += 1;
+      }
+    });
+    // a stale or invalid token will not get better by retrying: the HTTP calls handle the sign-in redirect
+    connection.onConnectError((error) => {
+      if (error.message === "token_expired" || error.message === "unauthorized") connection.disconnect();
+    });
+    return () => connection.disconnect();
+  });
+
   async function read(item: NotificationRow): Promise<void> {
     if (item.readAt) return;
     item.readAt = new Date().toISOString();
+    unread = Math.max(0, unread - 1);
     try {
       await markNotificationRead(item.id);
     } catch {
       item.readAt = null;
+      unread += 1;
     }
   }
 
   async function readAll(): Promise<void> {
-    const pending = items.filter((n) => !n.readAt);
-    pending.forEach((n) => (n.readAt = new Date().toISOString()));
-    const results = await Promise.allSettled(pending.map((n) => markNotificationRead(n.id)));
-    if (results.some((r) => r.status === "rejected")) {
-      toast("Certaines notifications n'ont pas pu être marquées comme lues.", { kind: "error" });
+    const now = new Date().toISOString();
+    items.forEach((n) => (n.readAt ??= now));
+    unread = 0;
+    try {
+      await markAllNotificationsRead();
+    } catch {
+      toast("Les notifications n'ont pas pu être marquées comme lues.", { kind: "error" });
       await refresh();
     }
   }
 
-  function safeUrl(url: unknown): string | null {
+  // an in-app path opens in this tab, an absolute http(s) address (GitHub) in a new one; anything else is ignored
+  function target(url: unknown): { href: string; external: boolean } | null {
+    const raw = String(url ?? "");
+    if (raw.startsWith("/") && !raw.startsWith("//")) return { href: raw, external: false };
     try {
-      const parsed = new URL(String(url ?? ""));
-      return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
+      const parsed = new URL(raw);
+      return parsed.protocol === "https:" || parsed.protocol === "http:" ? { href: parsed.href, external: true } : null;
     } catch {
       return null;
     }
@@ -97,14 +133,21 @@
       {:else if failed && items.length === 0}
         <p class="empty">Impossible de charger les notifications.</p>
       {:else if items.length === 0}
-        <p class="empty">Rien pour l'instant. Les mises à jour de vos cartes apparaîtront ici.</p>
+        <p class="empty">Rien pour l'instant. Les changements de vos projets apparaîtront ici.</p>
       {:else}
         {#each items as item (item.id)}
-          {@const url = safeUrl(item.payload.url)}
-          {#if url}
-            <a class="row" class:unread={!item.readAt} href={url} target="_blank" rel="noopener noreferrer" onclick={() => read(item)}>
+          {@const link = target(item.payload.url)}
+          {#if link}
+            <a
+              class="row"
+              class:unread={!item.readAt}
+              href={link.href}
+              target={link.external ? "_blank" : undefined}
+              rel={link.external ? "noopener noreferrer" : undefined}
+              onclick={() => read(item)}
+            >
               {@render content(item)}
-              <Icon name="external" size={14} />
+              {#if link.external}<Icon name="external" size={14} />{/if}
             </a>
           {:else}
             <button type="button" class="row" class:unread={!item.readAt} onclick={() => read(item)}>
@@ -121,7 +164,7 @@
   <span class="dot" aria-hidden="true"></span>
   <span class="body">
     <span class="msg">{item.payload.message ?? "Une carte a été mise à jour."}</span>
-    <span class="time">{timeAgo(item.createdAt)}</span>
+    <span class="time">{item.payload.projectName ? `${item.payload.projectName} · ` : ""}{timeAgo(item.createdAt)}</span>
   </span>
 {/snippet}
 

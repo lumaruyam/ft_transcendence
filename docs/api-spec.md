@@ -96,6 +96,45 @@ Retry-After: 37
 { "error": "rate_limit_exceeded", "limit": 100, "retryAfter": 37 }
 ```
 
+## Internal endpoints — notifications
+
+Minor module "Notification system", in `backend/src/modules/notifications/`. JWT routes, called by the bell in
+the app header (`frontend/src/shared/ui/NotificationsBell.svelte`).
+
+| Method | Path | Success |
+|---|---|---|
+| `GET` | `/api/notifications?limit=` (1 to 100, default 50) | `200 { "notifications": [ Notification ], "unreadCount" }`, newest first |
+| `PUT` | `/api/notifications/:id/read` | `204`, `404 notification_not_found` for an id that is not the caller's |
+| `PUT` | `/api/notifications/read-all` | `200 { "updated" }` |
+
+A `Notification` is `{ id, userId, type, payload, readAt, createdAt }`, with
+`payload = { message, projectId, projectName, actorId, actorName, entityId, url }`. `url` is an in-app path
+(`/app/<project>/notes/<note>`), an absolute https address (a GitHub pull request) or `null` (nothing to open,
+e.g. a deleted project).
+
+**Who is told.** Every member of the project except the person who did the action. A change made by GitHub
+has no actor, so everybody is told. Changes of membership tell the person concerned in their own words
+("vous a ajouté au projet", "vous a retiré du projet") and the rest of the project separately.
+
+**What is told** (`type`): card, list, board and tag creation / update / deletion (`card_created`,
+`card_updated`, `card_moved` when the list changes, `card_deleted`, `card_tags_updated`, `list_*`,
+`board_deleted`, `tag_*`), notes (`note_created`, `note_renamed`, `note_updated`, `note_deleted`), files and
+folders (`file_uploaded`, `file_moved`, `file_deleted`, `folder_*`), the whiteboard (`whiteboard_updated`),
+the project (`project_updated`, `project_deleted`), members (`member_added`, `member_role`,
+`member_removed`, `member_joined`), the same card changes made through the Public API (worded "via l'API"),
+and the GitHub automation (`git_pr_opened`, `git_pr_merged`, `git_pr_closed`). Reordering cards or lists is
+not told.
+
+**Coalescing.** Updates that are repeated (a note autosaving while someone types, a card description, the
+whiteboard) do not pile up: if the same person already has an unread notification of the same type on the same
+thing from the last 10 minutes, it is refreshed (new wording, back on top) instead of adding another.
+
+**Real time.** Each Socket.IO connection joins the room `user:<id>` (`hub.ts`). Every notification created or
+refreshed is emitted there as the event `notification` (payload: the stored row), so every open tab of the
+user receives it. Sending never fails the action that caused it.
+
+**Retention.** Read notifications older than 30 days are deleted the next time their owner opens the list.
+
 ## Authentication — GitHub OAuth 2.0
 
 Minor module "OAuth 2.0", in `backend/src/modules/auth/oauth.service.ts` and `auth.routes.ts`. It sits on top of

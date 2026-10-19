@@ -4,6 +4,7 @@ import { Server as SocketIOServer } from "socket.io";
 import type { Server as HttpServer } from "http";
 import { broadcastPresence, handleReconnect } from "./presence.js";
 import { validateJwt, JwtExpiredError } from "../auth/jwt.service.js";
+import { userRoom } from "./broadcast.js";
 import { getUserRole } from "../permissions/roles.service.js";
 import { registerWhiteboardEvents } from "../whiteboard/whiteboard.realtime.js";
 import { registerNoteCollabHandlers } from "../notes/notes.collab.js";
@@ -41,6 +42,8 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
   });
 
   io.on("connection", (socket) => {
+    // personal room: notifications for this user reach every tab, wherever they are in the app
+    socket.join(userRoom(socket.data.userId));
     registerWhiteboardEvents(socket);
 
     registerNoteCollabHandlers(socket);
