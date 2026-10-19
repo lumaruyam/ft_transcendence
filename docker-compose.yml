@@ -17,8 +17,9 @@ services:
       - app_net
     volumes:
       - db_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # No published port on purpose: only the backend talks to the database, over app_net. Publishing 5432 would
+    # clash with a Postgres already running on the host and expose the database to the network.
+    # To open a shell on it: docker compose exec db psql -U "$POSTGRES_USER" "$POSTGRES_DB"
     env_file:
       - .env
     environment:
