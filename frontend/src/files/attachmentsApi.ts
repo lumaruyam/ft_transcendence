@@ -6,7 +6,8 @@ import { getStoredToken } from "../auth/authClient";
 export interface Attachment {
 	id: string;
 	projectId: string;
-	cardId: string | null;
+	folderId: string | null;
+	cardIds: string[];
 	fileUrl: string;
 	fileName: string;
 	fileSize: number;
@@ -27,25 +28,49 @@ export class UploadError extends Error {
 		this.details = details;
 	}
 }
-//download, delete, name, size of an attachment
-export async function listAttachments(projectId: string): Promise<Attachment[]> {
+export async function listAttachments(projectId: string, cardId?: string): Promise<Attachment[]> {
 	const { attachments } = await apiRequest<{ attachments: Attachment[] }>({
 		method: "GET",
-		path: `/attachments/${projectId}`,
+		path: `/attachments/${projectId}${cardId ? `?cardId=${encodeURIComponent(cardId)}` : ""}`,
 	});
 	return attachments;
 }
-//delete an attachment
+
+export async function moveAttachment(projectId: string, id: string, folderId: string | null): Promise<Attachment> {
+	const { attachment } = await apiRequest<{ attachment: Attachment }>({
+		method: "PATCH",
+		path: `/attachments/${projectId}/${id}`,
+		body: { folderId },
+	});
+	return attachment;
+}
+
+export async function copyAttachment(projectId: string, id: string, folderId: string | null): Promise<Attachment> {
+	const { attachment } = await apiRequest<{ attachment: Attachment }>({
+		method: "POST",
+		path: `/attachments/${projectId}/${id}/copy`,
+		body: { folderId },
+	});
+	return attachment;
+}
+
+export function linkAttachmentToCard(projectId: string, id: string, cardId: string): Promise<void> {
+	return apiRequest<void>({ method: "PUT", path: `/attachments/${projectId}/${id}/cards/${cardId}` });
+}
+
+export function unlinkAttachmentFromCard(projectId: string, id: string, cardId: string): Promise<void> {
+	return apiRequest<void>({ method: "DELETE", path: `/attachments/${projectId}/${id}/cards/${cardId}` });
+}
 export function deleteAttachment(projectId: string, id: string): Promise<void> {
 	return apiRequest<void>({ method: "DELETE", path: `/attachments/${projectId}/${id}` });
 }
 
-//upload an attachment
-export async function uploadAttachment(projectId: string, file: File): Promise<Attachment> {
+export async function uploadAttachment(projectId: string, file: File, folderId: string | null = null): Promise<Attachment> {
 	const form = new FormData();
 	form.append("file", file);
 
-	const response = await fetch(`${API_PREFIX}/attachments/${projectId}`, {
+	const query = folderId ? `?folderId=${encodeURIComponent(folderId)}` : "";
+	const response = await fetch(`${API_PREFIX}/attachments/${projectId}${query}`, {
 		method: "POST",
 		headers: { Authorization: `Bearer ${getStoredToken() ?? ""}` },
 		body: form,
@@ -63,14 +88,21 @@ export async function uploadAttachment(projectId: string, file: File): Promise<A
 	return payload.attachment;
 }
 
-//download an attachment
-export async function downloadAttachment(projectId: string, attachment: Attachment): Promise<void> {
+//the route needs the token so an img src cannot load it
+export async function fetchAttachmentBlob(projectId: string, attachment: Attachment): Promise<Blob> {
 	const response = await fetch(`${API_PREFIX}/attachments/${projectId}/${attachment.id}`, {
 		headers: { Authorization: `Bearer ${getStoredToken() ?? ""}` },
 	});
 	if (!response.ok) throw new Error("download_failed");
+	return response.blob();
+}
 
-	const blob = await response.blob();
+export function isImage(attachment: Attachment): boolean {
+	return attachment.fileType.startsWith("image/");
+}
+
+export async function downloadAttachment(projectId: string, attachment: Attachment): Promise<void> {
+	const blob = await fetchAttachmentBlob(projectId, attachment);
 	const url = URL.createObjectURL(blob);
 
 	const link = document.createElement("a");

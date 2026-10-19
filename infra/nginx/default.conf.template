@@ -97,8 +97,8 @@ server {
         try_files /whiteboard/index.html =404;
     }
 
-    # /app/:id/notes
-    location ~ ^/app/[^/]+/notes$ {
+    # /app/:id/notes and /app/:id/notes/:noteId
+    location ~ ^/app/[^/]+/notes(/[^/]+)?$ {
         try_files /notes/index.html =404;
     }
     # /app/:id/files

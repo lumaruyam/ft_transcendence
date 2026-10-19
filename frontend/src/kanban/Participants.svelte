@@ -9,7 +9,8 @@
 
   let { store }: { store: BoardStore } = $props();
 
-  const VISIBLE = 4;
+  let width = $state(typeof window === "undefined" ? 1280 : window.innerWidth);
+  const VISIBLE = $derived(width <= 1200 ? 2 :width <= 1400 ? 3 : 4);
 
   // online first, then by name
   const sorted = $derived(
@@ -20,6 +21,8 @@
   );
   const onlineCount = $derived(store.members.filter((m) => store.online.has(m.userId)).length);
 </script>
+
+<svelte:window bind:innerWidth={width} />
 
 <Popover width={300}>
   {#snippet trigger({ open, toggle })}
@@ -77,12 +80,6 @@
   }
   .avatars > :global(* + *) {
     margin-left: -6px;
-  }
-  @media (max-width: 520px) {
-    /* keep two avatars on phones */
-    .avatars > :global(:nth-child(n + 3)) {
-      display: none;
-    }
   }
   .more {
     display: inline-flex;

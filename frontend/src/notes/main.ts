@@ -1,15 +1,17 @@
 // Owner: Track 4 (Whiteboard, notes, and supporting modules)
-// Responsible for: the /app/:id/notes entry point.
-import { boot } from "../shared/boot";//for beginning the svelte
-import Notes from "./Notes.svelte";//note editor explained bt svelte
-//grab the projectId from the URL, or redirect to /app if it's not there
-const projectId = window.location.pathname.match(/^\/app\/([^/]+)\/notes\/?$/)?.[1];
-//if the projectId is missing, redirect to /app
-//otherwise, boot the Notes component with the projectId as a prop
+// Responsible for: the notes list and single note entry point
+import { boot } from "../shared/boot";
+import Notes from "./Notes.svelte";
+import NotesList from "./NotesList.svelte";
+
+const match = window.location.pathname.match(/^\/app\/([^/]+)\/notes(?:\/([^/]+))?\/?$/);
+const projectId = match?.[1];
+const noteId = match?.[2];
+
 if (!projectId) {
 	window.location.replace("/app");
+} else if (noteId) {
+	boot(Notes, { auth: "required", props: { projectId, noteId } });
 } else {
-	boot(Notes, {
-        auth: "required", 
-        props: { projectId } });
+	boot(NotesList, { auth: "required", props: { projectId } });
 }

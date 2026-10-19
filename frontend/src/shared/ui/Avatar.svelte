@@ -82,7 +82,7 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: var(--text-faint);
+    background: var(--offline);
     border: 2px solid var(--surface);
   }
   .dot.online {
