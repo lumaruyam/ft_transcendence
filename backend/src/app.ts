@@ -25,6 +25,7 @@ import { registerAttachmentsRoutes } from "./modules/attachments/attachments.rou
 import { registerSearchRoutes } from "./modules/search/search.routes.js";
 import { registerNotificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { registerGitWebhookRoutes } from "./modules/git/webhook.routes.js";
+import { registerGitRoutes } from "./modules/git/git.routes.js";
 import { registerPublicApiRoutes } from "./modules/publicapi/publicapi.routes.js";
 import { initApiKeys } from "./modules/publicapi/apikeys.service.js";
 import { apiKeyRouteConstraint } from "./modules/publicapi/apikey.middleware.js";
@@ -61,6 +62,7 @@ function registerRoutes(app: FastifyInstance): void {
 	app.register(registerInviteRoutes, { prefix: "/api/projects" });
 	app.register(registerUserRoutes, { prefix: "api/users" });
 	app.register(registerKanbanRoutes, { prefix: "/api" });
+	app.register(registerGitRoutes, { prefix: "/api" });
 	app.register(registerNotesRoutes, { prefix: "/api/notes" });
 	app.register(registerWhiteboardRoutes, { prefix: "/api/whiteboards" });
 	app.register(registerAttachmentsRoutes, { prefix: "/api/attachments" });

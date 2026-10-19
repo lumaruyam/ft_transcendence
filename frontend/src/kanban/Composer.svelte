@@ -26,6 +26,11 @@
     if (open) field?.focus();
   });
 
+  // lets the list menu open the composer
+  export function show(): void {
+    open = true;
+  }
+
   async function submit(): Promise<void> {
     const title = value.trim();
     if (!title) return;

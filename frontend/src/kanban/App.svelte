@@ -9,6 +9,7 @@
   import Board from "./Board.svelte";
   import BoardSkeleton from "./BoardSkeleton.svelte";
   import CardDetail from "./CardDetail.svelte";
+  import GitLinkModal from "./GitLinkModal.svelte";
   import Participants from "./Participants.svelte";
   import type { BoardStore } from "./boardStore.svelte";
 
@@ -126,6 +127,7 @@
 </div>
 
 <CardDetail {store} />
+<GitLinkModal {store} />
 
 <style>
   .page {

@@ -57,6 +57,8 @@ export class BoardStore {
   drag = $state<{ kind: "card" | "list"; id: string } | null>(null);
   // the card whose detail dialog is open; the dialog follows live updates and closes if the card is deleted
   openCardId = $state<string | null>(null);
+  // card whose Git link dialog is open
+  gitCardId = $state<string | null>(null);
   openCard = $derived.by(() => {
     for (const list of this.board?.lists ?? []) {
       const card = list.cards.find((c) => c.id === this.openCardId);
@@ -196,6 +198,24 @@ export class BoardStore {
       this.#tagsPending.delete(cardId);
       await this.load();
     }
+  }
+
+  // Links the card to a branch (creating it on GitHub when asked). Returns an error message, or null when it worked.
+  async linkBranch(cardId: string, repoUrl: string, branchName: string, createBranch: boolean): Promise<string | null> {
+    this.#mine.add(cardId);
+    try {
+      this.#upsertCard(await api.linkBranch(cardId, repoUrl, branchName, createBranch));
+      return null;
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "github_error" && typeof err.payload.message === "string") return err.payload.message;
+      if (err instanceof ApiError && err.code === "github_not_linked") return "Votre compte GitHub n'est pas connecté : impossible d'appeler GitHub.";
+      return errorMessage(err);
+    }
+  }
+
+  async unlinkBranch(cardId: string): Promise<boolean> {
+    this.#mine.add(cardId);
+    return this.#run(async () => this.#upsertCard(await api.unlinkBranch(cardId)));
   }
 
   // the tag methods return an error message for the tag dialog (null or no error when it worked)

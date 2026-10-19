@@ -153,6 +153,8 @@ export async function transitionCardStatus(cardId: string, targetStatus: string,
             )
         }
         await prisma.$transaction(operations);
+        //tell the boards that are open: the webhook is not a kanban route, so nothing else broadcasts it
+        await updateCard(cardId, {});
     }
     catch(err:any){
         console.warn(`Failed to transition card ${cardId} to status '${targetStatus}' : ${err?.message || err}`);

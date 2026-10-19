@@ -10,7 +10,8 @@ export const DEFAULT_TAGS = [
 	{ name: "Bug", color: "#be185d" },
 ];
 
-export const CARD_TAGS_INCLUDE = { tags: { select: { tag: true } } } as const;
+//Despite the name, this is every relation a card payload carries: its tags and its Git link (null when none).
+export const CARD_TAGS_INCLUDE = { tags: { select: { tag: true } }, gitLink: true } as const;
 
 export class TagConflictError extends Error {
 	constructor() {

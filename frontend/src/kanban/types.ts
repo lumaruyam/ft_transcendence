@@ -8,6 +8,14 @@ export interface Tag {
   color: string;
 }
 
+export interface GitLink {
+  cardId: string;
+  repoUrl: string;
+  branchName: string;
+  // none | open | merged, kept up to date by the Git webhook
+  prStatus: string;
+}
+
 export interface Card {
   id: string;
   listId: string;
@@ -18,6 +26,8 @@ export interface Card {
   linkedBranch?: string | null;
   linkedPrUrl?: string | null;
   tags?: Tag[];
+  // set while the card is linked to a GitHub branch (null otherwise)
+  gitLink?: GitLink | null;
   createdAt?: string;
   updatedAt?: string;
 }

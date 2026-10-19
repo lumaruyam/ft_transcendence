@@ -71,3 +71,26 @@ export function deleteTag(tagId: string): Promise<void> {
 export function setCardTags(cardId: string, tagIds: string[]): Promise<Card> {
   return apiRequest<Card>({ method: "PUT", path: `/cards/${cardId}/tags`, body: { tagIds } });
 }
+
+// ---- Git integration
+
+export async function fetchGitStatus(): Promise<boolean> {
+  const { connected } = await apiRequest<{ connected: boolean }>({ method: "GET", path: "/git/status" });
+  return connected;
+}
+
+export async function fetchBranches(projectId: string, repoUrl: string): Promise<string[]> {
+  const { branches } = await apiRequest<{ branches: string[] }>({
+    method: "GET",
+    path: `/projects/${projectId}/git/branches?repoUrl=${encodeURIComponent(repoUrl)}`,
+  });
+  return branches;
+}
+
+export function linkBranch(cardId: string, repoUrl: string, branchName: string, createBranch: boolean): Promise<Card> {
+  return apiRequest<Card>({ method: "POST", path: `/cards/${cardId}/git`, body: { repoUrl, branchName, createBranch } });
+}
+
+export function unlinkBranch(cardId: string): Promise<Card> {
+  return apiRequest<Card>({ method: "DELETE", path: `/cards/${cardId}/git` });
+}
