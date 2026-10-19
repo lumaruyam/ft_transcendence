@@ -103,10 +103,10 @@
   ondrop={onDrop}
 >
   <header>
-    <InlineTitle bind:this={title} value={list.title} editable={store.canEdit} label="Titre de la liste" onsave={(t) => store.renameList(list.id, t)} />
     <span class="count" title={`${list.cards.length} carte${list.cards.length > 1 ? "s" : ""}`}>
       {filter ? `${shown.length}/${list.cards.length}` : list.cards.length}
     </span>
+    <InlineTitle bind:this={title} value={list.title} editable={store.canEdit} label="Titre de la liste" onsave={(t) => store.renameList(list.id, t)} />
     {#if store.canEdit}
       <span
         class="icon-btn grip"
