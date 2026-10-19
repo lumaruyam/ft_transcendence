@@ -96,6 +96,34 @@ Retry-After: 37
 { "error": "rate_limit_exceeded", "limit": 100, "retryAfter": 37 }
 ```
 
+## Authentication — GitHub OAuth 2.0
+
+Minor module "OAuth 2.0", in `backend/src/modules/auth/oauth.service.ts` and `auth.routes.ts`. It sits on top of
+the email/password login, which stays the baseline.
+
+| Method | Path | Auth | Effect |
+|---|---|---|---|
+| `GET` | `/api/auth/oauth/github/redirect` | none | `302` to GitHub's consent screen, sets the state cookie |
+| `GET` | `/api/auth/oauth/github/callback` | state cookie | Called by GitHub. `302` to `/auth/callback#token=<jwt>` (login), `#linked=1` (link) or `#error=<name>` |
+| `POST` | `/api/auth/oauth/github/link` | JWT | `200 { "url" }`: consent-screen url that attaches GitHub to the signed-in user, sets the state cookie |
+
+- **Scope** `read:user user:email repo`: the profile and verified emails for the login, `repo` for the Git
+  integration (branches, repository webhook). The GitHub token is stored encrypted (`tokenCrypto.ts`).
+- **Email**: read from GitHub's `/user/emails` (the public profile email is often hidden): the verified primary
+  address, lowercased. An unverified address is never used. A new user is created with it, or the GitHub identity
+  is attached to the existing account that has the same email.
+- **CSRF / login CSRF**: `state` is a signed JWT (10 min) holding a nonce, and the same nonce is set in an
+  `HttpOnly; SameSite=Lax` cookie scoped to `/api/auth/oauth` (`Secure` when the app runs over https). The
+  callback refuses a state whose nonce does not match the cookie of the browser, so a victim cannot be logged in
+  with an attacker's `code`.
+- **Link flow**: the state also carries the signed-in user's id. One GitHub identity belongs to one user:
+  linking an identity owned by someone else fails with `OAuthAccountConflictError`.
+- **Error names** sent in `#error=`: `OAuthNotConfiguredError`, `OAuthStateError`, `OAuthExchangeError`,
+  `OAuthAccessDeniedError` (consent refused), `OAuthAccountConflictError`. The frontend maps them to messages
+  (`frontend/src/auth/oauthFlow.ts`).
+- Setup: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_OAUTH_REDIRECT_URI` (must equal the callback URL
+  registered in the GitHub OAuth app), `OAUTH_TOKEN_ENCRYPTION_KEY` (`openssl rand -hex 32`).
+
 ## Invite-link membership endpoints
 
 Implemented in `backend/src/modules/projects/invites.ts` (both the service functions and

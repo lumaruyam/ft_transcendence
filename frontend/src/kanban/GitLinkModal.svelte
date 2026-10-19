@@ -7,6 +7,7 @@
   import * as api from "./boardApi";
   import type { BoardStore } from "./boardStore.svelte";
   import { errorMessage } from "../shared/errors";
+  import { startOAuthLink } from "../auth/oauthFlow";
 
   let { store }: { store: BoardStore } = $props();
 
@@ -35,6 +36,15 @@
   const repoValid = $derived(REPO.test(repoUrl.trim()));
   const branchValid = $derived(BRANCH.test(branch.trim()));
   const canLoad = $derived(connected === true && repoValid && !loading);
+
+  // sends the user through GitHub to add it to their account, then back to this page
+  async function connectGithub(): Promise<void> {
+    try {
+      await startOAuthLink(window.location.pathname + window.location.search);
+    } catch {
+      error = "La connexion à GitHub n'est pas disponible pour l'instant.";
+    }
+  }
 
   function slug(text: string): string {
     const base = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -152,6 +162,7 @@
         <p class="notice">
           Votre compte GitHub n'est pas connecté : vous pouvez lier une branche qui existe déjà en la saisissant,
           mais pas lister ni créer de branches.
+          <button type="button" class="btn btn-ghost btn-sm" onclick={connectGithub}><Icon name="github" size={15} /> Connecter GitHub</button>
         </p>
       {/if}
 
