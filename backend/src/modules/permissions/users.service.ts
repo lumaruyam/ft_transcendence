@@ -15,6 +15,7 @@
 import type { User } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
+import { retryOnConflict } from "../../db/concurrency.js";
 import { transferProjectOwnership, NotAProjectMemberError } from "../projects/projects.service.js";
 
 export interface UpdateUserInput {
@@ -111,7 +112,7 @@ export interface DeleteUserOptions {
 // in the project, then delete the user
 // Returns the projects the user was a member of and that go on without them: their other members need to know.
 export async function deleteUser(id: string, options: DeleteUserOptions = {}): Promise<{ leftProjectIds: string[] }> {
-	return prisma.$transaction(
+	return retryOnConflict(() => prisma.$transaction(
 		async (tx) => {
 				const user = await tx.user.findUnique({ where: { id } });
 				if (!user) {
@@ -180,5 +181,5 @@ export async function deleteUser(id: string, options: DeleteUserOptions = {}): P
 				return { leftProjectIds: memberOf.map((m) => m.projectId).filter((projectId) => !deleted.has(projectId)) };
 		},
 		{ isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
-	);
+	));
 }

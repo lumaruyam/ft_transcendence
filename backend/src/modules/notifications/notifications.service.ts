@@ -3,6 +3,7 @@
 import type { Notification, Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 import { broadcastToUser } from "../kanban/broadcast.js";
+import { inSequence } from "../../db/concurrency.js";
 
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 100;
@@ -67,19 +68,6 @@ export async function notifyProject(event: ProjectEvent): Promise<void> {
 	} catch (err) {
 		console.warn(`[Notif] Failed to deliver ${event.type} for project ${event.projectId}:`, err);
 	}
-}
-
-//runs the tasks that share a key one after the other (in this process)
-const sequences = new Map<string, Promise<unknown>>();
-
-function inSequence<T>(key: string, task: () => Promise<T>): Promise<T> {
-	const run = (sequences.get(key) ?? Promise.resolve()).then(task, task);
-	const tail = run.catch(() => undefined);
-	sequences.set(key, tail);
-	void tail.then(() => {
-		if (sequences.get(key) === tail) sequences.delete(key);
-	});
-	return run;
 }
 
 async function deliver(event: ProjectEvent): Promise<void> {

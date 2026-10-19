@@ -296,3 +296,41 @@ duplicates or bypasses another table's job:
 | "What GitHub token does the backend use to call GitHub on this user's behalf?" | `oauth_accounts.access_token` | Per-user OAuth token (not a GitHub App installation token), encrypted at rest via `modules/auth/tokenCrypto.ts`; read it through `getDecryptedAccessToken(userId)` in `oauth.service.ts`, never directly |
 
 <!-- TODO: expand §7 with a sequence diagram once webhook signature verification and OAuth token storage details are finalized -->
+
+## 10. Concurrency: several people acting at once
+
+The subject requires that simultaneous actions neither corrupt data nor race. The rules the code follows
+(`backend/src/db/concurrency.ts`):
+
+1. **Read, decide, write is one transaction.** Anything that reads something and then writes depending on it runs in a
+   `Serializable` Prisma transaction (`SERIALIZABLE`). Postgres aborts the one that lost the race (`P2034`, or `P2002` for a
+   unique insert) and `retryOnConflict` runs it again on the new state, after a short random wait.
+2. **One at a time per key, in the process.** `inSequence(key, task)` queues the tasks of one key. It removes the
+   contention of one backend against itself (a board's moves all arrive in the same second), so retries stay rare;
+   rule 1 keeps a second backend instance correct.
+3. **Positions are an order, asked for as an index.** A card or a list is added "at index i" (the end when omitted) and
+   the sequence is renumbered 0..n-1 around it (`kanban/positions.ts`); deleting renumbers too, and a move renumbers both
+   lists. So two cards added at the same moment can no longer share a position. Everything that changes the order in a
+   project is queued under the key `kanban:<project>`.
+4. **Database errors that come from losing a race are client errors.** `app.ts` maps `P2025` and `P2003` (what the request
+   targeted was deleted a moment ago) to `404`, `P2002` to `409`, and an aborted transaction or deadlock to `503` with
+   `Retry-After`, never to an opaque `500`. Fastify's own errors (validation, 4xx) are unchanged.
+
+Where it applies, and what was wrong before (found by hammering the API with simultaneous requests):
+
+| Operation | Key | Before |
+|---|---|---|
+| First visit of a project's board | `board:<project>` | 10 members opening a new project at once created 10 boards, each seeing their own |
+| Add a card / a list | `kanban:<project>` | Same position for all (20 cards at 0) |
+| Move a card, delete a card or a list, reorder lists | `kanban:<project>` | 30 simultaneous moves all answered 500 (deadlock); a reorder could leave duplicates next to a newly created list |
+| Replace the tags of a card | `cardtags:<card>` | Two requests left the union of both sets |
+| Join with an invite link | `invite:<hash>` | Limits could be exceeded, one person could burn several uses |
+| Save the whiteboard | `whiteboard:<project>` | First saves overwrote each other |
+| Notification of a repeated update | `<type>:<entity>:<actor>` | Two quick edits each created one |
+| Delete a project / an account | | A deadlock with a concurrent insert gave a 500 |
+
+Already correct and covered by the same tests: edits of different fields of one card (both kept), creating the same tag or
+signing up with the same e-mail at once (one wins, the others get 409), admins demoting each other (the owner is always an
+admin, so a project never has none), the project deleted while others add content (no 500), and several people typing in the
+same note (Yjs merges them; every client and the saved note end identical, a late joiner catches up, a viewer's edit is dropped).
+

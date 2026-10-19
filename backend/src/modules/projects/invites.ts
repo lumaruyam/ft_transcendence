@@ -29,6 +29,7 @@ import { getUserRole, ROLES, ROLE_RANK, type Role } from "../permissions/roles.s
 import { addMember } from "./members.service.js";
 import { notifyProject } from "../notifications/notifications.service.js";
 import { announceMembersChanged } from "../kanban/membership.events.js";
+import { SERIALIZABLE, inSequence, retryOnConflict } from "../../db/concurrency.js";
 
 // INVITE_JOIN_RATE_LIMIT is the dedicated @fastify/rate-limit policy for POST
 // /api/projects/invites/:token/join, registered as this route's `config.rateLimit` override
@@ -149,7 +150,10 @@ export async function createInvite(
 // invite validity is checked; once it succeeds, the invite is irrelevant to future authorization
 export async function joinInvite(token: string, userId: string): Promise<string> {
 	const tokenHash = hashToken(token);
-	return prisma.$transaction(async (tx) => {
+	// The checks (valid, not already a member, uses left) and the claim of a use are one decision: made apart, ten
+	// people joining a 3-use link at once could all pass the checks, and one person joining twice at once used two. They
+	// run one at a time per link in this process, in a Serializable transaction retried on conflict for a second instance.
+	return inSequence(`invite:${tokenHash}`, () => retryOnConflict(() => prisma.$transaction(async (tx) => {
 		const invite = await tx.projectInvite.findUnique({ where: { tokenHash } });
 
 	if (!invite) {
@@ -185,7 +189,7 @@ export async function joinInvite(token: string, userId: string): Promise<string>
 	// which is what authorization reads from now on, never this invite again
 	await addMember(invite.projectId, userId, invite.role as Role, tx);
 	return invite.projectId;
-	});
+	}, SERIALIZABLE)));
 }
 
 // revokeInvite disables an invite link before it expires or is fully used, e.g. if it leaked.
