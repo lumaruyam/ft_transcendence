@@ -15,6 +15,7 @@ import { notifyProject } from "../notifications/notifications.service.js";
 import { requireApiKey, enforceKeyProjectScope, API_KEY_ROUTE_CONSTRAINT } from "./apikey.middleware.js";
 import { rateLimitMiddleware } from "./ratelimit.middleware.js";
 import { registerApiKeyManagementRoutes } from "./apikeys.routes.js";
+import { registerPublicApiDocsRoutes } from "./publicapi.docs.js";
 import { listProjectsForKey, listProjectCards, listBelongsToProject, cardBelongsToProject, toPublicCard, } from "./publicapi.service.js";
 import { validateCreateCardBody, validateUpdateCardBody, validateListCardsQuery, } from "./publicapi.validation.js";
 
@@ -28,6 +29,9 @@ export async function registerPublicApiRoutes(app: FastifyInstance): Promise<voi
 	app.post("/projects/:projectId/cards", { preHandler: projectChain(ROLES.MEMBER) }, createCardHandler);
 	app.put("/projects/:projectId/cards/:cardId", { preHandler: projectChain(ROLES.MEMBER) }, updateCardHandler);
 	app.delete("/projects/:projectId/cards/:cardId", { preHandler: projectChain(ROLES.MEMBER) }, deleteCardHandler);
+
+	// the documentation (GET /api/docs, GET /api/openapi.json), public
+	await app.register(registerPublicApiDocsRoutes);
 
 	// JWT-authenticated key management (issue/list/revoke)
 	await app.register(registerApiKeyManagementRoutes);

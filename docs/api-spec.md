@@ -11,6 +11,11 @@ behavior described below are unchanged by the pivot.
 
 ## Endpoints (5 documented, per the Public API major module requirement)
 
+The same contract is served by the app itself: **`GET /api/docs`** (readable page, public, no script) and
+**`GET /api/openapi.json`** (OpenAPI 3.0), generated from one description in
+`backend/src/modules/publicapi/publicapi.docs.ts`. The project settings (Clés API) link to it. Keep that file
+and this document in step when an endpoint changes.
+
 | Method | Path | Handler |
 |---|---|---|
 | GET | `/api/projects` | `getProjectsHandler` |

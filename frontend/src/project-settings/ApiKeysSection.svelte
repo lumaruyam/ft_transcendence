@@ -127,7 +127,7 @@
   <div class="panel">
     <h3>Exemple</h3>
     <pre><code>{example}</code></pre>
-    <span class="hint">Autres routes : <code>POST</code>, <code>PUT</code> et <code>DELETE</code> sur <code>/api/projects/{"{id}"}/cards</code>.</span>
+    <span class="hint">Autres routes : <code>POST</code>, <code>PUT</code> et <code>DELETE</code> sur <code>/api/projects/{"{id}"}/cards</code>. <a href="/api/docs" target="_blank" rel="noopener noreferrer">Documentation complète de l'API</a>.</span>
   </div>
 {/if}
 
