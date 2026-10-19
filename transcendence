@@ -100,7 +100,7 @@ ask_oauth() {
   if [ -t 0 ]; then
     echo "==> GitHub OAuth (login with GitHub)"
     echo "    Create an OAuth App on https://github.com/settings/developers, with callback URL:"
-    echo "      $(env_value GITHUB_OAUTH_REDIRECT_URI http://localhost:8080/api/auth/oauth/github/callback)"
+    echo "      $(env_value GITHUB_OAUTH_REDIRECT_URI https://localhost:8443/api/auth/oauth/github/callback)"
     echo "    Leave blank to use a random placeholder (GitHub login won't work, email/password will)."
     read -r -p "    GITHUB_CLIENT_ID: " id || true
     read -r -s -p "    GITHUB_CLIENT_SECRET: " secret || true

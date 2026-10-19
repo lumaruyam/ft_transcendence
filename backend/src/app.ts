@@ -76,7 +76,11 @@ function registerRoutes(app: FastifyInstance): void {
 
 // buildApp constructs a Fastify instance with every module's routes registered, but does not start listening.
 export function buildApp(config: AppConfig): FastifyInstance {
-	const app = Fastify({ logger: true, routerOptions: { constraints: { apiAuth: apiKeyRouteConstraint } } });
+	// trustProxy: believe X-Forwarded-For only when the request comes from a private address, i.e. nginx on the
+	// compose network (which overwrites the header with the real client address). Without it every request would
+	// look like it comes from nginx, and the per-IP rate limits would be shared by all users. A connection from a
+	// public address cannot choose its own IP. The backend is not published on the host anyway.
+	const app = Fastify({ logger: true, trustProxy: "loopback, linklocal, uniquelocal", routerOptions: { constraints: { apiAuth: apiKeyRouteConstraint } } });
 
 	initJwtService(config.jwtSecret);
 	initOAuthService({ github: config.oauthGithub, stateSecret: config.jwtSecret });
