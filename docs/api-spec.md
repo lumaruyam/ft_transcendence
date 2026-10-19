@@ -197,6 +197,46 @@ projects can both have a "Bug" tag with their own colour. Each new project start
 - Socket.IO events sent to the project room: `tag_created` and `tag_updated` (the `Tag`),
   `tag_deleted` (`{ id }`), and `card_updated` (the `Card`) when the tags of a card change.
 
+## Internal endpoints — Git integration
+
+Not part of the Public API module: JWT routes called by the kanban UI (`GitLinkModal.svelte`), in
+`backend/src/modules/git/git.routes.ts`. The receiver GitHub calls is described below the table.
+
+| Method | Path | Min role | Body / query | Success |
+|---|---|---|---|---|
+| `GET` | `/api/git/status` | any user | — | `200 { "connected": boolean }` (GitHub account linked) |
+| `GET` | `/api/projects/:projectId/git/branches` | member | `?repoUrl=` | `200 { "branches": [string] }` |
+| `POST` | `/api/cards/:id/git` | member | `{ "repoUrl", "branchName", "createBranch"? }` | `200 Card` |
+| `DELETE` | `/api/cards/:id/git` | member | — | `200 Card` |
+| `GET` | `/api/projects/:projectId/git/events` | admin | `?limit=` (1 to 200, default 50) | `200 { "events": [ { id, provider, repo, eventType, processedAt, createdAt } ] }` |
+
+- `POST /api/cards/:id/git` links the card to a branch (creating it from the default branch when
+  `createBranch` is true, which needs a linked GitHub account). It then tries to register the repository
+  webhook (see below); a failure there is logged and does not fail the link.
+- `GET .../git/events` is the audit log of `webhook_events` for the repositories linked in the project, newest
+  first, without the payload. `processedAt` is `null` when the event was received but not handled.
+- Errors: `400 invalid_input`, `401`, `403 insufficient_role`, `409 github_not_linked`, `502 github_error`.
+
+### Webhook receiver (called by GitHub)
+
+`POST /api/webhooks/git`, no JWT: the `X-Hub-Signature-256` HMAC (SHA-256 of the raw body with
+`GIT_WEBHOOK_SECRET`) is verified first, `401` otherwise. Every valid delivery is stored in `webhook_events`
+and stamped `processed_at` once handled. A card is matched only through its `git_links` row (repo + branch).
+
+| GitHub event | Effect on the linked card |
+|---|---|
+| `push` to the branch | `todo` becomes `In progress` (a later push never moves a card back from `PR pending` or `Done`); tags and branch deletions are ignored |
+| `pull_request` opened / reopened | `PR pending`, PR url stored, `git_links.pr_status = open`, notification to every project member |
+| `pull_request` closed, merged into the default branch | `Done`, `pr_status = merged`, notification |
+| `pull_request` closed, merged into another branch | ignored |
+| `pull_request` closed without merge | `PR pending` goes back to `In progress`, `pr_status = closed`, notification |
+
+The change is broadcast to the open boards (`card_updated`). A processing error answers `500` and leaves the
+event unprocessed, so it can be redelivered from GitHub. Setting `WEBHOOK_PUBLIC_URL` (public https origin of
+the app) lets the backend register this webhook on the repository when a branch is linked; without it, add it
+by hand in the repository settings (payload URL `<origin>/api/webhooks/git`, content type `application/json`,
+the same secret, events `push` and `pull requests`).
+
 ## Internal endpoints — folders, notes and files
 
 Not part of the Public API module: the app's own routes, called with the user's JWT. Only files have folders; notes are a flat list.

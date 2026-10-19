@@ -8,7 +8,8 @@ import { ROLES } from "../permissions/roles.service.js";
 import { requireProjectRole, projectOf } from "../kanban/kanban.permissions.js";
 import { updateCard } from "../kanban/card.service.js";
 import { getDecryptedAccessToken } from "../auth/oauth.service.js";
-import { createBranch, linkCardToBranch, listBranches, parseRepoUrl, unlinkCardFromBranch } from "./branchLink.service.js";
+import { createBranch, ensureRepoWebhook, linkCardToBranch, listBranches, parseRepoUrl, unlinkCardFromBranch } from "./branchLink.service.js";
+import { listProjectWebhookEvents } from "./webhookLog.service.js";
 
 //what git accepts as a branch name, minus the exotic cases (no "..", no leading "-" or "/", no ".lock" ending)
 const BRANCH_NAME = /^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*\.lock$)(?!\/)(?!.*\/$)[A-Za-z0-9._/-]{1,200}$/;
@@ -22,6 +23,11 @@ export async function registerGitRoutes(app: FastifyInstance): Promise<void> {
 		"/projects/:projectId/git/branches",
 		{ preHandler: [requireAuth, requireProjectRole(ROLES.MEMBER, projectOf.projectParam)] },
 		branchesHandler,
+	);
+	app.get<{ Params: { projectId: string }; Querystring: { limit?: string } }>(
+		"/projects/:projectId/git/events",
+		{ preHandler: [requireAuth, requireProjectRole(ROLES.ADMIN, projectOf.projectParam)] },
+		eventsHandler,
 	);
 	app.post<{ Params: { id: string }; Body: { repoUrl?: string; branchName?: string; createBranch?: boolean } }>(
 		"/cards/:id/git",
@@ -77,6 +83,16 @@ async function branchesHandler(
 	}
 }
 
+//the audit log of the webhooks received for the repositories linked in this project (project admins only)
+async function eventsHandler(
+	request: FastifyRequest<{ Params: { projectId: string }; Querystring: { limit?: string } }>,
+	reply: FastifyReply,
+): Promise<void> {
+	const limit = Number.parseInt(request.query.limit ?? "", 10);
+	const events = await listProjectWebhookEvents(request.params.projectId, Number.isNaN(limit) ? undefined : limit);
+	reply.code(200).send({ events });
+}
+
 async function linkHandler(
 	request: FastifyRequest<{ Params: { id: string }; Body: { repoUrl?: string; branchName?: string; createBranch?: boolean } }>,
 	reply: FastifyReply,
@@ -102,6 +118,13 @@ async function linkHandler(
 	}
 
 	await linkCardToBranch(request.params.id, repoUrl, branchName);
+	//best effort: the card is linked either way, but without the repo webhook it will not follow its PR.
+	//Fails when the caller has no GitHub account, no admin right on the repo, or WEBHOOK_PUBLIC_URL is unset.
+	try {
+		await ensureRepoWebhook(userId, repoUrl);
+	} catch (error) {
+		request.log.warn({ error, repoUrl }, "could not register the GitHub webhook for the linked repository");
+	}
 	//re-read and broadcast, so every open board shows the link
 	const card = await updateCard(request.params.id, {});
 	reply.code(200).send(card);

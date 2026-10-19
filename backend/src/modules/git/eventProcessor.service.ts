@@ -1,11 +1,20 @@
 // Owner: Track 3 (Git integration)
-// Responsible for: matching incoming webhook payloads to the correct card and driving PR-lifecycle status transitions (PR pending → Done). TS equivalent of backend/internal/git/eventProcessor.go (Go skeleton, removed).
+// Responsible for: matching incoming webhook payloads to the correct card and driving PR-lifecycle status transitions (In progress → PR pending → Done). TS equivalent of backend/internal/git/eventProcessor.go (Go skeleton, removed).
+//
+// A card is only ever matched through its git_links row (repo + branch), which the kanban UI creates when a
+// branch is linked: nothing is guessed from commit messages or branch names.
 
 import { prisma } from "../../db/prisma/client.js";
 import { updateCard } from "../kanban/card.service.js";
-import { normalizeRepoUrl } from "./branchLink.service.js"
+import { normalizeRepoUrl } from "./branchLink.service.js";
 import { createNotification } from "../notifications/notifications.service.js";
-import { Prisma } from "@prisma/client";
+
+export const CARD_STATUS = {
+    todo: "todo",
+    inProgress: "In progress",
+    prPending: "PR pending",
+    done: "Done",
+} as const;
 
 export interface Commit {
     id: string;
@@ -15,7 +24,8 @@ export interface Commit {
 
 export interface GitHubPushPayload {
     ref: string;
-    repository: {html_url: string, full_name: string};
+    deleted?: boolean;
+    repository: { html_url: string; full_name: string };
     commits: Commit[];
 }
 
@@ -27,136 +37,137 @@ export interface GitHubPullRequestPayload {
         html_url?: string;
         merged: boolean;
         head: {
-            ref: string; //name of branche of pull request
+            ref: string; // name of the branch the pull request comes from
+        };
+        base?: {
+            ref: string; // name of the branch the pull request targets
         };
     };
-    repository:{
+    repository: {
         html_url: string;
         name?: string;
+        default_branch?: string;
     };
 }
 
-//to find card-123
-export function extractCardID(text: string): string | null{
-    if(!text)
-        return null;
-    const match = text.match(/(?:card|task)-(\d+)/i); //i-any registre; \d-any (0-9);+-1 or more number
-    if(match && match[1])
-        return match[1];
-    return null;
-}
-// processPushEvent handles a `push` webhook payload.
+// processPushEvent handles a `push` webhook payload: the first push to a linked branch starts the card.
 export async function processPushEvent(payload: GitHubPushPayload): Promise<void> {
-    let cardId: string | null = extractCardID(payload.ref);
-    if(!cardId && payload.commits){
-        for(const commit of payload.commits){
-            cardId = extractCardID(commit.message);
-            if(cardId)
-                    break;
-        }
-    }
-    if(!cardId && payload.repository?.html_url)
-        cardId = await matchCardByGitLink(payload.repository.html_url, payload.ref);
-    if(cardId)
-        await transitionCardStatus(cardId.toString(), 'In progress');
-    /*await logWebhookEvent({
-    provider: 'github',
-    repo: payload.repository.full_name,
-    eventType: 'push',
-    payload: payload,
-});*/
+    // tags and branch deletions are pushes too, but they say nothing about the work on a card
+    if (payload.deleted || !payload.ref?.startsWith('refs/heads/') || !payload.repository?.html_url)
+        return;
+    const cardId = await matchCardByGitLink(payload.repository.html_url, payload.ref);
+    if (!cardId)
+        return;
+    // a push after the PR was opened must not pull the card back from "PR pending" or "Done"
+    await transitionCardStatus(cardId, CARD_STATUS.inProgress, { onlyFrom: [CARD_STATUS.todo] });
 }
 
 async function dispatchCardNotification(cardId: string, message: string, url?: string): Promise<void> {
   try {
-    //look the projectId asso with card
+    // find the project the card belongs to
     const card = await prisma.card.findUnique({
       where: { id: cardId },
-      select: { list: { select: { board: { select: { projectId: true } } } } } ,
+      select: { list: { select: { board: { select: { projectId: true } } } } },
     });
     const projectId = card?.list?.board?.projectId;
-    if(!projectId){
+    if (!projectId) {
         console.warn(`[Notif] Project not found for card ${cardId}`);
-        return;}
-    //take members
+        return;
+    }
     const members = await prisma.projectMember.findMany({
         where: { projectId },
-        select: {userId: true},
+        select: { userId: true },
     });
-    //Send notif to every membres
+    // every member is told: the change comes from GitHub, so there is no acting user to leave out
     await Promise.all(
         members.map((member) =>
-            createNotification(member.userId, "card", { cardId, message, url: url ?? null,})));
-
-
+            createNotification(member.userId, "card", { cardId, message, url: url ?? null })));
   } catch (err) {
-    console.warn(`[Notif] Failed to dispatch for card ${cardId}:`);
+    console.warn(`[Notif] Failed to dispatch for card ${cardId}:`, err);
   }
 }
 
-// processPullRequestEvent handles a `pull_request` webhook payload (opened).
+// processPullRequestEvent handles a `pull_request` webhook payload (opened or reopened).
 export async function processPullRequestEvent(payload: GitHubPullRequestPayload): Promise<void> {
-    // TODO: fire a notification via Track 4's notifications.service.ts once the card moves
-    const {action, pull_request, repository} = payload; //desrtcurisation
-    if(action !== 'opened' && action !== 'reopened')
+    const { action, pull_request, repository } = payload;
+    if (action !== 'opened' && action !== 'reopened')
         return;
-    let cardId: string | null = await matchCardByGitLink(repository.html_url, pull_request.head.ref);
-    if(cardId){
-        await transitionCardStatus(cardId, 'PR pending', {prUrl: pull_request.html_url, prStatus: 'open'});
-        await dispatchCardNotification(cardId, `Pull Request opened: "${pull_request.title}"`,pull_request.html_url);
-    }
+    const cardId = await matchCardByGitLink(repository.html_url, pull_request.head.ref);
+    if (!cardId)
+        return;
+    const moved = await transitionCardStatus(cardId, CARD_STATUS.prPending, { prUrl: pull_request.html_url, prStatus: 'open' });
+    if (moved)
+        await dispatchCardNotification(cardId, `Pull request ${action}: "${pull_request.title}"`, pull_request.html_url);
 }
 
-// processMergeEvent handles a merge-to-main webhook payload.
+// processMergeEvent handles a merged pull request: the card is Done once the branch reaches the default branch.
 export async function processMergeEvent(payload: GitHubPullRequestPayload): Promise<void> {
-    const {action, pull_request, repository} = payload; //desrtcurisation
-    if(action == 'closed' && pull_request.merged == true){
-        let cardId: string | null = await matchCardByGitLink(repository.html_url, pull_request.head.ref);
-    if(cardId){
-            await transitionCardStatus(cardId, 'Done', {prUrl: pull_request.html_url, prStatus: 'merged'});
-            await dispatchCardNotification(cardId, `Pull Request merged! Card moved to Done.`, pull_request.html_url);
-        }
-    }
+    const { action, pull_request, repository } = payload;
+    if (action !== 'closed' || pull_request.merged !== true)
+        return;
+    // merging into another feature branch is not the end of the work
+    if (pull_request.base?.ref && repository.default_branch && pull_request.base.ref !== repository.default_branch)
+        return;
+    const cardId = await matchCardByGitLink(repository.html_url, pull_request.head.ref);
+    if (!cardId)
+        return;
+    const moved = await transitionCardStatus(cardId, CARD_STATUS.done, { prUrl: pull_request.html_url, prStatus: 'merged' });
+    if (moved)
+        await dispatchCardNotification(cardId, `Pull request merged: "${pull_request.title}". Card moved to Done.`, pull_request.html_url);
 }
+
+// processClosedWithoutMergeEvent handles a pull request closed without merging: the work is not done,
+// the card goes back to "In progress" until a new PR is opened.
+export async function processClosedWithoutMergeEvent(payload: GitHubPullRequestPayload): Promise<void> {
+    const { action, pull_request, repository } = payload;
+    if (action !== 'closed' || pull_request.merged === true)
+        return;
+    const cardId = await matchCardByGitLink(repository.html_url, pull_request.head.ref);
+    if (!cardId)
+        return;
+    const moved = await transitionCardStatus(cardId, CARD_STATUS.inProgress, { prStatus: 'closed', onlyFrom: [CARD_STATUS.prPending] });
+    if (moved)
+        await dispatchCardNotification(cardId, `Pull request closed without merge: "${pull_request.title}"`, pull_request.html_url);
+}
+
 // matchCardByGitLink finds the card linked to a given repo+branch, per the git_links table.
 export async function matchCardByGitLink(repoUrl: string, branchName: string): Promise<string | null> {
     const cleanBranch = branchName.replace(/^refs\/heads\//, '');
-    let targetUrl = repoUrl;
-    try{
+    let targetUrl: string;
+    try {
         targetUrl = normalizeRepoUrl(repoUrl);
-    }
-    catch(err){
+    } catch {
         return null;
     }
     const link = await prisma.gitLink.findFirst({
-        where: { repoUrl: targetUrl,branchName : cleanBranch
-        },
+        where: { repoUrl: targetUrl, branchName: cleanBranch },
     });
     return link ? link.cardId : null;
 }
 
-//change in prisma
-export async function transitionCardStatus(cardId: string, targetStatus: string,
-    extraData?: { prUrl?: string, prStatus?: string}): Promise<void> {
-    try{
-        const operations: any[] = [ prisma.card.update({
-        where: { id: cardId },
-        data: { status: targetStatus, ...( extraData?.prUrl ? { linkedPrUrl: extraData.prUrl } : {}),
-        }},)
-        ]
-        if(extraData?.prStatus){
-            operations.push(
-                prisma.gitLink.updateMany({
-                    where: { cardId },
-                    data: {prStatus: extraData.prStatus},
-                })
-            )
-        }
-        await prisma.$transaction(operations);
-        //tell the boards that are open: the webhook is not a kanban route, so nothing else broadcasts it
+// transitionCardStatus moves a card to `targetStatus` (and records the PR on its git link), then tells the
+// open boards. With `onlyFrom`, the card only moves if it currently has one of those statuses: the check is part
+// of the UPDATE itself, so two webhooks arriving together cannot overwrite each other.
+// Returns false when nothing moved (card gone, or status not in `onlyFrom`). Database errors propagate, so the
+// receiver answers 500 and the event stays unprocessed in webhook_events.
+export async function transitionCardStatus(
+    cardId: string,
+    targetStatus: string,
+    options: { prUrl?: string; prStatus?: string; onlyFrom?: string[] } = {},
+): Promise<boolean> {
+    const moved = await prisma.$transaction(async (tx) => {
+        const result = await tx.card.updateMany({
+            where: { id: cardId, ...(options.onlyFrom ? { status: { in: options.onlyFrom } } : {}) },
+            data: { status: targetStatus, ...(options.prUrl ? { linkedPrUrl: options.prUrl } : {}) },
+        });
+        if (result.count === 0)
+            return false;
+        if (options.prStatus)
+            await tx.gitLink.updateMany({ where: { cardId }, data: { prStatus: options.prStatus } });
+        return true;
+    });
+    // the webhook is not a kanban route, so nothing else broadcasts the change to the open boards
+    if (moved)
         await updateCard(cardId, {});
-    }
-    catch(err:any){
-        console.warn(`Failed to transition card ${cardId} to status '${targetStatus}' : ${err?.message || err}`);
-    }
+    return moved;
 }

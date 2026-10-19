@@ -209,15 +209,16 @@ all.
 1. A user links a card to a branch (`backend/src/modules/git/branchLink.service.ts`),
    using the OAuth token captured by `backend/src/modules/auth/oauth.service.ts`.
    GitHub calls go through **Octokit**
-2. A webhook is registered on the linked repository for push/pull_request/merge
-   events (`registerWebhook` in `webhook.routes.ts`).
+2. A webhook is registered on the linked repository for push/pull_request events
+   (`ensureRepoWebhook` in `branchLink.service.ts`, best effort, needs `WEBHOOK_PUBLIC_URL`).
 3. On webhook receipt (`webhookReceiverHandler`): this route is **not** JWT-authenticated
    (GitHub isn't logged-in users) — instead its signature is verified via an
    HMAC check against `GIT_WEBHOOK_SECRET`, rejecting anything that doesn't match
    before the payload is trusted.
 4. The event is logged to `webhook_events` (`webhookLog.service.ts`) for audit/replay,
    then `eventProcessor.service.ts` matches the payload to a card via `git_links` and
-   drives the status transition (PR opened → "PR pending", merged to main → "Done"),
+   drives the status transition (first push → "In progress", PR opened → "PR pending",
+   merged into the default branch → "Done", closed without merge → back to "In progress"),
    calling back into `kanban/card.service.ts` so the move also broadcasts over
    Socket.IO exactly like a user-driven move would (§6) — clients don't need to know
    the difference.
