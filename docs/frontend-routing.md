@@ -60,7 +60,7 @@ frontend/
 │   ├── dashboard/           # → /app
 │   ├── kanban/              # → /app/:id
 │   ├── project-settings/    # → /app/:id/settings
-│   ├── whiteboard/          # → /app/:id/whiteboard  (React + Excalidraw)
+│   ├── whiteboard/          # → /app/:id/whiteboard  (Svelte page + React/Excalidraw island)
 │   ├── notes/               # → /app/:id/notes
 │   ├── not-found/           # → 404 fallback
 │   ├── error/               # → 502/503/504 fallback
@@ -75,7 +75,7 @@ frontend/
 
 Each page folder contains:
 - `index.html` — HTML entry point (loaded by Vite, references `main.ts`)
-- `main.ts` (or `main.tsx` for whiteboard) — page-specific logic, imports from `src/api/`, `src/shared/`, `src/auth/` etc.
+- `main.ts` — page-specific logic, imports from `src/api/`, `src/shared/`, `src/auth/` etc.
 
 ## Nginx routing logic
 

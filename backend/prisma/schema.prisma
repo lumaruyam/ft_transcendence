@@ -71,6 +71,7 @@ model Project {
   boards      Board[]
   notes       Note[]
   whiteboard  Whiteboard?
+  whiteboardFiles WhiteboardFile[]
   attachments Attachment[]
   apiKeys     ApiKey[]
   tags        Tag[]
@@ -226,6 +227,23 @@ model Whiteboard {
   editor  User?   @relation("WhiteboardUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@map("whiteboards")
+}
+
+// WhiteboardFile maps to `whiteboard_files` — the binary side of a whiteboard: Excalidraw keeps images
+// out of the scene's elements (an image element only carries a fileId), so they are stored here as data URLs.
+// file_id is Excalidraw's content hash, so the same image uploaded twice is one row.
+model WhiteboardFile {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  fileId    String   @map("file_id")
+  mimeType  String   @map("mime_type")
+  dataUrl   String   @map("data_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, fileId])
+  @@map("whiteboard_files")
 }
 
 // Attachment maps to `attachments` — covers regular file uploads and exported whiteboard images alike.
