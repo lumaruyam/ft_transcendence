@@ -23,6 +23,7 @@ import {
 	handleOAuthCallback, startOAuthFlow, isOAuthCookieSecure, OAUTH_STATE_COOKIE, OAUTH_STATE_TTL_SECONDS,
 	OAuthNotConfiguredError, OAuthExchangeError, OAuthStateError, OAuthAccountConflictError, OAuthAccessDeniedError,
 } from "./oauth.service.js";
+import { MAX_PASSWORD_LENGTH } from "./auth.validation.js";
 import { requireAuth } from "../permissions/permissions.middleware.js";
 
 // registerAuthRoutes mounts /api/auth/signup, /api/auth/login, /api/auth/logout on the given
@@ -94,9 +95,9 @@ function toAuthResponse(user: User, token: string) {
 // signupHandler creates a new user with a hashed/salted password
 async function signupHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const input = request.body as Partial<SignupInput> | undefined;
-	const email = input?.email?.trim().toLowerCase() ?? "";
-	const password = input?.password ?? "";
-	const name = input?.name?.trim() ?? "";
+	const email = typeof input?.email === "string" ? input.email.trim().toLowerCase() : "";
+	const password = typeof input?.password === "string" ? input.password : "";
+	const name = typeof input?.name === "string" ? input.name.trim() : "";
 
 	const errors = validateSignupInput({ email, password, name });
 	if (errors.length > 0) {
@@ -129,10 +130,10 @@ async function signupHandler(request: FastifyRequest, reply: FastifyReply): Prom
 // loginHandler authenticates an email/password pair and returns a session token
 async function loginHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const input = request.body as Partial<LoginInput> | undefined;
-	const email = input?.email?.trim().toLowerCase() ?? "";
-	const password = input?.password ?? "";
+	const email = typeof input?.email === "string" ? input.email.trim().toLowerCase() : "";
+	const password = typeof input?.password === "string" ? input.password : "";
 
-	if (!email || !password) {
+	if (!email || !password || email.length > 254 || password.length > MAX_PASSWORD_LENGTH) {
 		reply.code(400).send({ error: "invalid_input", details: ["email and password are required"]});
 		return ;
 	}

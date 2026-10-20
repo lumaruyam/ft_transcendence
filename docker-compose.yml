@@ -53,6 +53,8 @@ services:
     # without it the shell swallows the signal and the graceful shutdown in
     # server.ts never runs (container gets SIGKILLed after the 10s timeout).
     command: sh -c "npx prisma migrate deploy && exec node dist/server.js"
+    security_opt:
+      - no-new-privileges:true
     expose:
       - "3000"
 
@@ -76,6 +78,8 @@ services:
     image: docker.io/library/nginx:1.27
     restart: unless-stopped
     stop_signal: SIGTERM
+    security_opt:
+      - no-new-privileges:true
     environment:
       # all three consumed by the nginx image's entrypoint at startup:
       # HTTP_PORT/HTTPS_PORT -> envsubst into default.conf.template;
@@ -91,8 +95,8 @@ services:
     ports:
       # host port = container port so the http->https redirect can name the right port.
       # 42 rootless Podman can't bind < 1024, hence the 8080/8443 defaults (see .env).
-      - "${HTTPS_PORT:-8443}:${HTTPS_PORT:-8443}"
-      - "${HTTP_PORT:-8080}:${HTTP_PORT:-8080}"
+      - "${BIND_ADDRESS:-127.0.0.1}:${HTTPS_PORT:-8443}:${HTTPS_PORT:-8443}"
+      - "${BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-8080}:${HTTP_PORT:-8080}"
     depends_on:
       frontend:
         condition: service_completed_successfully

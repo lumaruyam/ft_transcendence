@@ -145,6 +145,7 @@ export async function searchNotes(projectId: string, options: SearchOptions): Pr
 		},
 		include: { editor: { select: { id: true, name: true } } },
 		orderBy: { updatedAt: "desc" },
+		take: MAX_SCAN_PER_TYPE,
 	});
 
 	const results: Scored[] = [];

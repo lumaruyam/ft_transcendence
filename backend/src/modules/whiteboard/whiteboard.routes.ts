@@ -3,7 +3,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { Prisma } from "@prisma/client";
 import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
-import { getWhiteboard, saveWhiteboard, saveWhiteboardFile, getWhiteboardFile, SceneTooLargeError } from "./whiteboard.service.js";
+import { getWhiteboard, saveWhiteboard, saveWhiteboardFile, getWhiteboardFile, SceneTooLargeError, FileQuotaError } from "./whiteboard.service.js";
 import { MAX_ELEMENTS_PER_SCENE, validateElements } from "./whiteboard.elements.js";
 
 //Images Excalidraw accepts. SVG is fine here: it only ever reaches the page through <img>, never inline.
@@ -87,7 +87,15 @@ async function saveFileHandler(request: FastifyRequest, reply: FastifyReply): Pr
 	//the mime type is read from the data URL itself, so the two can never disagree
 	const mimeType = dataURL.slice(5, dataURL.indexOf(";"));
 
-	await saveWhiteboardFile(projectId, fileId, mimeType, dataURL);
+	try {
+		await saveWhiteboardFile(projectId, fileId, mimeType, dataURL);
+	} catch (error) {
+		if (error instanceof FileQuotaError) {
+			reply.code(413).send({ error: "too_many_files" });
+			return;
+		}
+		throw error;
+	}
 	reply.code(204).send();
 }
 

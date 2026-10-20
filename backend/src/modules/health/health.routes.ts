@@ -16,9 +16,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
     }
 
     return {
-      status: "ok",
-      service: "ft_transcendence backend",
-      db,
+      status: db === "up" ? "ok" : "degraded",
       time: new Date().toISOString(),
     };
   });

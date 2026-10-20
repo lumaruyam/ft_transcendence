@@ -83,6 +83,8 @@ export class BoardStore {
   #docTimer: ReturnType<typeof setTimeout> | undefined;
   readonly #flushDeletes = (): void => this.#commitAllDeletes();
 
+  #offlineTimer: ReturnType<typeof setTimeout> | undefined;
+
   constructor(projectId: string) {
     this.#projectId = projectId;
   }
@@ -95,7 +97,9 @@ export class BoardStore {
       onEvent: (event, payload) => this.applyEvent(event, payload),
       onReconnect: () => void this.load(),
       onStatus: (connected) => {
-        this.connected = connected;
+        clearTimeout(this.#offlineTimer);
+        if (connected) this.connected = true;
+        else this.#offlineTimer = setTimeout(() => (this.connected = false), 2000);
         // who is online is unknown while offline: the server sends a fresh snapshot when the connection is back
         if (!connected) this.online.clear();
       },
@@ -103,6 +107,7 @@ export class BoardStore {
   }
 
   stop(): void {
+    clearTimeout(this.#offlineTimer);
     clearTimeout(this.#docTimer);
     window.removeEventListener("pagehide", this.#flushDeletes);
     this.#commitAllDeletes();

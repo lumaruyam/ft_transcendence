@@ -50,7 +50,7 @@ server {
     # Content-Security-Policy: scripts only from this origin (no inline script: the theme bootstrap is
     # /theme-init.js), connections only to this origin over https/wss, nothing may frame the app.
     # 'unsafe-inline' is kept for styles only (Svelte and Excalidraw set inline style attributes).
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.githubusercontent.com; font-src 'self' data:; connect-src 'self' wss:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.githubusercontent.com; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
     # No Strict-Transport-Security here on purpose: it would be remembered by the browser for the whole host
     # "localhost" (every port) with a certificate that is self-signed. Add it in a real deployment:
     #   add_header Strict-Transport-Security "max-age=31536000" always;
@@ -69,7 +69,7 @@ server {
     # API -> Node.js backend. `^~` so that the static-assets rule below (a regex, which would win over a plain prefix)
     # cannot capture API URLs that end in an image extension, like the uploaded avatars at /api/avatars/<id>.png
     location ^~ /api/ {
-        client_max_body_size 20M;
+        client_max_body_size 11M;
         proxy_pass         $backend_api;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
@@ -147,14 +147,12 @@ server {
 
     # The theme bootstrap is small and may change: revalidate it, unlike the hashed assets below
     location = /theme-init.js {
-        add_header Cache-Control "no-cache";
-        add_header X-Content-Type-Options "nosniff" always;
+        expires -1;
     }
 
     # Static assets (JS, CSS, images, fonts)
     location ~* \.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?)$ {
         expires 1y;
-        add_header Cache-Control "public, immutable";
     }
 
     # /settings -> user settings

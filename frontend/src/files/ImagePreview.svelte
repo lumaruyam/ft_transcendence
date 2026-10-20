@@ -34,12 +34,12 @@
 
 	$effect(() => {
 		const image = current;
-		if (!image) return;
-		let cancelled = false;
-		let created: string | null = null;
 		url = null;
 		text = null;
 		failed = false;
+		if (!image) return;
+		let cancelled = false;
+		let created: string | null = null;
 		fetchAttachmentBlob(projectId, image)
 			.then(async (blob) => {
 				if (cancelled) return;
