@@ -2,10 +2,9 @@
 // Responsible for: matching incoming webhook payloads to the correct card and driving PR-lifecycle status transitions (PR pending → Done). TS equivalent of backend/internal/git/eventProcessor.go (Go skeleton, removed).
 
 import { prisma } from "../../db/prisma/client.js";
-import { updateCard } from "../kanban/card.service.js";
+import { updateCard, moveCard } from "../kanban/card.service.js";
 import { normalizeRepoUrl } from "./branchLink.service.js"
 import { createNotification } from "../notifications/notifications.service.js";
-import { Prisma } from "@prisma/client";
 
 export interface Commit {
     id: string;
@@ -36,35 +35,14 @@ export interface GitHubPullRequestPayload {
     };
 }
 
-//to find card-123
-export function extractCardID(text: string): string | null{
-    if(!text)
-        return null;
-    const match = text.match(/(?:card|task)-(\d+)/i); //i-any registre; \d-any (0-9);+-1 or more number
-    if(match && match[1])
-        return match[1];
-    return null;
-}
 // processPushEvent handles a `push` webhook payload.
 export async function processPushEvent(payload: GitHubPushPayload): Promise<void> {
-    let cardId: string | null = extractCardID(payload.ref);
-    if(!cardId && payload.commits){
-        for(const commit of payload.commits){
-            cardId = extractCardID(commit.message);
-            if(cardId)
-                    break;
-        }
-    }
-    if(!cardId && payload.repository?.html_url)
+    let cardId: string | null = null;
+    if(payload.repository?.html_url)
         cardId = await matchCardByGitLink(payload.repository.html_url, payload.ref);
     if(cardId)
-        await transitionCardStatus(cardId.toString(), 'In progress');
-    /*await logWebhookEvent({
-    provider: 'github',
-    repo: payload.repository.full_name,
-    eventType: 'push',
-    payload: payload,
-});*/
+        await transitionCardStatus(cardId, 'In progress');
+
 }
 
 async function dispatchCardNotification(cardId: string, message: string, url?: string): Promise<void> {
@@ -85,7 +63,7 @@ async function dispatchCardNotification(cardId: string, message: string, url?: s
     });
     //Send notif to every membres
     await Promise.all(
-        members.map((member) =>
+        members.map((member: {userId: string}) =>
             createNotification(member.userId, "card", { cardId, message, url: url ?? null,})));
 
 
@@ -139,22 +117,39 @@ export async function matchCardByGitLink(repoUrl: string, branchName: string): P
 export async function transitionCardStatus(cardId: string, targetStatus: string,
     extraData?: { prUrl?: string, prStatus?: string}): Promise<void> {
     try{
-        const operations: any[] = [ prisma.card.update({
-        where: { id: cardId },
-        data: { status: targetStatus, ...( extraData?.prUrl ? { linkedPrUrl: extraData.prUrl } : {}),
-        }},)
-        ]
-        if(extraData?.prStatus){
-            operations.push(
-                prisma.gitLink.updateMany({
-                    where: { cardId },
-                    data: {prStatus: extraData.prStatus},
-                })
-            )
+        //get the board id of the carrent card
+        const currentCard = await prisma.card.findUnique({
+            where: { id: cardId },
+            select: { listId: true, list: { select: { boardId: true } } },
+        });
+        if (!currentCard)
+            return;
+        //look for the target column using standart name
+        const targets = targetStatus === 'Done' ? ['terminé', 'done']
+        : ['en cours', 'in progress'];
+
+        const targetList = await prisma.list.findFirst({
+            where: {
+                boardId: currentCard.list.boardId,
+                title: { in: targets, mode: 'insensitive' },
+            },
+        });
+        //if the target column exist and card not in it - move it
+        if (targetList && targetList.id !== currentCard.listId) {
+            await moveCard(cardId, targetList.id, 0);
         }
-        await prisma.$transaction(operations);
-        //tell the boards that are open: the webhook is not a kanban route, so nothing else broadcasts it
-        await updateCard(cardId, {});
+        //upd status and PR data
+        await updateCard(cardId, {
+            status: targetStatus,
+            ...(extraData?.prUrl ? { linkedPrUrl: extraData.prUrl } : {}),
+        });
+
+        if (extraData?.prStatus) {
+            await prisma.gitLink.updateMany({
+                where: { cardId },
+                data: { prStatus: extraData.prStatus },
+            });
+        }
     }
     catch(err:any){
         console.warn(`Failed to transition card ${cardId} to status '${targetStatus}' : ${err?.message || err}`);
