@@ -7,16 +7,16 @@ import type { Board, Card, CardMoved, List, Member, Project, Tag } from "./types
 type ListRow = Omit<List, "cards">;
 
 export async function fetchProject(projectId: string): Promise<Project> {
-  const { project } = await apiRequest<{ project: Project }>({ method: "GET", path: `/projects/${projectId}` });
+  const { project } = await apiRequest<{ project: Project }>({ method: "GET", path: `/projects/${encodeURIComponent(projectId)}` });
   return project;
 }
 
 export function fetchBoardForProject(projectId: string): Promise<Board> {
-  return apiRequest<Board>({ method: "GET", path: `/projects/${projectId}/board` });
+  return apiRequest<Board>({ method: "GET", path: `/projects/${encodeURIComponent(projectId)}/board` });
 }
 
 export async function fetchMembers(projectId: string): Promise<Member[]> {
-  const { members } = await apiRequest<{ members: Member[] }>({ method: "GET", path: `/projects/${projectId}/members` });
+  const { members } = await apiRequest<{ members: Member[] }>({ method: "GET", path: `/projects/${encodeURIComponent(projectId)}/members` });
   return members;
 }
 
@@ -25,15 +25,15 @@ export function createList(boardId: string, title: string, position: number): Pr
 }
 
 export function renameList(listId: string, title: string): Promise<ListRow> {
-  return apiRequest<ListRow>({ method: "PUT", path: `/lists/${listId}`, body: { title } });
+  return apiRequest<ListRow>({ method: "PUT", path: `/lists/${encodeURIComponent(listId)}`, body: { title } });
 }
 
 export function deleteList(listId: string): Promise<void> {
-  return apiRequest<void>({ method: "DELETE", path: `/lists/${listId}` });
+  return apiRequest<void>({ method: "DELETE", path: `/lists/${encodeURIComponent(listId)}` });
 }
 
 export function reorderLists(boardId: string, orderedListIds: string[]): Promise<void> {
-  return apiRequest<void>({ method: "PUT", path: `/boards/${boardId}/lists/reorder`, body: { orderedListIds } });
+  return apiRequest<void>({ method: "PUT", path: `/boards/${encodeURIComponent(boardId)}/lists/reorder`, body: { orderedListIds } });
 }
 
 export function createCard(listId: string, title: string, position: number): Promise<Card> {
@@ -41,35 +41,35 @@ export function createCard(listId: string, title: string, position: number): Pro
 }
 
 export function updateCard(cardId: string, patch: { title?: string; description?: string }): Promise<Card> {
-  return apiRequest<Card>({ method: "PUT", path: `/cards/${cardId}`, body: patch });
+  return apiRequest<Card>({ method: "PUT", path: `/cards/${encodeURIComponent(cardId)}`, body: patch });
 }
 
 export function moveCard(cardId: string, listId: string, position: number): Promise<CardMoved> {
-  return apiRequest<CardMoved>({ method: "PUT", path: `/cards/${cardId}/move`, body: { listId, position } });
+  return apiRequest<CardMoved>({ method: "PUT", path: `/cards/${encodeURIComponent(cardId)}/move`, body: { listId, position } });
 }
 
 export function deleteCard(cardId: string, keepalive = false): Promise<void> {
-  return apiRequest<void>({ method: "DELETE", path: `/cards/${cardId}`, keepalive });
+  return apiRequest<void>({ method: "DELETE", path: `/cards/${encodeURIComponent(cardId)}`, keepalive });
 }
 
 export function fetchTags(projectId: string): Promise<Tag[]> {
-  return apiRequest<Tag[]>({ method: "GET", path: `/projects/${projectId}/tags` });
+  return apiRequest<Tag[]>({ method: "GET", path: `/projects/${encodeURIComponent(projectId)}/tags` });
 }
 
 export function createTag(projectId: string, name: string, color: string): Promise<Tag> {
-  return apiRequest<Tag>({ method: "POST", path: `/projects/${projectId}/tags`, body: { name, color } });
+  return apiRequest<Tag>({ method: "POST", path: `/projects/${encodeURIComponent(projectId)}/tags`, body: { name, color } });
 }
 
 export function updateTag(tagId: string, patch: { name?: string; color?: string }): Promise<Tag> {
-  return apiRequest<Tag>({ method: "PUT", path: `/tags/${tagId}`, body: patch });
+  return apiRequest<Tag>({ method: "PUT", path: `/tags/${encodeURIComponent(tagId)}`, body: patch });
 }
 
 export function deleteTag(tagId: string): Promise<void> {
-  return apiRequest<void>({ method: "DELETE", path: `/tags/${tagId}` });
+  return apiRequest<void>({ method: "DELETE", path: `/tags/${encodeURIComponent(tagId)}` });
 }
 
 export function setCardTags(cardId: string, tagIds: string[]): Promise<Card> {
-  return apiRequest<Card>({ method: "PUT", path: `/cards/${cardId}/tags`, body: { tagIds } });
+  return apiRequest<Card>({ method: "PUT", path: `/cards/${encodeURIComponent(cardId)}/tags`, body: { tagIds } });
 }
 
 // ---- Git integration
@@ -82,15 +82,15 @@ export async function fetchGitStatus(): Promise<boolean> {
 export async function fetchBranches(projectId: string, repoUrl: string): Promise<string[]> {
   const { branches } = await apiRequest<{ branches: string[] }>({
     method: "GET",
-    path: `/projects/${projectId}/git/branches?repoUrl=${encodeURIComponent(repoUrl)}`,
+    path: `/projects/${encodeURIComponent(projectId)}/git/branches?repoUrl=${encodeURIComponent(repoUrl)}`,
   });
   return branches;
 }
 
 export function linkBranch(cardId: string, repoUrl: string, branchName: string, createBranch: boolean): Promise<Card> {
-  return apiRequest<Card>({ method: "POST", path: `/cards/${cardId}/git`, body: { repoUrl, branchName, createBranch } });
+  return apiRequest<Card>({ method: "POST", path: `/cards/${encodeURIComponent(cardId)}/git`, body: { repoUrl, branchName, createBranch } });
 }
 
 export function unlinkBranch(cardId: string): Promise<Card> {
-  return apiRequest<Card>({ method: "DELETE", path: `/cards/${cardId}/git` });
+  return apiRequest<Card>({ method: "DELETE", path: `/cards/${encodeURIComponent(cardId)}/git` });
 }

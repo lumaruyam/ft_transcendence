@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma/client.js";
 import { broadcastToProject } from "./broadcast.js";
 import { getProjectIdForBoard } from "./board.service.js";
 import { SERIALIZABLE } from "../../db/concurrency.js";
+import { MAX_LISTS_PER_BOARD, QuotaError } from "./quota.js";
 import { closeGapsInBoard, makeRoomInBoard, withProjectLock } from "./positions.js";
 
 // broadcastToBoardProject resolves a board to its project and broadcasts to that project's room
@@ -18,6 +19,7 @@ export async function createList(input: { boardId: string; title: string; positi
 	const projectId = await getProjectIdForBoard(input.boardId);
 	const list = await withProjectLock(projectId, input.boardId, () =>
 		prisma.$transaction(async (tx) => {
+			if ((await tx.list.count({ where: { boardId: input.boardId } })) >= MAX_LISTS_PER_BOARD) throw new QuotaError();
 			const at = await makeRoomInBoard(tx, input.boardId, input.position);
 			return tx.list.create({ data: { boardId: input.boardId, title: input.title, position: at } });
 		}, SERIALIZABLE),

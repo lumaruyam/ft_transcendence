@@ -4,6 +4,7 @@ import type { Socket } from "socket.io";
 import * as Y from "yjs";
 import { getIOIfReady } from "../kanban/hub.js";
 import { noteRoom } from "../kanban/rooms.js";
+import { createTokenBucket } from "../kanban/socketLimit.js";
 import { getUserRole, ROLE_RANK, SOCKET_ROLE_TTL_MS, type Role } from "../permissions/roles.service.js";
 import { getNoteProjectId, loadNoteDoc, saveNoteDoc } from "./notes.service.js";
 
@@ -67,7 +68,11 @@ export function registerNoteCollabHandlers(socket: Socket): void {
 		}
 	});
 
+	const takeUpdateToken = createTokenBucket(60, 30);
+	const takeAwarenessToken = createTokenBucket(40, 20);
+
 	socket.on("note_update", async (msg: unknown) => {
+		if (!takeUpdateToken()) return;
 		const noteId = noteIdOf(msg);
 		const update = toBytes((msg as { update?: unknown } | null)?.update);
 		if (!noteId || !update || update.byteLength > MAX_UPDATE_BYTES) return;
@@ -89,6 +94,7 @@ export function registerNoteCollabHandlers(socket: Socket): void {
 	});
 
 	socket.on("note_awareness", (msg: unknown) => {
+		if (!takeAwarenessToken()) return;
 		const noteId = noteIdOf(msg);
 		const update = toBytes((msg as { update?: unknown } | null)?.update);
 		const clientId = (msg as { clientId?: unknown } | null)?.clientId;

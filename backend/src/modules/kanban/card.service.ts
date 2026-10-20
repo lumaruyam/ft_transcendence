@@ -4,6 +4,7 @@ import { broadcastToProject } from "./broadcast.js";
 import { getProjectIdForList } from "./list.service.js";
 import { CARD_TAGS_INCLUDE, withTags } from "./tag.service.js";
 import { SERIALIZABLE } from "../../db/concurrency.js";
+import { MAX_CARDS_PER_LIST, QuotaError } from "./quota.js";
 import { closeGapsInList, makeRoomInList, withProjectLock } from "./positions.js";
 
 // broadcastToListProject resolves a list to its project and broadcasts to that project's room
@@ -20,6 +21,7 @@ export async function createCard(input: { listId: string; title: string; descrip
 	const projectId = await getProjectIdForList(input.listId);
 	const card = await withProjectLock(projectId, input.listId, () =>
 		prisma.$transaction(async (tx) => {
+			if ((await tx.card.count({ where: { listId: input.listId } })) >= MAX_CARDS_PER_LIST) throw new QuotaError();
 			const at = await makeRoomInList(tx, input.listId, input.position);
 			return tx.card.create({
 				data: { listId: input.listId, title: input.title, description: input.description, position: at, createdBy: input.createdBy },
@@ -102,6 +104,7 @@ export async function moveCard(cardId: string, toListId: string, position: numbe
 			const sameList = fromListId === toListId;
 			const fromOrder = (await orderOf(fromListId)).filter((id) => id !== cardId);
 			const toOrder = sameList ? fromOrder : await orderOf(toListId);
+			if (!sameList && toOrder.length >= MAX_CARDS_PER_LIST) throw new QuotaError();
 			toOrder.splice(Math.min(position, toOrder.length), 0, cardId);
 
 			if (!sameList) {

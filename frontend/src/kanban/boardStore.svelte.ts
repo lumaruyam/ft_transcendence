@@ -35,6 +35,17 @@ interface PendingDelete {
   timer: ReturnType<typeof setTimeout>;
 }
 
+const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function hasUnsafeKey(value: unknown, depth = 0): boolean {
+  if (typeof value !== "object" || value === null || depth > 6) return false;
+  for (const key of Object.keys(value)) {
+    if (UNSAFE_KEYS.has(key)) return true;
+    if (hasUnsafeKey((value as Record<string, unknown>)[key], depth + 1)) return true;
+  }
+  return false;
+}
+
 export class BoardStore {
   project = $state<Project | null>(null);
   board = $state<Board | null>(null);
@@ -348,6 +359,7 @@ export class BoardStore {
   // ---- live events from the project room
 
   applyEvent(event: string, payload: unknown): void {
+    if (hasUnsafeKey(payload)) return;
     switch (event) {
       case "presence": {
         const { userId, status } = payload as { userId: string; status: "joined" | "left" };

@@ -20,7 +20,7 @@ async function getGitHubToken(userId: string): Promise<string> {
 export function parseRepoUrl(repoUrl: string): { owner: string; repo: string } {
   const cleaned = repoUrl.trim().replace(/\.git$/, "").replace(/^(https?:\/\/github\.com\/|git@github\.com:)/, "");
   const [owner, repo, ...rest] = cleaned.split("/");
-  if (!owner || !repo || rest.length > 0 || !/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(repo)) {
+  if (!owner || !repo || rest.length > 0 || !/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(repo) || /^\.+$/.test(owner) || /^\.+$/.test(repo)) {
     throw new Error(`Invalid GitHub repository URL: ${repoUrl}`);
   }
   return { owner, repo };

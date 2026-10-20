@@ -1,10 +1,12 @@
 import { Prisma, type Tag } from "@prisma/client";
+import { MAX_BOARDS_PER_PROJECT, QuotaError } from "./quota.js";
 import { prisma } from "../../db/prisma/client.js";
 import { broadcastToProject } from "./broadcast.js";
 import { CARD_TAGS_INCLUDE, withTags } from "./tag.service.js";
 import { SERIALIZABLE, inSequence, retryOnConflict } from "../../db/concurrency.js";
 
 export async function createBoard(input: { projectId: string; title: string}) {
+	if ((await prisma.board.count({ where: { projectId: input.projectId } })) >= MAX_BOARDS_PER_PROJECT) throw new QuotaError();
 	const board = await prisma.board.create({
 		data: {
 			projectId: input.projectId,

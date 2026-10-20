@@ -21,6 +21,7 @@ import {
   reorderLists,
   getProjectIdForList,
 } from "./list.service.js";
+import { QuotaError } from "./quota.js";
 import { createCard, getCard, updateCard, moveCard, deleteCard } from "./card.service.js";
 import { listTags, createTag, updateTag, deleteTag, setCardTags, TagConflictError } from "./tag.service.js";
 import {
@@ -258,8 +259,13 @@ async function createBoardHandler(
   request: FastifyRequest<{ Body: { projectId: string; title: string } }>,
   reply: FastifyReply
 ): Promise<void> {
-  const board = await createBoard(request.body);
-  reply.code(201).send(board);
+  try {
+    const board = await createBoard(request.body);
+    reply.code(201).send(board);
+  } catch (err) {
+    if (err instanceof QuotaError) reply.code(409).send({ error: "quota_exceeded" });
+    else throw err;
+  }
 }
 
 // getBoardHandler fetches a board with its lists/cards for initial render.
@@ -313,7 +319,14 @@ async function createListHandler(
   request: FastifyRequest<{ Body: { boardId: string; title: string; position: number } }>,
   reply: FastifyReply
 ): Promise<void> {
-  const list = await createList(request.body);
+  let list;
+  try {
+    list = await createList(request.body);
+  } catch (err) {
+    if (err instanceof QuotaError) reply.code(409).send({ error: "quota_exceeded" });
+    else throw err;
+    return;
+  }
   reply.code(201).send(list);
   void tell(request, getProjectIdForBoard(list.boardId), { type: "list_created", text: `a ajouté la liste « ${list.title} »`, entityId: list.id });
 }
@@ -392,7 +405,14 @@ async function createCardHandler(
   }>,
   reply: FastifyReply
 ): Promise<void> {
-  const card = await createCard({ ...request.body, createdBy: request.userId });
+  let card;
+  try {
+    card = await createCard({ ...request.body, createdBy: request.userId });
+  } catch (err) {
+    if (err instanceof QuotaError) reply.code(409).send({ error: "quota_exceeded" });
+    else throw err;
+    return;
+  }
   reply.code(201).send(card);
   void tell(request, getProjectIdForList(card.listId), { type: "card_created", text: `a créé la carte « ${card.title} »`, entityId: card.id });
 }
@@ -442,7 +462,16 @@ async function moveCardHandler(
   const { id } = request.params;
   const { listId, position } = request.body;
 
-  const moved = await moveCard(id, listId, position);
+  let moved;
+  try {
+    moved = await moveCard(id, listId, position);
+  } catch (err) {
+    if (err instanceof QuotaError) {
+      reply.code(409).send({ error: "quota_exceeded" });
+      return;
+    }
+    throw err;
+  }
   if (!moved) {
     reply.code(404).send({ error: "Card or destination list not found in this project" });
     return;

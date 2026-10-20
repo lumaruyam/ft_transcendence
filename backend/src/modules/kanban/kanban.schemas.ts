@@ -51,7 +51,7 @@ export const createListSchema: FastifySchema = {
     properties: {
       boardId: { type: "string", format: "uuid" },
       title: listTitle,
-      position: { type: "integer", minimum: 0 },
+      position: { type: "integer", minimum: 0, maximum: 1000 },
     },
   },
 };
@@ -66,7 +66,7 @@ export const updateListSchema: FastifySchema = {
     additionalProperties: false,
     properties: {
       title: listTitle,
-      position: { type: "integer", minimum: 0 },
+      position: { type: "integer", minimum: 0, maximum: 1000 },
     },
   },
 };
@@ -89,6 +89,8 @@ export const reorderListsSchema: FastifySchema = {
         type: "array",
         items: { type: "string", format: "uuid" },
         minItems: 1,
+        maxItems: 50,
+        uniqueItems: true,
       },
     },
   },
@@ -103,7 +105,7 @@ export const createCardSchema: FastifySchema = {
       listId: { type: "string", format: "uuid" },
       title: cardTitle,
       description: cardDescription,
-      position: { type: "integer", minimum: 0 },
+      position: { type: "integer", minimum: 0, maximum: 1000 },
     },
   },
 };
@@ -119,7 +121,7 @@ export const moveCardSchema: FastifySchema = {
     additionalProperties: false,
     properties: {
       listId: { type: "string", format: "uuid" },
-      position: { type: "integer", minimum: 0 },
+      position: { type: "integer", minimum: 0, maximum: 1000 },
     },
   },
 };
@@ -132,9 +134,9 @@ export const updateCardSchema: FastifySchema = {
     additionalProperties: false,
     properties: {
       title: cardTitle,
-      // no maxLength on update: cards created before the limit existed must stay editable
-      description: { type: "string" },
-      position: { type: "integer", minimum: 0 },
+      // looser than at creation: cards created before the limit existed must stay editable
+      description: { type: "string", maxLength: 100000 },
+      position: { type: "integer", minimum: 0, maximum: 1000 },
     },
   },
 };
