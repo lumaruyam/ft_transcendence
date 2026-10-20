@@ -23,7 +23,8 @@
 
   let role = $state<Role>("member");
   let expiryDays = $state<number | null>(7);
-  let maxUses = $state("");
+  // a type="number" input binds a number (null when empty), never a string
+  let maxUses = $state<number | null>(null);
   let busy = $state(false);
   let error = $state<string | null>(null);
   // the token only exists in the creation response: keep the link visible
@@ -45,7 +46,7 @@
   async function onCreate(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     error = null;
-    const uses = maxUses.trim() === "" ? undefined : Number(maxUses);
+    const uses = maxUses === null ? undefined : maxUses;
     if (uses !== undefined && (!Number.isInteger(uses) || uses < 1)) {
       error = "Le nombre d'utilisations doit être un entier d'au moins 1.";
       return;
@@ -58,7 +59,7 @@
         expiresAt: expiryDays ? new Date(Date.now() + expiryDays * 86_400_000).toISOString() : undefined,
       });
       fresh = { url: `${location.origin}/invite/${token}`, role };
-      maxUses = "";
+      maxUses = null;
       await load();
     } catch (err) {
       error = errorMessage(err);

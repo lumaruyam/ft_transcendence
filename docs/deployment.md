@@ -32,7 +32,7 @@ On a fresh clone the script, in this order:
 
 Then open **https://localhost:8443/** and accept the browser warning (self-signed certificate).
 `http://localhost:8080/` redirects to https. `https://localhost:8443/api/health` answers `"status":"ok"` when the
-backend and the database are up. The public API documentation is at `https://localhost:8443/api/docs`.
+backend and the database are up. The public API documentation is at `https://localhost:8443/api-docs`.
 
 Secrets in `.env` (`JWT_SECRET`, `POSTGRES_PASSWORD`, `GIT_WEBHOOK_SECRET`) start as `change_me`: fine on your
 machine, replace them with random values anywhere else (`openssl rand -hex 32`).

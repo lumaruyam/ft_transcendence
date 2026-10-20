@@ -125,6 +125,7 @@ export default defineConfig({
         files:              resolve(import.meta.dirname, "src/files/index.html"),
         "not-found":        resolve(import.meta.dirname, "src/not-found/index.html"),
         error:              resolve(import.meta.dirname, "src/error/index.html"),
+        "api-docs":         resolve(import.meta.dirname, "src/api-docs/index.html"),
         "legal-privacy":    resolve(import.meta.dirname, "src/legal/privacy/index.html"),
         "legal-terms":      resolve(import.meta.dirname, "src/legal/terms/index.html"),
       },

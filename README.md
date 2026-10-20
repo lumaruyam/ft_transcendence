@@ -62,7 +62,7 @@ encryption key and a self-signed certificate, builds the images (only what chang
 
 - **https://localhost:8443/**: the app (accept the browser warning, the certificate is self-signed)
 - https://localhost:8443/api/health: should answer `"status":"ok"`
-- https://localhost:8443/api/docs: the public API documentation
+- https://localhost:8443/api-docs: the public API documentation (`/api/docs` redirects to it)
 - http://localhost:8080/: redirects to https
 
 Other commands: `./transcendence stop`, `restart`, `reload` (rebuild the front end only), `oauth` (GitHub credentials), `clean`, and
@@ -452,7 +452,7 @@ to the interface (read-only board, notes, files and whiteboard for a viewer). Th
 *Why:* teams want to script their board. *Requirements:* secured API key, rate limiting, documentation, at least 5 endpoints.
 *How:* `GET /api/projects`, `GET`, `POST`, `PUT`, `DELETE` on `/api/projects/{id}/cards`. Keys are issued by project admins (shown once, only the SHA-256 hash is stored), can be restricted to one project, act as their owner with that
 person's role (so removing the user cuts the key), and are revocable at once. A fixed-window rate limit applies per key (`429` with `Retry-After` and `X-RateLimit-*` headers). The documentation is served by the app:
-`/api/docs` (page) and `/api/openapi.json` (OpenAPI 3).
+`/api-docs` (page of the site, `/api/docs` leads there) and `/api/openapi.json` (OpenAPI 3).
 *Team:* <!-- TODO(team): member(s) -->
 
 ### 6. Custom module: Git and webhook integration (Major, 2 pts)

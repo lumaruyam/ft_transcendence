@@ -79,6 +79,12 @@ server {
         proxy_set_header   X-Forwarded-Proto $scheme;
     }
 
+    # The documentation of the public API is a page of the site (same header and colours), fed by /api/openapi.json.
+    # /api/docs stays the address people know: it leads there.
+    location = /api/docs {
+        return 302 /api-docs;
+    }
+
     # Socket.IO -> backend with WebSocket upgrade
     location ^~ /socket.io/ {
         proxy_pass         $backend_api;
