@@ -19,7 +19,9 @@ import { getUser } from "../permissions/users.service.js";
 import { notifyProject } from "../notifications/notifications.service.js";
 import { announceMembersChanged, announceProjectDeleted, announceProjectUpdated, evictFromProject } from "../kanban/membership.events.js";
 import { createProject, getProject, updateProject, deleteProject, listProjectsForUser, transferProjectOwnership, InvalidProjectInputError, NotAProjectMemberError, type CreateProjectInput, type UpdateProjectInput, } from "./projects.service.js";
-import { addMember, removeMember, listMembers, UserNotFoundError, LastAdminError, OwnerRoleError } from "./members.service.js";
+import { addMember, removeMember, listMembers, findUserByEmail, isMember, UserNotFoundError, LastAdminError, OwnerRoleError } from "./members.service.js";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // A role coming from the request body is untrusted input. ROLE_RANK is a plain object
 // Object.hasOwn only matches keys we actually defined on ROLE_RANK
@@ -157,13 +159,32 @@ async function listMembersHandler(request: FastifyRequest, reply: FastifyReply):
 // addMemberHandler adds a user to the project with a given role, or changes the role of a member (admin only)
 async function addMemberHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId } = request.params as { projectId: string };
-	const body = request.body as { userId?: string; role?: unknown } | undefined;
+	const body = request.body as { userId?: unknown; email?: unknown; role?: unknown } | undefined;
+	const email = typeof body?.email === "string" ? body.email.trim() : "";
+	const role = body?.role;
 
-	if (!body?.userId || !isKnownRole(body.role)) {
-		reply.code(400).send({ error: "invalid_input", details: ["userId and a valid role are required"] });
+	if (!isKnownRole(role) || (email === "" && (typeof body?.userId !== "string" || body.userId === ""))) {
+		reply.code(400).send({ error: "invalid_input", details: ["userId or email and a valid role are required"] });
 		return;
 	}
-	await applyMemberRole(request, reply, projectId, body.userId, body.role);
+	if (email === "") {
+		await applyMemberRole(request, reply, projectId, body?.userId as string, role);
+		return;
+	}
+	if (email.length > 254 || !EMAIL_PATTERN.test(email)) {
+		reply.code(400).send({ error: "invalid_input", details: ["email is not valid"] });
+		return;
+	}
+	const user = await findUserByEmail(email);
+	if (!user) {
+		reply.code(404).send({ error: "user_not_found" });
+		return;
+	}
+	if (await isMember(projectId, user.id)) {
+		reply.code(409).send({ error: "already_member" });
+		return;
+	}
+	await applyMemberRole(request, reply, projectId, user.id, role);
 }
 
 // setMemberRoleHandler changes the role of an existing member — PUT /api/projects/:projectId/members/:userId

@@ -185,7 +185,7 @@
   </div>
 
   {#if store.canEdit}
-    <Composer bind:this={composer} label="Ajouter une carte" placeholder="Titre de la carte…" multiline onadd={addCard} />
+    <Composer bind:this={composer} label="Ajouter une carte" placeholder="Titre de la carte…" multiline maxlength={200} onadd={addCard} />
   {/if}
 </section>
 

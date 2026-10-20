@@ -318,7 +318,6 @@
     </div>
   </section>
 
-  <nav class="legal"><a href="/legal/terms">Conditions d'utilisation</a><a href="/legal/privacy">Politique de confidentialité</a></nav>
 </main>
 
 <dialog class="modal" bind:this={dialog} aria-labelledby="handover-title" onclose={() => (handover = null)}>
@@ -413,16 +412,6 @@
   }
   .theme {
     max-width: 340px;
-  }
-  .legal {
-    display: flex;
-    justify-content: center;
-    gap: 22px;
-    margin-top: 12px;
-    font-size: 0.85rem;
-  }
-  .legal a {
-    color: var(--text-faint);
   }
   dialog {
     width: min(480px, calc(100vw - 24px));

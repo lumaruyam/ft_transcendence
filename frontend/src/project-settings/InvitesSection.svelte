@@ -47,8 +47,8 @@
     event.preventDefault();
     error = null;
     const uses = maxUses === null ? undefined : maxUses;
-    if (uses !== undefined && (!Number.isInteger(uses) || uses < 1)) {
-      error = "Le nombre d'utilisations doit être un entier d'au moins 1.";
+    if (uses !== undefined && (!Number.isInteger(uses) || uses < 1 || uses > 1000)) {
+      error = "Le nombre d'utilisations doit être un entier entre 1 et 1 000.";
       return;
     }
     busy = true;
@@ -130,7 +130,7 @@
       </div>
       <div class="field">
         <label for="inv-uses">Utilisations max.</label>
-        <input id="inv-uses" class="input" type="number" min="1" step="1" inputmode="numeric" placeholder="Illimité" bind:value={maxUses} />
+        <input id="inv-uses" class="input" type="number" min="1" max="1000" step="1" inputmode="numeric" placeholder="Illimité" bind:value={maxUses} />
       </div>
     </div>
     <span class="hint">{ROLE_HINT[role]}.</span>

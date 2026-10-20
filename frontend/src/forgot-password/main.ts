@@ -4,4 +4,4 @@
 import { boot } from "../shared/boot";
 import ForgotPassword from "./ForgotPassword.svelte";
 
-boot(ForgotPassword, { auth: "guest" });
+boot(ForgotPassword, { auth: "guest", footer: false });

@@ -96,7 +96,7 @@ async function createCardHandler(request: FastifyRequest, reply: FastifyReply): 
 	}
 
 	// Broadcasting to the project's Socket.IO room happens inside kanban's createCard
-	const card = await createCard(body.value);
+	const card = await createCard({ ...body.value, createdBy: request.userId ?? undefined });
 	reply.code(201).send({ card: toPublicCard(card, projectId) });
 	tellProject(request, projectId, "card_created", card.id, {
 		named: `a créé la carte « ${card.title} » via l'API`,

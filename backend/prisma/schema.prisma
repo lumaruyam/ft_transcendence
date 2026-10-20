@@ -27,6 +27,7 @@ model User {
   updatedNotes   Note[]          @relation("NoteUpdatedBy")
   updatedWhiteboards Whiteboard[]    @relation("WhiteboardUpdatedBy")
   uploads        Attachment[]    @relation("AttachmentUploadedBy")
+  createdCards   Card[]          @relation("CardCreatedBy")
   notifications  Notification[]
   createdInvites ProjectInvite[] @relation("InviteCreatedBy")
   revokedInvites ProjectInvite[] @relation("InviteRevokedBy")
@@ -155,15 +156,18 @@ model Card {
   linkedPrUrl  String?  @map("linked_pr_url")
   status       String   @default("todo")
   position     Int
+  createdBy    String?  @map("created_by")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  creator     User?        @relation("CardCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
   gitLink     GitLink?
   noteLinks       CardNote[]
   attachmentLinks CardAttachment[]
   tags        CardTag[]
 
+  @@index([createdBy])
   @@map("cards")
 }
 

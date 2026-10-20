@@ -3,4 +3,4 @@
 import { boot } from "../shared/boot";
 import Login from "./Login.svelte";
 
-boot(Login, { auth: "guest" });
+boot(Login, { auth: "guest", footer: false });

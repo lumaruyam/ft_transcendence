@@ -20,6 +20,7 @@
 
   // description draft: mirrors the card until the user types
   let description = $state("");
+  const DESCRIPTION_MAX = 10000;
   let typing = $state(false);
   let saveState = $state<"idle" | "saving" | "saved">("idle");
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -160,6 +161,7 @@
           value={open.card.title}
           editable={store.canEdit}
           label="Titre de la carte"
+          maxlength={200}
           onsave={(title) => store.editCard(open.card.id, { title })}
         />
 
@@ -174,6 +176,7 @@
             id="card-description"
             class="input"
             bind:value={description}
+            maxlength={DESCRIPTION_MAX}
             readonly={!store.canEdit}
             rows="7"
             placeholder={store.canEdit ? "Ajoutez du contexte, des liens, des critères d'acceptation…" : "Aucune description."}
@@ -181,6 +184,7 @@
             onblur={() => void save()}
             onkeydown={onKeydownInDescription}
           ></textarea>
+          {#if store.canEdit && description.length > DESCRIPTION_MAX * 0.9}<span class="hint">{description.length} / {DESCRIPTION_MAX} caractères</span>{/if}
           {#if store.canEdit}<span class="hint">Enregistrement automatique · <kbd>Ctrl</kbd> + <kbd>Entrée</kbd> pour enregistrer tout de suite</span>{/if}
         </div>
 

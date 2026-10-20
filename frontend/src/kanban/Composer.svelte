@@ -9,6 +9,7 @@
     onadd,
     multiline = false,
     ghost = false,
+    maxlength = 100,
   }: {
     label: string;
     placeholder: string;
@@ -16,6 +17,7 @@
     multiline?: boolean;
     // ghost: dashed button style, for the "new list" slot
     ghost?: boolean;
+    maxlength?: number;
   } = $props();
 
   let open = $state(false);
@@ -59,9 +61,9 @@
 {#if open}
   <form class="composer" class:ghost onsubmit={(e) => (e.preventDefault(), submit())}>
     {#if multiline}
-      <textarea bind:this={field} bind:value rows="2" {placeholder} aria-label={placeholder} {onkeydown} {onblur}></textarea>
+      <textarea bind:this={field} bind:value rows="2" {maxlength} {placeholder} aria-label={placeholder} {onkeydown} {onblur}></textarea>
     {:else}
-      <input bind:this={field} bind:value {placeholder} aria-label={placeholder} autocomplete="off" {onkeydown} {onblur} />
+      <input bind:this={field} bind:value {maxlength} {placeholder} aria-label={placeholder} autocomplete="off" {onkeydown} {onblur} />
     {/if}
     <div class="actions">
       <button type="submit" class="btn btn-primary btn-sm" disabled={!value.trim()}>Ajouter</button>

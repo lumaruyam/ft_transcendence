@@ -7,6 +7,7 @@
     label,
     onsave,
     large = false,
+    maxlength = 100,
   }: {
     value: string;
     editable: boolean;
@@ -14,6 +15,7 @@
     // false if the server refused: the old title comes back
     onsave: (title: string) => Promise<boolean>;
     large?: boolean;
+    maxlength?: number;
   } = $props();
 
   let field: HTMLTextAreaElement;
@@ -64,6 +66,7 @@
   bind:value={draft}
   class:large
   rows="1"
+  {maxlength}
   readonly={!editable}
   aria-label={label}
   spellcheck="false"

@@ -16,13 +16,13 @@ async function broadcastToListProject(listId: string, type: string, payload: unk
 
 // `position` is the index the card should take in the list (the end when omitted, which is what the public API
 // does): the cards after it move down by one.
-export async function createCard(input: { listId: string; title: string; description?: string; position?: number}) {
+export async function createCard(input: { listId: string; title: string; description?: string; position?: number; createdBy?: string }) {
 	const projectId = await getProjectIdForList(input.listId);
 	const card = await withProjectLock(projectId, input.listId, () =>
 		prisma.$transaction(async (tx) => {
 			const at = await makeRoomInList(tx, input.listId, input.position);
 			return tx.card.create({
-				data: { listId: input.listId, title: input.title, description: input.description, position: at },
+				data: { listId: input.listId, title: input.title, description: input.description, position: at, createdBy: input.createdBy },
 				include: CARD_TAGS_INCLUDE,
 			});
 		}, SERIALIZABLE),

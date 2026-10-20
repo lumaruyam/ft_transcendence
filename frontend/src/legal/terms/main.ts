@@ -4,4 +4,4 @@ import { boot } from "../../shared/boot";
 import LegalPage from "../LegalPage.svelte";
 import { renderTermsOfServicePage } from "../termsOfService";
 
-boot(LegalPage, { props: { render: renderTermsOfServicePage, other: { href: "/legal/privacy", label: "Privacy Policy" } } });
+boot(LegalPage, { footer: false, props: { render: renderTermsOfServicePage, other: { href: "/legal/privacy", label: "Privacy Policy" } } });

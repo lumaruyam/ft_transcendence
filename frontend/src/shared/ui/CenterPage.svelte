@@ -16,7 +16,7 @@
 
 <style>
   .page {
-    min-height: 100vh;
+    min-height: calc(100vh - var(--footer-h, 0px));
     display: flex;
     flex-direction: column;
     padding: 20px 28px;

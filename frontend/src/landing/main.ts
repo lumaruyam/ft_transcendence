@@ -3,4 +3,4 @@
 import { boot } from "../shared/boot";
 import Landing from "./Landing.svelte";
 
-boot(Landing);
+boot(Landing, { footer: false });
