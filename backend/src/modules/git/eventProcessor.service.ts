@@ -5,7 +5,7 @@
 // branch is linked: nothing is guessed from commit messages or branch names.
 
 import { prisma } from "../../db/prisma/client.js";
-import { updateCard } from "../kanban/card.service.js";
+import { updateCard, moveCard } from "../kanban/card.service.js";
 import { normalizeRepoUrl } from "./branchLink.service.js";
 import { notifyProject } from "../notifications/notifications.service.js";
 
@@ -156,8 +156,27 @@ export async function transitionCardStatus(
             await tx.gitLink.updateMany({ where: { cardId }, data: { prStatus: options.prStatus } });
         return true;
     });
+    if (moved)
+        await moveCardToStatusColumn(cardId, targetStatus);
     // the webhook is not a kanban route, so nothing else broadcasts the change to the open boards
     if (moved)
         await updateCard(cardId, {});
     return moved;
+}
+
+// moveCardToStatusColumn puts the card at the top of the board column that matches its new status, when the board
+// has one ("Done"/"Terminé" for done, "In progress"/"En cours" otherwise). A board without such a column is left as is.
+async function moveCardToStatusColumn(cardId: string, targetStatus: string): Promise<void> {
+    const card = await prisma.card.findUnique({
+        where: { id: cardId },
+        select: { listId: true, list: { select: { boardId: true } } },
+    });
+    if (!card)
+        return;
+    const titles = targetStatus === CARD_STATUS.done ? ['terminé', 'done'] : ['en cours', 'in progress'];
+    const target = await prisma.list.findFirst({
+        where: { boardId: card.list.boardId, title: { in: titles, mode: 'insensitive' } },
+    });
+    if (target && target.id !== card.listId)
+        await moveCard(cardId, target.id, 0);
 }
