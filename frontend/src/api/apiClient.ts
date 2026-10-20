@@ -47,7 +47,8 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
 	if (token) {
 		headers["Authorization"] = `Bearer ${token}`;
 	}
-	if (options.body !== undefined) {
+	// a FormData body (file upload) gets its multipart content type from the browser
+	if (options.body !== undefined && !(options.body instanceof FormData)) {
 		headers["Content-Type"] = "application/json";
 	}
 
@@ -56,7 +57,7 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
 		res = await fetch(`${API_PREFIX}${options.path}`, {
 			method: options.method,
 			headers,
-			body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+			body: options.body instanceof FormData ? options.body : options.body !== undefined ? JSON.stringify(options.body) : undefined,
 			keepalive: options.keepalive,
 		});
 	} catch {

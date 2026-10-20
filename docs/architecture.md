@@ -201,7 +201,26 @@ all.
    side mirrors `project_members`, it isn't a separate permission system. The kanban HTTP
    routes enforce the same rule with `requireProjectRole` (`kanban.permissions.ts`):
    viewer to read, member to edit, admin to delete a board.
-5. This is silent state sync — not a user-facing notification (see `notifications/`
+   Presence is per person, not per connection: closing one of two tabs does not announce
+   `left`, only the person's last connection does (`broadcastLeftIfGone`).
+5. Rooms (`kanban/rooms.ts`): the project room (kanban events), `whiteboard:<project>` and
+   `note:<note>` (separate because their traffic is chatty) and `user:<id>` (personal: every
+   tab of one user, used for notifications and for being told one was removed).
+6. Who may be in a project is live too (`kanban/membership.events.ts`). `members_changed`
+   (a member added, a role changed, one removed or leaving) makes open boards reload the
+   member list, which is what decides who may edit; `project_updated` carries a new name.
+   A removed member is **evicted** from every room of the project on all their tabs and
+   gets `removed_from_project`, so they stop receiving events at once; `project_deleted`
+   goes to everybody connected before the rows are deleted, then the rooms are closed.
+   Whiteboard and note sockets also re-read the role every 30 s (`SOCKET_ROLE_TTL_MS`).
+7. Dropped connections: Socket.IO reconnects by itself, and a room lives on the server
+   side socket, so the client (`kanban/wsClient.ts`) joins again on **every** `connect`.
+   Events sent while it was away are not replayed: after a reconnect the board store
+   refetches the project, board, members and tags, and the fresh `presence_snapshot`
+   replaces the list of who is online. While offline the board shows a "Connexion perdue"
+   banner. An expired or invalid token is refused at the handshake (`unauthorized`,
+   `token_expired`) and sends the user back to the login page.
+8. This is silent state sync — not a user-facing notification (see `notifications/`
    for that, triggered separately by the mutation itself, not by the broadcast).
 
 ## 7. Git webhook-to-card-status automation flow
@@ -209,19 +228,20 @@ all.
 1. A user links a card to a branch (`backend/src/modules/git/branchLink.service.ts`),
    using the OAuth token captured by `backend/src/modules/auth/oauth.service.ts`.
    GitHub calls go through **Octokit**
-2. A webhook is registered on the linked repository for push/pull_request/merge
-   events (`registerWebhook` in `webhook.routes.ts`).
+2. A webhook is registered on the linked repository for push/pull_request events
+   (`ensureRepoWebhook` in `branchLink.service.ts`, best effort, needs `WEBHOOK_PUBLIC_URL`).
 3. On webhook receipt (`webhookReceiverHandler`): this route is **not** JWT-authenticated
    (GitHub isn't logged-in users) — instead its signature is verified via an
    HMAC check against `GIT_WEBHOOK_SECRET`, rejecting anything that doesn't match
    before the payload is trusted.
 4. The event is logged to `webhook_events` (`webhookLog.service.ts`) for audit/replay,
    then `eventProcessor.service.ts` matches the payload to a card via `git_links` and
-   drives the status transition (PR opened → "PR pending", merged to main → "Done"),
+   drives the status transition (first push → "In progress", PR opened → "PR pending",
+   merged into the default branch → "Done", closed without merge → back to "In progress"),
    calling back into `kanban/card.service.ts` so the move also broadcasts over
    Socket.IO exactly like a user-driven move would (§6) — clients don't need to know
    the difference.
-5. A notification fires via `notifications.service.ts` once the card moves.
+5. A notification fires via `notifications.service.ts` (`notifyProject`) once the card moves; the same dispatcher serves every other action, see the notifications section of `docs/api-spec.md`.
 
 ## 8. Rate limiting strategy
 
@@ -276,3 +296,41 @@ duplicates or bypasses another table's job:
 | "What GitHub token does the backend use to call GitHub on this user's behalf?" | `oauth_accounts.access_token` | Per-user OAuth token (not a GitHub App installation token), encrypted at rest via `modules/auth/tokenCrypto.ts`; read it through `getDecryptedAccessToken(userId)` in `oauth.service.ts`, never directly |
 
 <!-- TODO: expand §7 with a sequence diagram once webhook signature verification and OAuth token storage details are finalized -->
+
+## 10. Concurrency: several people acting at once
+
+The subject requires that simultaneous actions neither corrupt data nor race. The rules the code follows
+(`backend/src/db/concurrency.ts`):
+
+1. **Read, decide, write is one transaction.** Anything that reads something and then writes depending on it runs in a
+   `Serializable` Prisma transaction (`SERIALIZABLE`). Postgres aborts the one that lost the race (`P2034`, or `P2002` for a
+   unique insert) and `retryOnConflict` runs it again on the new state, after a short random wait.
+2. **One at a time per key, in the process.** `inSequence(key, task)` queues the tasks of one key. It removes the
+   contention of one backend against itself (a board's moves all arrive in the same second), so retries stay rare;
+   rule 1 keeps a second backend instance correct.
+3. **Positions are an order, asked for as an index.** A card or a list is added "at index i" (the end when omitted) and
+   the sequence is renumbered 0..n-1 around it (`kanban/positions.ts`); deleting renumbers too, and a move renumbers both
+   lists. So two cards added at the same moment can no longer share a position. Everything that changes the order in a
+   project is queued under the key `kanban:<project>`.
+4. **Database errors that come from losing a race are client errors.** `app.ts` maps `P2025` and `P2003` (what the request
+   targeted was deleted a moment ago) to `404`, `P2002` to `409`, and an aborted transaction or deadlock to `503` with
+   `Retry-After`, never to an opaque `500`. Fastify's own errors (validation, 4xx) are unchanged.
+
+Where it applies, and what was wrong before (found by hammering the API with simultaneous requests):
+
+| Operation | Key | Before |
+|---|---|---|
+| First visit of a project's board | `board:<project>` | 10 members opening a new project at once created 10 boards, each seeing their own |
+| Add a card / a list | `kanban:<project>` | Same position for all (20 cards at 0) |
+| Move a card, delete a card or a list, reorder lists | `kanban:<project>` | 30 simultaneous moves all answered 500 (deadlock); a reorder could leave duplicates next to a newly created list |
+| Replace the tags of a card | `cardtags:<card>` | Two requests left the union of both sets |
+| Join with an invite link | `invite:<hash>` | Limits could be exceeded, one person could burn several uses |
+| Save the whiteboard | `whiteboard:<project>` | First saves overwrote each other |
+| Notification of a repeated update | `<type>:<entity>:<actor>` | Two quick edits each created one |
+| Delete a project / an account | | A deadlock with a concurrent insert gave a 500 |
+
+Already correct and covered by the same tests: edits of different fields of one card (both kept), creating the same tag or
+signing up with the same e-mail at once (one wins, the others get 409), admins demoting each other (the owner is always an
+admin, so a project never has none), the project deleted while others add content (no 500), and several people typing in the
+same note (Yjs merges them; every client and the saved note end identical, a late joiner catches up, a viewer's edit is dropped).
+

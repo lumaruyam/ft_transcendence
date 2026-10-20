@@ -22,6 +22,26 @@ export interface SignupInput {
 // Simple check for email format to catch obviously malformed input that passed the frontend form
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
+export const MAX_NAME_LENGTH = 60;
+
+// validateDisplayName returns what is wrong with a display name (signup and profile edit share the rule)
+export function validateDisplayName(name: unknown): string | null {
+	if (typeof name !== "string" || name.trim().length === 0) return "name is required";
+	if (name.trim().length > MAX_NAME_LENGTH) return `name must be at most ${MAX_NAME_LENGTH} characters`;
+	return null;
+}
+
+// validateNewPassword returns what is wrong with a password being chosen (signup and password change share the rule)
+export function validateNewPassword(password: string): string[] {
+	const errors: string[] = [];
+	if (!password || password.length < MIN_PASSWORD_LENGTH) {
+		errors.push(`password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+	}
+	if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+		errors.push("password must contain at least one letter and one number");
+	}
+	return errors;
+}
 
 // validateSignupInput checks required fields, email format, and password strength.
 export function validateSignupInput(input: SignupInput): string[] {
@@ -30,14 +50,10 @@ export function validateSignupInput(input: SignupInput): string[] {
 	if (!input.email || !EMAIL_RE.test(input.email)) {
 		errors.push("email must be a valid email address");
 	}
-	if(!input.password || input.password.length < MIN_PASSWORD_LENGTH) {
-		errors.push(`password must be at least ${MIN_PASSWORD_LENGTH} characters`);
-	}
-	if (!/[a-zA-Z]/.test(input.password) || !/[0-9]/.test(input.password)) {
-		errors.push("password must contain at least one letter and one number");
-	}
-	if (!input.name || input.name.trim().length === 0) {
-		errors.push("name is required");
+	errors.push(...validateNewPassword(input.password));
+	const nameError = validateDisplayName(input.name);
+	if (nameError) {
+		errors.push(nameError);
 	}
 	return errors;
 }

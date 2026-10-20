@@ -12,7 +12,7 @@
 
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: OAuth2 login flow (GitHub only), covering the OAuth minor module and feeding the credential source Track 3 needs for Octokit API calls.
-import { randomBytes } from "crypto";
+import { randomBytes, timingSafeEqual } from "crypto";
 import jwt from "jsonwebtoken";
 import { Prisma, type User } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
@@ -70,6 +70,14 @@ export class OAuthStateError extends Error {
 	}
 }
 
+// OAuthAccessDeniedError: the user clicked "Cancel" on GitHub's consent screen
+export class OAuthAccessDeniedError extends Error {
+	constructor() {
+		super("the user refused the GitHub authorization");
+		this.name = "OAuthAccessDeniedError";
+	}
+}
+
 export class OAuthAccountConflictError extends Error {
 	constructor(reason: string) {
 		super(reason);
@@ -90,22 +98,35 @@ function getGithubConfig(): OAuthProviderConfig {
 // the state param can't be stashed server-side and compared on return the usual way. Instead
 // it's a short-lived, self-contained signed token: we sign {nonce} here, hand it to
 // the provider as state, and the provider hands it straight back unmodified on the callback.
-// Verifying the signature + expiry match gives the same CSRF guarantee (an attacker
-// can't forge a valid state without stateSecret) without needing anywhere to store it.
+// A signature alone does not tie the state to the browser that started the flow: anyone can request a valid
+// state, then trick a victim into opening the callback URL with the attacker's own `code` (login CSRF: the
+// victim ends up signed in as the attacker). So the same nonce is also set in an HttpOnly cookie on the browser
+// that starts the flow, and the callback only accepts a state whose nonce matches that cookie.
+// For a link flow (an already signed-in user adding GitHub), the state also carries that user's id, so the
+// callback knows which account to attach the GitHub identity to.
 const STATE_TTL_SECONDS = 600; // 10 minutes
 const STATE_TYP = "oauth_state";
+export const OAUTH_STATE_COOKIE = "ft_oauth_state";
+export const OAUTH_STATE_TTL_SECONDS = STATE_TTL_SECONDS;
 
 interface OAuthStateClaims {
 	typ: typeof STATE_TYP;
-	nonce: string; // nonce = number used once
+	nonce: string; // nonce = number used once, also stored in the browser cookie
+	linkUserId?: string;
 }
 
-function generateState(): string {
-	const claims: OAuthStateClaims = { typ: STATE_TYP, nonce: randomBytes(16).toString("hex") };
-	return jwt.sign(claims, getConfig().stateSecret, { expiresIn: STATE_TTL_SECONDS });
+// whether the state cookie must carry the Secure flag: true when the app is served over https
+export function isOAuthCookieSecure(): boolean {
+	return getConfig().github.redirectUri.startsWith("https://");
 }
 
-function verifyState(state: string | undefined): void {
+function generateState(linkUserId?: string): { state: string; nonce: string } {
+	const nonce = randomBytes(16).toString("hex");
+	const claims: OAuthStateClaims = { typ: STATE_TYP, nonce, ...(linkUserId ? { linkUserId } : {}) };
+	return { state: jwt.sign(claims, getConfig().stateSecret, { expiresIn: STATE_TTL_SECONDS }), nonce };
+}
+
+function verifyState(state: string | undefined, browserNonce: string | undefined): OAuthStateClaims {
 	if (!state) {
 		throw new OAuthStateError("missing state parameter");
 	}
@@ -119,10 +140,21 @@ function verifyState(state: string | undefined): void {
 		throw new OAuthStateError("state is invalid or the token was modified");
 	}
 	if (
-		typeof decoded !== "object" || decoded === null || (decoded as Partial<OAuthStateClaims>).typ !== STATE_TYP
+		typeof decoded !== "object" || decoded === null || (decoded as Partial<OAuthStateClaims>).typ !== STATE_TYP ||
+		typeof (decoded as Partial<OAuthStateClaims>).nonce !== "string"
 	) {
 		throw new OAuthStateError("state token has an unexpected shape");
 	}
+	const claims = decoded as OAuthStateClaims;
+	if (!browserNonce) {
+		throw new OAuthStateError("this browser did not start the login (state cookie missing)");
+	}
+	const expected = Buffer.from(claims.nonce);
+	const actual = Buffer.from(browserNonce);
+	if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+		throw new OAuthStateError("this browser did not start the login (state cookie mismatch)");
+	}
+	return claims;
 }
 
 // --- GitHub endpoints ------------------------------------------------------------------
@@ -136,18 +168,21 @@ const USER_URL = "https://api.github.com/user";
 // branches and register webhooks on the user's behalf
 const SCOPE = "read:user user:email repo";
 
-// getOAuthRedirectUrl builds the provider consent-screen URL the frontend redirects the user to
-export function getOAuthRedirectUrl(): string {
+// startOAuthFlow builds the provider consent-screen URL the user is sent to, plus the nonce the caller must put
+// in the OAUTH_STATE_COOKIE cookie of that same browser. With `linkUserId`, the callback attaches the GitHub
+// account to that user instead of logging in.
+export function startOAuthFlow(linkUserId?: string): { url: string; nonce: string } {
 	const config = getGithubConfig();
+	const { state, nonce } = generateState(linkUserId);
 
 	const params = new URLSearchParams({
 		client_id: config.clientId,
 		redirect_uri: config.redirectUri,
 		scope: SCOPE,
-		state: generateState(),
+		state,
 	});
 
-	return `${AUTHORIZE_URL}?${params.toString()}`;
+	return { url: `${AUTHORIZE_URL}?${params.toString()}`, nonce };
 }
 
 // token exchange + profile fetch
@@ -186,12 +221,31 @@ async function exchangeCodeForToken(code: string): Promise<ExchangedToken> {
 
 interface OAuthProfile {
 	oauthId: string;
-	email: string;
+	email: string | null; // only fetched when needed (login), always a verified address
 	name: string;
 	avatar: string | null;
 }
 
-async function fetchGitHubProfile(accessToken: string): Promise<OAuthProfile> {
+const EMAILS_URL = "https://api.github.com/user/emails";
+
+// The email of the public profile is often null (GitHub lets users hide it), so the verified primary address is
+// read from /user/emails instead (scope user:email). Only a verified address may be used: an unverified one could
+// belong to someone else and would let this login attach itself to their account.
+async function fetchVerifiedEmail(authHeaders: Record<string, string>): Promise<string> {
+	const res = await fetch(EMAILS_URL, { headers: authHeaders });
+	if (!res.ok) {
+		throw new OAuthExchangeError(`GitHub emails fetch returned ${res.status}`);
+	}
+	const emails = (await res.json()) as { email: string; primary: boolean; verified: boolean }[];
+	const verified = emails.filter((entry) => entry.verified);
+	const chosen = verified.find((entry) => entry.primary) ?? verified[0];
+	if (!chosen) {
+		throw new OAuthExchangeError("this GitHub account has no verified email address");
+	}
+	return chosen.email.toLowerCase();
+}
+
+async function fetchGitHubProfile(accessToken: string, options: { needEmail: boolean }): Promise<OAuthProfile> {
 	const authHeaders = { Authorization: `Bearer ${accessToken}`, Accept: "application/vnd.github+json" };
 
 	const userRes = await fetch(USER_URL, { headers: authHeaders });
@@ -202,17 +256,12 @@ async function fetchGitHubProfile(accessToken: string): Promise<OAuthProfile> {
 		id: number;
 		login: string;
 		name: string | null;
-		email: string | null;
 		avatar_url: string | null;
 	};
 
-	if (!user.email) {
-		throw new OAuthExchangeError("GitHub did not return an email for this account");
-	}
-
 	return {
 		oauthId: String(user.id),
-		email: user.email.toLowerCase(),
+		email: options.needEmail ? await fetchVerifiedEmail(authHeaders) : null,
 		name: user.name ?? user.login,
 		avatar: user.avatar_url,
 	};
@@ -234,12 +283,30 @@ async function upsertOAuthAccount(userId: string, providerId: string, accessToke
 	});
 }
 
-// handleOAuthCallback exchanges the provider's auth code for a token, creates/links the User, and returns the User
-export async function handleOAuthCallback(code: string, state: string): Promise<User> {
-	verifyState(state);
+// handleOAuthCallback exchanges the provider's auth code for a token, creates/links the User, and returns the User.
+// `browserNonce` is the value of the OAUTH_STATE_COOKIE cookie sent by the browser on the callback request.
+// `linked` is true when the state came from a link flow: the GitHub account was attached to an already
+// signed-in user, who is the returned user.
+export async function handleOAuthCallback(
+	code: string,
+	state: string,
+	browserNonce: string | undefined,
+): Promise<{ user: User; linked: boolean }> {
+	const claims = verifyState(state, browserNonce);
 
+	if (claims.linkUserId) {
+		return { user: await linkOAuthAccount(claims.linkUserId, code), linked: true };
+	}
+	return { user: await loginWithGitHub(code), linked: false };
+}
+
+async function loginWithGitHub(code: string): Promise<User> {
 	const { accessToken } = await exchangeCodeForToken(code);
-	const profile = await fetchGitHubProfile(accessToken);
+	const profile = await fetchGitHubProfile(accessToken, { needEmail: true });
+	if (!profile.email) {
+		throw new OAuthExchangeError("no email in the GitHub profile");
+	}
+	const email = profile.email;
 
 	// 1. Already linked to this provider identity
 	const existingAccount = await prisma.oAuthAccount.findUnique({
@@ -260,7 +327,7 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
 	// 2. Not linked yet, but an account with this email already exists —> link onto it rather
 	// than creating a duplicate User
 	const existingByEmail = await prisma.user.findUnique({
-		where: { email: profile.email }
+		where: { email }
 	});
 	if (existingByEmail) {
 		const user = existingByEmail.avatar || !profile.avatar
@@ -279,7 +346,7 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
 	try {
 		user = await prisma.user.create({
 			data: {
-				email: profile.email,
+				email,
 				name: profile.name,
 				avatar: profile.avatar,
 				passwordHash: hash,
@@ -288,7 +355,7 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
 		});
 	} catch (err) {
 		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-			throw new OAuthAccountConflictError(`account ${profile.email} was just created by a concurrent request`);
+			throw new OAuthAccountConflictError(`account ${email} was just created by a concurrent request`);
 		}
 		throw err;
 	}
@@ -300,14 +367,14 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
 // instead of going through handleOAuthCallback's find-or-create-by-email path
 // Guards against linking a GitHub identity that's already claimed by a different user
 // it's "one user per GitHub identity"
-export async function linkOAuthAccount(userId: string, code: string): Promise<void> {
+export async function linkOAuthAccount(userId: string, code: string): Promise<User> {
 	const user = await prisma.user.findUnique({ where: { id: userId } });
 	if (!user) {
 		throw new OAuthAccountConflictError(`no user with id ${userId}`);
 	}
 
 	const { accessToken } = await exchangeCodeForToken(code);
-	const profile = await fetchGitHubProfile(accessToken);
+	const profile = await fetchGitHubProfile(accessToken, { needEmail: false });
 	const existing = await prisma.oAuthAccount.findUnique({
 		where: { provider_providerId: { provider: PROVIDER, providerId: profile.oauthId }},
 	});
@@ -317,11 +384,12 @@ export async function linkOAuthAccount(userId: string, code: string): Promise<vo
 
 	await upsertOAuthAccount(userId, profile.oauthId, accessToken);
 	if (profile.avatar && !user.avatar) {
-		await prisma.user.update({
+		return prisma.user.update({
 			where: { id: userId },
 			data: { avatar: profile.avatar }
 		});
 	}
+	return user;
 }
 
 // getDecryptedAccessToken is the integration point Track 3's branchLink.service.ts should call

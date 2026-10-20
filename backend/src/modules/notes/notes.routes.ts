@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { answer } from "../folders/documentError.js";
 import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
 import { closeLiveNote } from "./notes.collab.js";
+import { notifyProject } from "../notifications/notifications.service.js";
 import {
 	createNote,
 	deleteNote,
@@ -63,6 +64,7 @@ async function createHandler(request: FastifyRequest, reply: FastifyReply): Prom
 	await answer(reply, async () => {
 		const note = await createNote(projectId, request.userId as string, body);
 		reply.code(201).send({ note });
+		void notifyProject({ projectId, actorId: request.userId as string, type: "note_created", text: `a créé la note « ${note.title} »`, entityId: note.id, path: `/app/${projectId}/notes/${note.id}` });
 	});
 }
 
@@ -80,16 +82,24 @@ async function updateHandler(request: FastifyRequest, reply: FastifyReply): Prom
 	const { projectId, noteId } = request.params as { projectId: string; noteId: string };
 	const body = (request.body ?? {}) as { title?: string };
 	await answer(reply, async () => {
-		reply.code(200).send({ note: await updateNote(projectId, noteId, body) });
+		const note = await updateNote(projectId, noteId, body);
+		reply.code(200).send({ note });
+		if (body.title !== undefined) {
+			void notifyProject({ projectId, actorId: request.userId as string, type: "note_renamed", text: `a renommé la note « ${note.title} »`, entityId: noteId, path: `/app/${projectId}/notes/${noteId}`, coalesce: true });
+		}
 	});
 }
 
 async function deleteHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId, noteId } = request.params as { projectId: string; noteId: string };
 	await answer(reply, async () => {
+		const note = await getNote(projectId, noteId);
 		await deleteNote(projectId, noteId);
 		closeLiveNote(noteId);
 		reply.code(204).send();
+		if (note) {
+			void notifyProject({ projectId, actorId: request.userId as string, type: "note_deleted", text: `a supprimé la note « ${note.title} »`, entityId: noteId, path: `/app/${projectId}/notes` });
+		}
 	});
 }
 

@@ -26,16 +26,17 @@ export function parseRepoUrl(repoUrl: string): { owner: string; repo: string } {
   return { owner, repo };
 }
 
-function  handleOctokitError(err: any, context?: {repo: string; entity?: string}): never {
+function handleOctokitError(err: unknown, context?: {repo: string; entity?: string}): never {
   const repoInfo = context?.repo ? ` for repository ${context.repo}` : "";
   const entityInfo = context?.entity ? `'${context.entity}'` : "Resource";
-  if (err?.status === 401)
+  const status = (err as { status?: number } | null)?.status;
+  if (status === 401)
     throw new Error("GitHub token expired or invalid, please re-authenticate");
-  if (err?.status === 403)
+  if (status === 403)
     throw new Error(`Access denied: insufficient permissions to ${repoInfo}`);
-  if (err?.status === 404)
+  if (status === 404)
     throw new Error(`Not found: remote entity or repository ${repoInfo} does not exist`);
-  if (err?.status === 422)
+  if (status === 422)
     throw new Error(`${entityInfo} already exists or request payload is invalid on GitHub`);
   throw err;
 }
@@ -66,8 +67,36 @@ export async function createBranch(userId: string, repoUrl: string, branchName: 
       sha: latestCommitSha,
     });
   }
-  catch (err: any) {
+  catch (err) {
     handleOctokitError(err, {repo: `${owner}/${repo}`, entity: branchName});
+  }
+}
+
+// ensureRepoWebhook makes sure the repository sends push / pull_request events to this backend's receiver
+// (POST /api/webhooks/git), signed with GIT_WEBHOOK_SECRET. Needs WEBHOOK_PUBLIC_URL, the public https origin of
+// the app: without it (local dev, GitHub cannot reach us) nothing is registered and "skipped" is returned.
+export async function ensureRepoWebhook(userId: string, repoUrl: string): Promise<"created" | "exists" | "skipped"> {
+  const publicUrl = process.env.WEBHOOK_PUBLIC_URL?.trim().replace(/\/+$/, "");
+  const secret = process.env.GIT_WEBHOOK_SECRET;
+  if (!publicUrl || !secret)
+    return "skipped";
+  const hookUrl = `${publicUrl}/api/webhooks/git`;
+  const token = await getGitHubToken(userId);
+  const { owner, repo } = parseRepoUrl(repoUrl);
+  const octokit = new Octokit({ auth: token });
+  try {
+    const hooks = await octokit.paginate(octokit.rest.repos.listWebhooks, { owner, repo, per_page: 100 });
+    if (hooks.some((hook) => hook.config?.url === hookUrl))
+      return "exists";
+    await octokit.rest.repos.createWebhook({
+      owner,
+      repo,
+      events: ["push", "pull_request"],
+      config: { url: hookUrl, content_type: "json", secret },
+    });
+    return "created";
+  } catch (err) {
+    handleOctokitError(err, { repo: `${owner}/${repo}`, entity: "webhook" });
   }
 }
 
@@ -119,7 +148,7 @@ export async function listBranches(userId: string, repoUrl: string): Promise<str
   });
   return response.map((b) => b.name);
   }
-  catch(err: any){
+  catch(err){
     handleOctokitError(err, {repo: `${owner}/${repo}`});
   }
 }

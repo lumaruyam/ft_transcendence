@@ -5,11 +5,13 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../permissions/permissions.middleware.js";
 import { ROLES } from "../permissions/roles.service.js";
 import { requireProjectRole, projectOf } from "./kanban.permissions.js";
+import { notifyProject, type ProjectEvent } from "../notifications/notifications.service.js";
 import {
   createBoard,
   getBoard,
   getOrCreateBoardForProject,
   deleteBoard,
+  getProjectIdForBoard,
 } from "./board.service.js";
 import {
   createList,
@@ -17,6 +19,7 @@ import {
   updateList,
   deleteList,
   reorderLists,
+  getProjectIdForList,
 } from "./list.service.js";
 import { createCard, getCard, updateCard, moveCard, deleteCard } from "./card.service.js";
 import { listTags, createTag, updateTag, deleteTag, setCardTags, TagConflictError } from "./tag.service.js";
@@ -175,7 +178,9 @@ export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> 
     },
     async (request, reply) => {
       try {
-        reply.code(201).send(await createTag(request.params.projectId, request.body));
+        const tag = await createTag(request.params.projectId, request.body);
+        reply.code(201).send(tag);
+        void tell(request, tag.projectId, { type: "tag_created", text: `a créé l'étiquette « ${tag.name} »`, entityId: tag.id });
       } catch (err) {
         if (err instanceof TagConflictError) reply.code(409).send({ error: "tag_name_taken" });
         else throw err;
@@ -192,7 +197,10 @@ export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> 
       try {
         const tag = await updateTag(request.params.id, request.body);
         if (!tag) reply.code(404).send({ error: "Tag not found" });
-        else reply.send(tag);
+        else {
+          reply.send(tag);
+          void tell(request, tag.projectId, { type: "tag_updated", text: `a modifié l'étiquette « ${tag.name} »`, entityId: tag.id, coalesce: true });
+        }
       } catch (err) {
         if (err instanceof TagConflictError) reply.code(409).send({ error: "tag_name_taken" });
         else throw err;
@@ -208,7 +216,10 @@ export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> 
     async (request, reply) => {
       const deleted = await deleteTag(request.params.id);
       if (!deleted) reply.code(404).send({ error: "Tag not found" });
-      else reply.code(204).send();
+      else {
+        reply.code(204).send();
+        void tell(request, deleted.projectId, { type: "tag_deleted", text: `a supprimé l'étiquette « ${deleted.name} »`, entityId: deleted.id });
+      }
     }
   );
   app.put<{ Params: { id: string }; Body: { tagIds: string[] } }>(
@@ -221,9 +232,25 @@ export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> 
       const card = await setCardTags(request.params.id, request.body.tagIds);
       if (card === "invalid_tags") reply.code(400).send({ error: "invalid_tags" });
       else if (!card) reply.code(404).send({ error: "Card not found" });
-      else reply.send(card);
+      else {
+        reply.send(card);
+        void tell(request, getProjectIdForList(card.listId), { type: "card_tags_updated", text: `a modifié les étiquettes de la carte « ${card.title} »`, entityId: card.id, coalesce: true });
+      }
     }
   );
+}
+
+
+// The project's members are told about a change once it has succeeded, after the reply: a notification that
+// fails must not fail the change (notifyProject never throws; the project lookup is guarded here).
+type CardEvent = Omit<ProjectEvent, "projectId" | "actorId">;
+async function tell(request: FastifyRequest, projectId: string | null | Promise<string | null>, event: CardEvent): Promise<void> {
+  try {
+    const id = await projectId;
+    if (id) await notifyProject({ ...event, projectId: id, actorId: request.userId ?? null, path: `/app/${id}` });
+  } catch (err) {
+    request.log.warn({ err }, "could not notify the project members");
+  }
 }
 
 // createBoardHandler creates a board within a project.
@@ -278,6 +305,7 @@ async function deleteBoardHandler(
     return;
   }
   reply.code(204).send();
+  void tell(request, deleted.projectId, { type: "board_deleted", text: `a supprimé le tableau « ${deleted.title} »`, entityId: deleted.id });
 }
 
 // createListHandler creates a new list/column on a board.
@@ -287,6 +315,7 @@ async function createListHandler(
 ): Promise<void> {
   const list = await createList(request.body);
   reply.code(201).send(list);
+  void tell(request, getProjectIdForBoard(list.boardId), { type: "list_created", text: `a ajouté la liste « ${list.title} »`, entityId: list.id });
 }
 
 // getListHandler fetches a list with its cards for additionnal info.
@@ -318,6 +347,10 @@ async function updateListHandler(
     return;
   }
   reply.send(list);
+  // moving a list around is not worth a notification, renaming it is
+  if (request.body.title !== undefined) {
+    void tell(request, getProjectIdForBoard(list.boardId), { type: "list_updated", text: `a renommé la liste « ${list.title} »`, entityId: list.id, coalesce: true });
+  }
 }
 
 // deleteListHandler removes a list.
@@ -333,6 +366,7 @@ async function deleteListHandler(
     return;
   }
   reply.code(204).send();
+  void tell(request, getProjectIdForBoard(deleted.boardId), { type: "list_deleted", text: `a supprimé la liste « ${deleted.title} »`, entityId: deleted.id });
 }
 
 // reorderListsHandler persists a new list order after drag-and-drop.
@@ -360,6 +394,7 @@ async function createCardHandler(
 ): Promise<void> {
   const card = await createCard(request.body);
   reply.code(201).send(card);
+  void tell(request, getProjectIdForList(card.listId), { type: "card_created", text: `a créé la carte « ${card.title} »`, entityId: card.id });
 }
 
 // getCardHandler fetches a card for additionnal info.
@@ -393,6 +428,10 @@ async function updateCardHandler(
     return;
   }
   reply.send(card);
+  // a pure reorder (position only) is not a content change
+  if (request.body.title !== undefined || request.body.description !== undefined) {
+    void tell(request, getProjectIdForList(card.listId), { type: "card_updated", text: `a modifié la carte « ${card.title} »`, entityId: card.id, coalesce: true });
+  }
 }
 
 // moveCardHandler moves a card to a position in a list (possibly another one of the same project) after drag-and-drop.
@@ -409,6 +448,15 @@ async function moveCardHandler(
     return;
   }
   reply.send(moved);
+  // reordering inside a list says nothing: only a change of list is told
+  if (moved.fromListId !== moved.toListId) {
+    void (async () => {
+      const [card, list] = await Promise.all([getCard(id), getList(moved.toListId)]);
+      if (card && list) {
+        await tell(request, getProjectIdForList(moved.toListId), { type: "card_moved", text: `a déplacé la carte « ${card.title} » vers « ${list.title} »`, entityId: id, coalesce: true });
+      }
+    })().catch((err) => request.log.warn({ err }, "could not notify the project members"));
+  }
 }
 
 // deleteCardHandler removes a card.
@@ -424,4 +472,5 @@ async function deleteCardHandler(
     return;
   }
   reply.code(204).send();
+  void tell(request, getProjectIdForList(deleted.listId), { type: "card_deleted", text: `a supprimé la carte « ${deleted.title} »`, entityId: deleted.id });
 }

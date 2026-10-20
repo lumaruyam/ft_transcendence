@@ -11,6 +11,11 @@ behavior described below are unchanged by the pivot.
 
 ## Endpoints (5 documented, per the Public API major module requirement)
 
+The same contract is served by the app itself: **`/api-docs`** (a page of the site, with its header and colours, public; `GET /api/docs` redirects to it through nginx, and answers a plain page when the backend is reached directly) and
+**`GET /api/openapi.json`** (OpenAPI 3.0), generated from one description in
+`backend/src/modules/publicapi/publicapi.docs.ts` (the frontend page `frontend/src/api-docs/` is drawn from `/api/openapi.json`). The project settings (Clés API) link to it. Keep that file
+and this document in step when an endpoint changes.
+
 | Method | Path | Handler |
 |---|---|---|
 | GET | `/api/projects` | `getProjectsHandler` |
@@ -95,6 +100,126 @@ Every key-authenticated response carries `X-RateLimit-Limit`, `X-RateLimit-Remai
 Retry-After: 37
 { "error": "rate_limit_exceeded", "limit": 100, "retryAfter": 37 }
 ```
+
+## Users, roles and permissions
+
+Advanced permissions major module, in `backend/src/modules/permissions/` (`roles.service.ts`,
+`permissions.middleware.ts`, `users.*`) and `projects/members.service.ts`.
+
+**Roles are per project** and stored in `project_members.role`, the only source of truth for authorization
+(never an invite, never the JWT): `viewer` < `member` < `admin`. The creator of a project is its owner and is
+always an admin. Every protected route runs `requireAuth`, then `requireRole(min)` (or `requireProjectRole`, which
+first finds the project of a card, list, board or tag). An unknown token gives `401`, a missing or too low role
+`403 insufficient_role`.
+
+| | viewer | member | admin | owner |
+|---|---|---|---|---|
+| Read the board, cards, notes, files, whiteboard, members, tags, search | yes | yes | yes | yes |
+| Create / edit / move / delete cards, lists, tags, notes, folders, files; draw on the whiteboard; link a card to a branch | | yes | yes | yes |
+| Rename the project, add / remove members, change roles, invite links, API keys, Git webhook log, delete the board | | | yes | yes |
+| Delete the project, hand over ownership | | | | yes |
+
+The owner cannot be demoted or removed, and the last admin of a project cannot be demoted or removed
+(`409 owner_role_immutable`, `last_admin`, `cannot_remove_owner`).
+
+**The interface follows the role** (kanban, notes, files and whiteboard are read-only for a viewer; the project
+settings sections are for admins), and the server enforces it anyway.
+
+**Open connections follow it too.** A Socket.IO connection must be a member to join a project room, a note or the
+whiteboard. Viewers can watch but their edits are dropped. The role is looked up again every 30 s
+(`SOCKET_ROLE_TTL_MS`), so a demoted member stops being able to edit, and a removed one stops receiving, without
+reconnecting.
+
+### Users
+
+| Method | Path | Who | Effect |
+|---|---|---|---|
+| `GET` | `/api/users/me` | signed in | `200 { id, email, name, avatar }` |
+| `PATCH` | `/api/users/me` | signed in | `{ "name" }` (1 to 60 characters, trimmed) -> `200 { id, email, name, avatar }`. The e-mail is the login identity and cannot be changed |
+| `PUT` | `/api/users/me/avatar` | signed in | `multipart/form-data`, field `file`: PNG, JPEG, GIF or WebP, 2 MiB at most (the type is read from the content, not from the name or the declared type; SVG is refused) -> `200 { avatar }` (`/api/avatars/<uuid>.<ext>`). `400 invalid_avatar`, `413 avatar_too_large`. The previous upload is deleted |
+| `DELETE` | `/api/users/me/avatar` | signed in | `204`. Back to the default avatar (the initials on a coloured disc, drawn by the frontend) |
+| `PUT` | `/api/users/me/password` | signed in | `{ "currentPassword", "newPassword" }` (same rules as signup) -> `204`. `403 wrong_password` (403, not 401, so the session is kept), `400 invalid_input`. Limited to 10 tries per 15 minutes. Accounts made through GitHub only have no known password and cannot use it |
+| `GET` | `/api/avatars/:file` | public | The picture. Public on purpose (an `<img>` cannot send the token); the name is an unguessable uuid. `Cache-Control: immutable`, `nosniff` |
+| `GET` | `/api/users/:userId` | self, or somebody who shares a project | `200 { user: { id, name, avatar, createdAt, projects: [ { id, name, role } ], email? } }`. `email` only for the person themself and the admins of a shared project. Anybody else gets `404` (ids cannot be probed) |
+| `DELETE` | `/api/users/:userId` | self only (`403` otherwise) | `204`. Owning a shared project needs `{ "transferTo": <member id> }` (`400 transfer_target_required`); being the last admin of one needs a handover too (`409 last_admin_of_membership`). Projects with nobody else are deleted with the account |
+
+### Members and roles (project admin)
+
+| Method | Path | Body | Effect |
+|---|---|---|---|
+| `GET` | `/api/projects/:projectId/members` | | any member: the members with their role and profile |
+| `POST` | `/api/projects/:projectId/members` | `{ userId, role }` | adds the user, or changes the role if already a member |
+| `PUT` | `/api/projects/:projectId/members/:userId` | `{ role }` | changes the role of a member (`404 not_a_project_member` for somebody else: it never adds) |
+| `DELETE` | `/api/projects/:projectId/members/:userId` | | removes the member |
+
+The person concerned and the rest of the project are notified of each change.
+
+## Internal endpoints — notifications
+
+Minor module "Notification system", in `backend/src/modules/notifications/`. JWT routes, called by the bell in
+the app header (`frontend/src/shared/ui/NotificationsBell.svelte`).
+
+| Method | Path | Success |
+|---|---|---|
+| `GET` | `/api/notifications?limit=` (1 to 100, default 50) | `200 { "notifications": [ Notification ], "unreadCount" }`, newest first |
+| `PUT` | `/api/notifications/:id/read` | `204`, `404 notification_not_found` for an id that is not the caller's |
+| `PUT` | `/api/notifications/read-all` | `200 { "updated" }` |
+
+A `Notification` is `{ id, userId, type, payload, readAt, createdAt }`, with
+`payload = { message, projectId, projectName, actorId, actorName, entityId, url }`. `url` is an in-app path
+(`/app/<project>/notes/<note>`), an absolute https address (a GitHub pull request) or `null` (nothing to open,
+e.g. a deleted project).
+
+**Who is told.** Every member of the project except the person who did the action. A change made by GitHub
+has no actor, so everybody is told. Changes of membership tell the person concerned in their own words
+("vous a ajouté au projet", "vous a retiré du projet") and the rest of the project separately.
+
+**What is told** (`type`): card, list, board and tag creation / update / deletion (`card_created`,
+`card_updated`, `card_moved` when the list changes, `card_deleted`, `card_tags_updated`, `list_*`,
+`board_deleted`, `tag_*`), notes (`note_created`, `note_renamed`, `note_updated`, `note_deleted`), files and
+folders (`file_uploaded`, `file_moved`, `file_deleted`, `folder_*`), the whiteboard (`whiteboard_updated`),
+the project (`project_updated`, `project_deleted`), members (`member_added`, `member_role`,
+`member_removed`, `member_joined`), the same card changes made through the Public API (worded "via l'API"),
+and the GitHub automation (`git_pr_opened`, `git_pr_merged`, `git_pr_closed`). Reordering cards or lists is
+not told.
+
+**Coalescing.** Updates that are repeated (a note autosaving while someone types, a card description, the
+whiteboard) do not pile up: if the same person already has an unread notification of the same type on the same
+thing from the last 10 minutes, it is refreshed (new wording, back on top) instead of adding another.
+
+**Real time.** Each Socket.IO connection joins the room `user:<id>` (`hub.ts`). Every notification created or
+refreshed is emitted there as the event `notification` (payload: the stored row), so every open tab of the
+user receives it. Sending never fails the action that caused it.
+
+**Retention.** Read notifications older than 30 days are deleted the next time their owner opens the list.
+
+## Authentication — GitHub OAuth 2.0
+
+Minor module "OAuth 2.0", in `backend/src/modules/auth/oauth.service.ts` and `auth.routes.ts`. It sits on top of
+the email/password login, which stays the baseline.
+
+| Method | Path | Auth | Effect |
+|---|---|---|---|
+| `GET` | `/api/auth/oauth/github/redirect` | none | `302` to GitHub's consent screen, sets the state cookie |
+| `GET` | `/api/auth/oauth/github/callback` | state cookie | Called by GitHub. `302` to `/auth/callback#token=<jwt>` (login), `#linked=1` (link) or `#error=<name>` |
+| `POST` | `/api/auth/oauth/github/link` | JWT | `200 { "url" }`: consent-screen url that attaches GitHub to the signed-in user, sets the state cookie |
+
+- **Scope** `read:user user:email repo`: the profile and verified emails for the login, `repo` for the Git
+  integration (branches, repository webhook). The GitHub token is stored encrypted (`tokenCrypto.ts`).
+- **Email**: read from GitHub's `/user/emails` (the public profile email is often hidden): the verified primary
+  address, lowercased. An unverified address is never used. A new user is created with it, or the GitHub identity
+  is attached to the existing account that has the same email.
+- **CSRF / login CSRF**: `state` is a signed JWT (10 min) holding a nonce, and the same nonce is set in an
+  `HttpOnly; SameSite=Lax` cookie scoped to `/api/auth/oauth` (`Secure` when the app runs over https). The
+  callback refuses a state whose nonce does not match the cookie of the browser, so a victim cannot be logged in
+  with an attacker's `code`.
+- **Link flow**: the state also carries the signed-in user's id. One GitHub identity belongs to one user:
+  linking an identity owned by someone else fails with `OAuthAccountConflictError`.
+- **Error names** sent in `#error=`: `OAuthNotConfiguredError`, `OAuthStateError`, `OAuthExchangeError`,
+  `OAuthAccessDeniedError` (consent refused), `OAuthAccountConflictError`. The frontend maps them to messages
+  (`frontend/src/auth/oauthFlow.ts`).
+- Setup: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_OAUTH_REDIRECT_URI` (must equal the callback URL
+  registered in the GitHub OAuth app), `OAUTH_TOKEN_ENCRYPTION_KEY` (`openssl rand -hex 32`).
 
 ## Invite-link membership endpoints
 
@@ -196,6 +321,46 @@ projects can both have a "Bug" tag with their own colour. Each new project start
   project), `401`, `403 insufficient_role`, `404` (tag or card not found), `409 tag_name_taken`.
 - Socket.IO events sent to the project room: `tag_created` and `tag_updated` (the `Tag`),
   `tag_deleted` (`{ id }`), and `card_updated` (the `Card`) when the tags of a card change.
+
+## Internal endpoints — Git integration
+
+Not part of the Public API module: JWT routes called by the kanban UI (`GitLinkModal.svelte`), in
+`backend/src/modules/git/git.routes.ts`. The receiver GitHub calls is described below the table.
+
+| Method | Path | Min role | Body / query | Success |
+|---|---|---|---|---|
+| `GET` | `/api/git/status` | any user | — | `200 { "connected": boolean }` (GitHub account linked) |
+| `GET` | `/api/projects/:projectId/git/branches` | member | `?repoUrl=` | `200 { "branches": [string] }` |
+| `POST` | `/api/cards/:id/git` | member | `{ "repoUrl", "branchName", "createBranch"? }` | `200 Card` |
+| `DELETE` | `/api/cards/:id/git` | member | — | `200 Card` |
+| `GET` | `/api/projects/:projectId/git/events` | admin | `?limit=` (1 to 200, default 50) | `200 { "events": [ { id, provider, repo, eventType, processedAt, createdAt } ] }` |
+
+- `POST /api/cards/:id/git` links the card to a branch (creating it from the default branch when
+  `createBranch` is true, which needs a linked GitHub account). It then tries to register the repository
+  webhook (see below); a failure there is logged and does not fail the link.
+- `GET .../git/events` is the audit log of `webhook_events` for the repositories linked in the project, newest
+  first, without the payload. `processedAt` is `null` when the event was received but not handled.
+- Errors: `400 invalid_input`, `401`, `403 insufficient_role`, `409 github_not_linked`, `502 github_error`.
+
+### Webhook receiver (called by GitHub)
+
+`POST /api/webhooks/git`, no JWT: the `X-Hub-Signature-256` HMAC (SHA-256 of the raw body with
+`GIT_WEBHOOK_SECRET`) is verified first, `401` otherwise. Every valid delivery is stored in `webhook_events`
+and stamped `processed_at` once handled. A card is matched only through its `git_links` row (repo + branch).
+
+| GitHub event | Effect on the linked card |
+|---|---|
+| `push` to the branch | `todo` becomes `In progress` (a later push never moves a card back from `PR pending` or `Done`); tags and branch deletions are ignored |
+| `pull_request` opened / reopened | `PR pending`, PR url stored, `git_links.pr_status = open`, notification to every project member |
+| `pull_request` closed, merged into the default branch | `Done`, `pr_status = merged`, notification |
+| `pull_request` closed, merged into another branch | ignored |
+| `pull_request` closed without merge | `PR pending` goes back to `In progress`, `pr_status = closed`, notification |
+
+The change is broadcast to the open boards (`card_updated`). A processing error answers `500` and leaves the
+event unprocessed, so it can be redelivered from GitHub. Setting `WEBHOOK_PUBLIC_URL` (public https origin of
+the app) lets the backend register this webhook on the repository when a branch is linked; without it, add it
+by hand in the repository settings (payload URL `<origin>/api/webhooks/git`, content type `application/json`,
+the same secret, events `push` and `pull requests`).
 
 ## Internal endpoints — folders, notes and files
 

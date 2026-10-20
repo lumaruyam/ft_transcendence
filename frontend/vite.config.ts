@@ -1,5 +1,5 @@
 import { defineConfig, type Plugin } from "vite";
-import { existsSync } from "fs";
+import { cpSync, existsSync, readFileSync, statSync } from "fs";
 import { dirname, relative, resolve, sep } from "path";
 import react from "@vitejs/plugin-react";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
@@ -47,6 +47,32 @@ function nginxLikePageRoutes(root: string): Plugin {
   };
 }
 
+// Excalidraw loads its fonts, locales and one JS chunk at run time, by default from unpkg.com. The app must work
+// without Internet access and under a Content-Security-Policy that only allows its own origin, so those files are
+// served from /excalidraw-assets/ (see whiteboard/assetPath.ts): copied into the build, and served by the dev server.
+function excalidrawAssets(): Plugin {
+  const source = resolve(process.cwd(), "node_modules/@excalidraw/excalidraw/dist/excalidraw-assets");
+  const types: Record<string, string> = { ".js": "text/javascript", ".json": "application/json", ".woff2": "font/woff2" };
+  let outDir = "";
+  return {
+    name: "excalidraw-assets",
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+    },
+    configureServer(server) {
+      server.middlewares.use("/excalidraw-assets", (req, res, next) => {
+        const file = resolve(source, "." + decodeURIComponent((req.url ?? "").split("?")[0]));
+        if (!file.startsWith(source) || !existsSync(file) || !statSync(file).isFile()) return next();
+        res.setHeader("Content-Type", types[file.slice(file.lastIndexOf("."))] ?? "application/octet-stream");
+        res.end(readFileSync(file));
+      });
+    },
+    closeBundle() {
+      if (outDir) cpSync(source, resolve(outDir, "excalidraw-assets"), { recursive: true });
+    },
+  };
+}
+
 // @ts-ignore — import.meta.dirname requires lib: ["ES2023"] or higher but works at runtime with Vite 8
 const srcRoot = resolve(import.meta.dirname, "src");
 
@@ -54,7 +80,7 @@ export default defineConfig({
   // React plugin is needed only for src/whiteboard/ (Excalidraw) — activates only on .tsx files.
   // Svelte plugin is the frontend main framework — activates only on .svelte files.
   // the Vite root is src/, so the Svelte config at the frontend root has to be pointed at explicitly
-  plugins: [react(), svelte({ configFile: resolve(srcRoot, "../svelte.config.js") }), nginxLikePageRoutes(srcRoot)],
+  plugins: [react(), svelte({ configFile: resolve(srcRoot, "../svelte.config.js") }), nginxLikePageRoutes(srcRoot), excalidrawAssets()],
   resolve: {
 		alias: {
 			"@excalidraw/excalidraw": resolve(
@@ -99,6 +125,7 @@ export default defineConfig({
         files:              resolve(import.meta.dirname, "src/files/index.html"),
         "not-found":        resolve(import.meta.dirname, "src/not-found/index.html"),
         error:              resolve(import.meta.dirname, "src/error/index.html"),
+        "api-docs":         resolve(import.meta.dirname, "src/api-docs/index.html"),
         "legal-privacy":    resolve(import.meta.dirname, "src/legal/privacy/index.html"),
         "legal-terms":      resolve(import.meta.dirname, "src/legal/terms/index.html"),
       },

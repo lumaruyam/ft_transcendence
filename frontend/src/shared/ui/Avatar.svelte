@@ -18,8 +18,13 @@
     return HUES[hash % HUES.length];
   }
 
+  // a new picture must not stay hidden because the previous one failed to load
   let broken = $state(false);
-  const safeSrc = $derived(src && /^https?:\/\//i.test(src) && !broken ? src : null);
+  $effect(() => {
+    void src;
+    broken = false;
+  });
+  const safeSrc = $derived(src && /^(https:\/\/|\/api\/avatars\/)/i.test(src) && !broken ? src : null);
   const hue = $derived(hueFor(id));
 </script>
 

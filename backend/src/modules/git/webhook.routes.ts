@@ -10,6 +10,7 @@ import{
 	processPushEvent,
 	processPullRequestEvent,
 	processMergeEvent,
+	processClosedWithoutMergeEvent,
 	type GitHubPullRequestPayload,
 	type GitHubPushPayload
 } from './eventProcessor.service.js';
@@ -53,7 +54,7 @@ async function safeLogWebhookEvent(input: LogWebhookEvent, logger?: FastifyBaseL
 
 // registerWebhook registers a webhook on the linked repository for push/pull_request/merge events.
 export async function registerGitWebhookRoutes(app: FastifyInstance): Promise<void> { //  app - server
-app.post('/webhooks/git', {config: { rawBody: true } as any}, async (request: FastifyRequest, reply: FastifyReply) => { //if post to address /api/..;
+app.post('/webhooks/git', {config: { rawBody: true }}, async (request: FastifyRequest, reply: FastifyReply) => { //if post to address /api/..;
 //async func(=>) run with every request; => - replace word "function"
 
 	//secret webhook
@@ -64,7 +65,7 @@ app.post('/webhooks/git', {config: { rawBody: true } as any}, async (request: Fa
 	}
 	//take hash
 	const signature = request.headers['x-hub-signature-256'] as string | undefined;
-	const rawBody = (request as any).rawBody || '';
+	const rawBody = request.rawBody?.toString() ?? '';
 
 	if(!verifyWebhookSignature(rawBody, signature, WEBHOOK_SECRET))
 		return reply.status(401).send({error: 'Invalid HMAC signature'});
@@ -92,6 +93,8 @@ app.post('/webhooks/git', {config: { rawBody: true } as any}, async (request: Fa
 				await processPullRequestEvent(prPayload);
 			else if(prPayload.action === 'closed' && prPayload.pull_request.merged)
 				await processMergeEvent(prPayload);
+			else if(prPayload.action === 'closed')
+				await processClosedWithoutMergeEvent(prPayload);
 		}
 		//check id and mark that carde changed position
 		if (loggedEvent && 'id' in loggedEvent) {

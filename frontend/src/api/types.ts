@@ -37,7 +37,8 @@ export interface ApiKeyRow {
 export interface NotificationRow {
   id: string;
   type: string;
-  payload: { message?: string; url?: string | null; cardId?: string } & Record<string, unknown>;
+  // url is an in-app path ("/app/<project>/notes/<note>") or an absolute http(s) address (a GitHub pull request)
+  payload: { message?: string; url?: string | null; projectName?: string | null; cardId?: string } & Record<string, unknown>;
   readAt: string | null;
   createdAt: string;
 }

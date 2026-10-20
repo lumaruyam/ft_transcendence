@@ -5,6 +5,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import multipart from "@fastify/multipart";
 import { DocumentError, answer } from "../folders/documentError.js";
 import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
+import { notifyProject } from "../notifications/notifications.service.js";
 import {
 	uploadAttachment,
 	listAttachments,
@@ -148,6 +149,7 @@ async function getAttachmentHandler(request: FastifyRequest, reply: FastifyReply
 async function deleteAttachmentHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId, id } = request.params as { projectId: string; id: string };
 
+	const attachment = await getAttachment(projectId, id);
 	const deleted = await deleteAttachment(projectId, id);
 	if (!deleted) {
 		reply.code(404).send({ error: "attachment_not_found" });
@@ -155,13 +157,18 @@ async function deleteAttachmentHandler(request: FastifyRequest, reply: FastifyRe
 	}
 
 	reply.code(204).send();
+	if (attachment) {
+		void notifyProject({ projectId, actorId: request.userId as string, type: "file_deleted", text: `a supprimé le fichier « ${attachment.fileName} »`, entityId: id, path: `/app/${projectId}/files` });
+	}
 }
 
 async function moveAttachmentHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const { projectId, id } = request.params as { projectId: string; id: string };
 	const { folderId } = request.body as { folderId: string | null };
 	await answer(reply, async () => {
-		reply.code(200).send({ attachment: await moveAttachment(projectId, id, folderId) });
+		const attachment = await moveAttachment(projectId, id, folderId);
+		reply.code(200).send({ attachment });
+		void notifyProject({ projectId, actorId: request.userId as string, type: "file_moved", text: `a déplacé le fichier « ${attachment.fileName} »`, entityId: id, path: `/app/${projectId}/files`, coalesce: true });
 	});
 }
 
@@ -187,5 +194,6 @@ async function copyAttachmentHandler(request: FastifyRequest, reply: FastifyRepl
 	await answer(reply, async () => {
 		const attachment = await copyAttachment(projectId, id, request.userId as string, folderId ?? null);
 		reply.code(201).send({ attachment });
+		void notifyProject({ projectId, actorId: request.userId as string, type: "file_uploaded", text: `a ajouté le fichier « ${attachment.fileName} »`, entityId: attachment.id, path: `/app/${projectId}/files` });
 	});
 }

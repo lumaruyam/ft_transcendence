@@ -32,7 +32,7 @@ export async function listMembers(projectId: string): Promise<Member[]> {
 
 // also changes the role of an existing member
 export function setMemberRole(projectId: string, userId: string, role: Role): Promise<void> {
-  return apiRequest<void>({ method: "POST", path: `/projects/${projectId}/members`, body: { userId, role } });
+  return apiRequest<void>({ method: "PUT", path: `/projects/${projectId}/members/${userId}`, body: { role } });
 }
 
 export function removeMember(projectId: string, userId: string): Promise<void> {

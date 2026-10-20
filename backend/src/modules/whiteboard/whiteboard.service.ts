@@ -1,7 +1,9 @@
 //Owner: Track 4 (Whiteboard, notes, and supporting modules)
 //Responsible for: loading and autosaving a project's Excalidraw scene, stored as JSON so it stays re-editable. Saves are merged element by element.
-import type { Whiteboard, WhiteboardFile, Prisma } from "@prisma/client";
+import { Prisma, type Whiteboard, type WhiteboardFile } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
+import { notifyProject } from "../notifications/notifications.service.js";
+import { SERIALIZABLE, inSequence, retryOnConflict } from "../../db/concurrency.js";
 import { MAX_ELEMENTS_PER_SCENE, mergeScene, validateElements, type SceneElement } from "./whiteboard.elements.js";
 
 //load a project's saved scene, or null if nobody has drawn yet.
@@ -19,12 +21,35 @@ export async function saveWhiteboard(
 	sceneJson: Prisma.InputJsonObject,
 	elements: SceneElement[],
 ): Promise<Whiteboard> {
+	const whiteboard = await inSequence(`whiteboard:${projectId}`, () => retryOnConflict(() => mergeAndStore(projectId, userId, sceneJson, elements)));
+	//the board autosaves while someone draws: the notification is refreshed, not repeated
+	void notifyProject({
+		projectId,
+		actorId: userId,
+		type: "whiteboard_updated",
+		text: "a modifié le tableau blanc",
+		entityId: whiteboard.id,
+		path: `/app/${projectId}/whiteboard`,
+		coalesce: true,
+	});
+	return whiteboard;
+}
+
+//Read the stored scene, merge the incoming elements into it and write it back. Two saves running together must
+//merge one after the other instead of both reading the old scene. Saves of the same project are first queued in
+//this process, which removes the contention of one backend (every autosave of a busy board lands at once). The
+//transaction is also Serializable, so a second backend instance stays correct: Postgres aborts the one that lost
+//the race (P2034, or P2002 when both tried to create the first row) and it is run again on the new state, after
+//a short random wait. No row lock is used because there is nothing to lock yet on the very first save.
+async function mergeAndStore(
+	projectId: string,
+	userId: string,
+	sceneJson: Prisma.InputJsonObject,
+	elements: SceneElement[],
+): Promise<Whiteboard> {
 	return prisma.$transaction(async (tx) => {
-		//lock the row so two simultaneous saves merge one after the other instead of both reading the old scene
-		await tx.$queryRaw`SELECT id FROM whiteboards WHERE project_id = ${projectId} FOR UPDATE`;
 		const existing = await tx.whiteboard.findUnique({ where: { projectId } });
-		const stored = readStoredElements(existing?.sceneJson);
-		const merged = mergeScene(stored, elements);
+		const merged = mergeScene(readStoredElements(existing?.sceneJson), elements);
 		if (merged.length > MAX_ELEMENTS_PER_SCENE) throw new SceneTooLargeError();
 
 		const scene = { ...sceneJson, elements: merged } as Prisma.InputJsonObject;
@@ -33,7 +58,7 @@ export async function saveWhiteboard(
 			update: { sceneJson: scene, updatedBy: userId },
 			create: { projectId, sceneJson: scene, updatedBy: userId },
 		});
-	});
+	}, SERIALIZABLE);
 }
 
 export class SceneTooLargeError extends Error {}

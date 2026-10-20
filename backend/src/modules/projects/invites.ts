@@ -27,6 +27,9 @@ import { prisma } from "../../db/prisma/client.js";
 import { requireAuth, requireRole } from "../permissions/permissions.middleware.js";
 import { getUserRole, ROLES, ROLE_RANK, type Role } from "../permissions/roles.service.js";
 import { addMember } from "./members.service.js";
+import { notifyProject } from "../notifications/notifications.service.js";
+import { announceMembersChanged } from "../kanban/membership.events.js";
+import { SERIALIZABLE, inSequence, retryOnConflict } from "../../db/concurrency.js";
 
 // INVITE_JOIN_RATE_LIMIT is the dedicated @fastify/rate-limit policy for POST
 // /api/projects/invites/:token/join, registered as this route's `config.rateLimit` override
@@ -145,9 +148,12 @@ export async function createInvite(
 
 // joinInvite is called when a logged-in user redeems an invite token. This is the only place
 // invite validity is checked; once it succeeds, the invite is irrelevant to future authorization
-export async function joinInvite(token: string, userId: string): Promise<void> {
+export async function joinInvite(token: string, userId: string): Promise<string> {
 	const tokenHash = hashToken(token);
-	await prisma.$transaction(async (tx) => {
+	// The checks (valid, not already a member, uses left) and the claim of a use are one decision: made apart, ten
+	// people joining a 3-use link at once could all pass the checks, and one person joining twice at once used two. They
+	// run one at a time per link in this process, in a Serializable transaction retried on conflict for a second instance.
+	return inSequence(`invite:${tokenHash}`, () => retryOnConflict(() => prisma.$transaction(async (tx) => {
 		const invite = await tx.projectInvite.findUnique({ where: { tokenHash } });
 
 	if (!invite) {
@@ -182,7 +188,8 @@ export async function joinInvite(token: string, userId: string): Promise<void> {
 	// addMember (members.service.ts) inserts the row into project_members
 	// which is what authorization reads from now on, never this invite again
 	await addMember(invite.projectId, userId, invite.role as Role, tx);
-	});
+	return invite.projectId;
+	}, SERIALIZABLE)));
 }
 
 // revokeInvite disables an invite link before it expires or is fully used, e.g. if it leaked.
@@ -262,8 +269,10 @@ async function joinInviteHandler(request: FastifyRequest, reply: FastifyReply): 
 	const { token } = request.params as { token: string };
 
 	try {
-		await joinInvite(token, request.userId as string);
+		const projectId = await joinInvite(token, request.userId as string);
 		reply.code(204).send();
+		announceMembersChanged(projectId);
+		void notifyProject({ projectId, actorId: request.userId as string, type: "member_joined", text: "a rejoint le projet", entityId: request.userId as string, path: `/app/${projectId}` });
 	} catch (err) {
 		if (err instanceof InviteNotFoundError) {
 			reply.code(404).send({ error: "invite_not_found" });

@@ -76,6 +76,13 @@
     </div>
   {/if}
 
+  {#if !store.connected && store.loadState === "ready" && !store.accessDenied}
+    <div class="banner warn" role="status" aria-live="polite">
+      <Icon name="wifiOff" size={16} />
+      <span>Connexion perdue : reconnexion en cours. Les changements des autres n'apparaissent plus, et le tableau se met à jour dès le retour de la connexion.</span>
+    </div>
+  {/if}
+
   <LoadStage {gate} label="Chargement du tableau…">
     {#snippet skeleton()}
       <BoardSkeleton />
@@ -84,8 +91,16 @@
       {#if store.accessDenied}
         <div class="state">
           <div class="state-icon"><Icon name="lock" size={26} /></div>
-          <h2>Vous n'avez pas accès à ce projet</h2>
-          <p>Il n'existe peut-être plus, ou vous n'en faites pas partie. Demandez un lien d'invitation à un administrateur.</p>
+          {#if store.accessLostReason === "deleted"}
+            <h2>Ce projet a été supprimé</h2>
+            <p>Un administrateur vient de le supprimer : il n'est plus accessible.</p>
+          {:else if store.accessLostReason === "removed"}
+            <h2>Vous ne faites plus partie de ce projet</h2>
+            <p>Un administrateur vous a retiré du projet. Demandez un nouveau lien d'invitation si c'est une erreur.</p>
+          {:else}
+            <h2>Vous n'avez pas accès à ce projet</h2>
+            <p>Il n'existe peut-être plus, ou vous n'en faites pas partie. Demandez un lien d'invitation à un administrateur.</p>
+          {/if}
           <a class="btn btn-primary" href="/app">Retour à mes projets</a>
         </div>
       {:else if store.loadState === "error"}
@@ -198,6 +213,10 @@
     gap: 10px;
     padding: 8px 20px;
     font-size: 0.86rem;
+  }
+  .banner.warn {
+    background: var(--warn-soft);
+    color: var(--warn);
   }
   .banner.error {
     background: var(--danger-soft);

@@ -1,6 +1,7 @@
 // Owner: Track 4 (Whiteboard, notes, and supporting modules)
 // Responsible for: the React side of the whiteboard page — Excalidraw, autosave over HTTP and live
 // collaboration (scene deltas + cursors) over the project's Socket.IO connection. Mounted from Whiteboard.svelte.
+import "./assetPath"; // first: it must run before Excalidraw is evaluated
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Excalidraw, restoreElements } from "@excalidraw/excalidraw";

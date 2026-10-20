@@ -19,7 +19,11 @@ import { prisma } from "../../db/prisma/client.js";
 import { validateSignupInput, type SignupInput } from "./auth.validation.js";
 import { hashPassword, verifyPassword } from "./password.service.js";
 import { generateJwt } from "./jwt.service.js";
-import { handleOAuthCallback, OAuthNotConfiguredError, OAuthExchangeError, OAuthStateError, OAuthAccountConflictError, getOAuthRedirectUrl } from "./oauth.service.js";
+import {
+	handleOAuthCallback, startOAuthFlow, isOAuthCookieSecure, OAUTH_STATE_COOKIE, OAUTH_STATE_TTL_SECONDS,
+	OAuthNotConfiguredError, OAuthExchangeError, OAuthStateError, OAuthAccountConflictError, OAuthAccessDeniedError,
+} from "./oauth.service.js";
+import { requireAuth } from "../permissions/permissions.middleware.js";
 
 // registerAuthRoutes mounts /api/auth/signup, /api/auth/login, /api/auth/logout on the given
 // Fastify instance, called from app.ts. Canonical API base path is /api — matches
@@ -29,9 +33,49 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 	app.post("/login", loginHandler);
 	app.post("/logout", logoutHandler);
 	app.get("/oauth/github/callback", oauthCallbackHandler);
-	app.get("/oauth/github/redirect", async (_req, reply) => {
-		return reply.redirect(getOAuthRedirectUrl());
-	});
+	app.get("/oauth/github/redirect", oauthRedirectHandler);
+	// a signed-in user adds GitHub to their account (needed for the Git integration when the GitHub email is not
+	// the account email): the browser cannot send its JWT on a plain redirect, so the frontend calls this with
+	// fetch and then navigates to the returned url
+	app.post("/oauth/github/link", { preHandler: [requireAuth] }, oauthLinkHandler);
+}
+
+// the nonce of the OAuth state is kept in a cookie of the browser that starts the flow (see oauth.service.ts):
+// HttpOnly so scripts cannot read it, Lax so it still comes back on the top-level redirect from github.com
+function stateCookie(value: string, maxAgeSeconds: number): string {
+	return `${OAUTH_STATE_COOKIE}=${value}; Path=/api/auth/oauth; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${isOAuthCookieSecure() ? "; Secure" : ""}`;
+}
+
+function readStateCookie(request: FastifyRequest): string | undefined {
+	const match = request.headers.cookie?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${OAUTH_STATE_COOKIE}=`));
+	return match?.slice(OAUTH_STATE_COOKIE.length + 1);
+}
+
+async function oauthRedirectHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	try {
+		const { url, nonce } = startOAuthFlow();
+		reply.header("Set-Cookie", stateCookie(nonce, OAUTH_STATE_TTL_SECONDS)).redirect(url);
+	} catch (err) {
+		if (err instanceof OAuthNotConfiguredError) {
+			request.log.warn({ err }, "OAuth redirect requested but GitHub OAuth is not configured");
+			reply.redirect(`/auth/callback#error=${encodeURIComponent(err.name)}`);
+			return;
+		}
+		throw err;
+	}
+}
+
+async function oauthLinkHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	try {
+		const { url, nonce } = startOAuthFlow(request.userId);
+		reply.header("Set-Cookie", stateCookie(nonce, OAUTH_STATE_TTL_SECONDS)).code(200).send({ url });
+	} catch (err) {
+		if (err instanceof OAuthNotConfiguredError) {
+			reply.code(503).send({ error: "oauth_not_configured" });
+			return;
+		}
+		throw err;
+	}
 }
 
 interface LoginInput {
@@ -40,7 +84,7 @@ interface LoginInput {
 }
 
 function toAuthResponse(user: User, token: string) {
-	return { token, user: { id: user.id, email: user.email, name: user.name } };
+	return { token, user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar } };
 }
 
 // signupHandler creates a new user with a hashed/salted password
@@ -113,10 +157,23 @@ async function logoutHandler(request: FastifyRequest, reply: FastifyReply): Prom
 }
 
 async function oauthCallbackHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-	const { code, state } = request.query as { code?: string; state?: string };
+	const { code, state, error } = request.query as { code?: string; state?: string; error?: string };
+	// whatever the outcome, the state cookie has done its job
+	reply.header("Set-Cookie", stateCookie("", 0));
+
+	// "Cancel" on GitHub's consent screen comes back here with ?error=access_denied and no code
+	if (error === "access_denied") {
+		reply.redirect(`/auth/callback#error=${OAuthAccessDeniedError.name}`);
+		return;
+	}
 
 	try {
-		const user = await handleOAuthCallback(code ?? "", state ?? "");
+		const { user, linked } = await handleOAuthCallback(code ?? "", state ?? "", readStateCookie(request));
+		// a link flow keeps the existing session: the frontend only needs to know it worked
+		if (linked) {
+			reply.redirect("/auth/callback#linked=1");
+			return;
+		}
 		const token = generateJwt(user.id);
 		reply.redirect(`/auth/callback#token=${encodeURIComponent(token)}`);
 	} catch (err) {

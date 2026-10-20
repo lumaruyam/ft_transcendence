@@ -48,8 +48,9 @@ function hashKey(key: string): string {
 }
 
 export function stripKeyHash(apiKey: ApiKey): Omit<ApiKey, "keyHash"> {
-	const { keyHash: _keyHash, ...safe } = apiKey;
-	return safe;
+	const safe: Partial<ApiKey> = { ...apiKey };
+	delete safe.keyHash;
+	return safe as Omit<ApiKey, "keyHash">;
 }
 
 // issueApiKey generates a new API key for external/script access to the public endpoints

@@ -1,6 +1,7 @@
 import { Prisma, type Tag } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 import { broadcastToProject } from "./broadcast.js";
+import { SERIALIZABLE, inSequence, retryOnConflict } from "../../db/concurrency.js";
 
 export const DEFAULT_TAGS = [
 	{ name: "WIP", color: "#d97706" },
@@ -95,14 +96,20 @@ export async function setCardTags(cardId: string, tagIds: string[]) {
 	if (valid !== uniqueIds.length) return "invalid_tags" as const;
 
 	try {
-		const card = await prisma.$transaction(async (tx) => {
-			await tx.cardTag.deleteMany({ where: { cardId } });
-			await tx.cardTag.createMany({
-				data: uniqueIds.map((tagId) => ({ cardId, tagId })),
-				skipDuplicates: true,
-			});
-			return tx.card.findUniqueOrThrow({ where: { id: cardId }, include: CARD_TAGS_INCLUDE });
-		});
+		// Replacing the tags is "delete them all, add these": two of them running together interleaved and left the
+		// union of both sets. One per card at a time, and Serializable for a second backend instance.
+		const card = await inSequence(`cardtags:${cardId}`, () =>
+			retryOnConflict(() =>
+				prisma.$transaction(async (tx) => {
+					await tx.cardTag.deleteMany({ where: { cardId } });
+					await tx.cardTag.createMany({
+						data: uniqueIds.map((tagId) => ({ cardId, tagId })),
+						skipDuplicates: true,
+					});
+					return tx.card.findUniqueOrThrow({ where: { id: cardId }, include: CARD_TAGS_INCLUDE });
+				}, SERIALIZABLE),
+			),
+		);
 		const payload = withTags(card);
 		broadcastToProject(projectId, { type: "card_updated", payload });
 		return payload;

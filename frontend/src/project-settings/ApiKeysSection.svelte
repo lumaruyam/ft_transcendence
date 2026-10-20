@@ -13,7 +13,8 @@
 
   let keys = $state<ApiKeyRow[] | null>(null);
   let loadFailed = $state(false);
-  let rateLimit = $state("");
+  // a type="number" input binds a number (null when empty), never a string
+  let rateLimit = $state<number | null>(null);
   let busy = $state(false);
   let error = $state<string | null>(null);
   let fresh = $state<string | null>(null);
@@ -38,7 +39,7 @@
   async function onCreate(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     error = null;
-    const limit = rateLimit.trim() === "" ? undefined : Number(rateLimit);
+    const limit = rateLimit === null ? undefined : rateLimit;
     if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 10000)) {
       error = "La limite doit être un entier entre 1 et 10 000 requêtes par minute.";
       return;
@@ -46,7 +47,7 @@
     busy = true;
     try {
       fresh = (await createApiKey(project.id, limit)).key;
-      rateLimit = "";
+      rateLimit = null;
       await load();
     } catch (err) {
       error = errorMessage(err);
@@ -127,7 +128,7 @@
   <div class="panel">
     <h3>Exemple</h3>
     <pre><code>{example}</code></pre>
-    <span class="hint">Autres routes : <code>POST</code>, <code>PUT</code> et <code>DELETE</code> sur <code>/api/projects/{"{id}"}/cards</code>.</span>
+    <span class="hint">Autres routes : <code>POST</code>, <code>PUT</code> et <code>DELETE</code> sur <code>/api/projects/{"{id}"}/cards</code>. <a href="/api-docs" target="_blank" rel="noopener noreferrer">Documentation complète de l'API</a>.</span>
   </div>
 {/if}
 

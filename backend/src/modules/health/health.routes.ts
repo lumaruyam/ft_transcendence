@@ -9,7 +9,8 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
   app.get("/health", async () => {
     let db: "up" | "down" = "up";
     try {
-      await prisma.$queryRaw`SELECT 1`;
+      // a read through the ORM, so the health check does not need raw SQL either
+      await prisma.user.findFirst({ select: { id: true } });
     } catch {
       db = "down";
     }

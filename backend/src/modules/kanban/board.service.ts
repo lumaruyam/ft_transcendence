@@ -2,6 +2,7 @@ import { Prisma, type Tag } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 import { broadcastToProject } from "./broadcast.js";
 import { CARD_TAGS_INCLUDE, withTags } from "./tag.service.js";
+import { SERIALIZABLE, inSequence, retryOnConflict } from "../../db/concurrency.js";
 
 export async function createBoard(input: { projectId: string; title: string}) {
 	const board = await prisma.board.create({
@@ -36,26 +37,37 @@ function flattenCardTags<B extends { lists: { cards: { tags: { tag: Tag }[] }[] 
 
 // creates a board for the project if none exists yet
 // null return means the project does not exist, this is only an existence check not a permission check
+// The board of a project, created the first time somebody opens it. Several members opening a new project at the same
+// moment used to get one board each (ten at once created ten): creation is queued per project and re-checks inside a
+// Serializable transaction, so exactly one board exists and everybody gets it. The oldest one wins, which also
+// settles projects that already have several. Returns null if the project does not exist.
 export async function getOrCreateBoardForProject(projectId: string) {
-	const existing = await prisma.board.findFirst({
-		where: { projectId },
-		include: BOARD_WITH_LISTS_AND_CARDS,
-	});
+	const load = () =>
+		prisma.board.findFirst({ where: { projectId }, orderBy: { createdAt: "asc" }, include: BOARD_WITH_LISTS_AND_CARDS });
+	const existing = await load();
 	if (existing) {
 		return flattenCardTags(existing);
 	}
 
 	try {
-		const created = await prisma.board.create({
-			data: { projectId, title: "BoardTitle" }, // TODO: allow real board and project names
-		});
-		return { ...created, lists: [] };
+		await inSequence(`board:${projectId}`, () =>
+			retryOnConflict(() =>
+				prisma.$transaction(async (tx) => {
+					if (await tx.board.findFirst({ where: { projectId }, select: { id: true } })) return;
+					const project = await tx.project.findUnique({ where: { id: projectId }, select: { name: true } });
+					if (!project) return;
+					await tx.board.create({ data: { projectId, title: project.name } });
+				}, SERIALIZABLE),
+			),
+		);
 	} catch (err) {
 		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2003") {
 			return null;
 		}
 		throw err;
 	}
+	const board = await load();
+	return board ? flattenCardTags(board) : null;
 }
 
 export async function getBoard(id: string) {

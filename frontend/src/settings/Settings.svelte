@@ -1,10 +1,11 @@
-<!-- The backend has no profile edit endpoint: name and e-mail are read-only. -->
+<!-- Account settings: avatar (PUT/DELETE /api/users/me/avatar), display name (PATCH /api/users/me), password (PUT /api/users/me/password). The e-mail is the login identity and is read-only. -->
 <script lang="ts">
   import { ApiError } from "../api/apiClient";
-  import { deleteAccount } from "../api/accountApi";
+  import { AVATAR_TYPES, MAX_AVATAR_BYTES, changePassword, deleteAccount, removeAvatar, updateProfile, uploadAvatar } from "../api/accountApi";
+  import { MAX_NAME_LENGTH, validateName, validateNewPassword } from "../auth/validation";
   import { listMembers, listMyProjects } from "../api/projectsApi";
   import type { Member, Project } from "../api/types";
-  import { clearAuthSession, getStoredUser, logout } from "../auth/authClient";
+  import { clearAuthSession, getStoredUser, logout, storeUser } from "../auth/authClient";
   import { confirmDialog } from "../shared/confirm.svelte";
   import { errorMessage } from "../shared/errors";
   import { ensureUser } from "../shared/session";
@@ -17,6 +18,117 @@
   let user = $state(getStoredUser());
   let busy = $state(false);
 
+  // display name form
+  let name = $state(getStoredUser()?.name ?? "");
+  let nameError = $state<string | null>(null);
+  let savingName = $state(false);
+  const nameChanged = $derived(name.trim() !== (user?.name ?? ""));
+
+  async function onSaveName(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    nameError = validateName(name);
+    if (nameError || !user || !nameChanged) return;
+    savingName = true;
+    try {
+      const updated = await updateProfile(name.trim());
+      user = { ...user, name: updated.name };
+      storeUser(user);
+      name = updated.name;
+      toast("Nom mis à jour", { kind: "success" });
+    } catch (err) {
+      nameError = errorMessage(err);
+    } finally {
+      savingName = false;
+    }
+  }
+
+  // avatar
+  let fileInput: HTMLInputElement;
+  let avatarError = $state<string | null>(null);
+  let avatarBusy = $state(false);
+  // picture chosen but not yet confirmed by the server, shown at once
+  let preview = $state<string | null>(null);
+
+  function clearPreview(): void {
+    if (preview) URL.revokeObjectURL(preview);
+    preview = null;
+  }
+
+  async function onPickAvatar(): Promise<void> {
+    const file = fileInput.files?.[0];
+    fileInput.value = "";
+    avatarError = null;
+    if (!file || !user) return;
+    if (!AVATAR_TYPES.includes(file.type)) {
+      avatarError = "Choisissez une image PNG, JPEG, GIF ou WebP.";
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      avatarError = `L'image fait ${(file.size / 1024 / 1024).toFixed(1)} Mo, la limite est de 2 Mo.`;
+      return;
+    }
+    clearPreview();
+    preview = URL.createObjectURL(file);
+    avatarBusy = true;
+    try {
+      const { avatar } = await uploadAvatar(file);
+      user = { ...user, avatar };
+      storeUser(user);
+      toast("Photo de profil mise à jour", { kind: "success" });
+    } catch (err) {
+      avatarError = errorMessage(err);
+    } finally {
+      clearPreview();
+      avatarBusy = false;
+    }
+  }
+
+  async function onRemoveAvatar(): Promise<void> {
+    if (!user) return;
+    avatarBusy = true;
+    avatarError = null;
+    try {
+      await removeAvatar();
+      user = { ...user, avatar: null };
+      storeUser(user);
+      toast("Photo de profil retirée", { kind: "success" });
+    } catch (err) {
+      avatarError = errorMessage(err);
+    } finally {
+      avatarBusy = false;
+    }
+  }
+
+  // password form
+  let currentPassword = $state("");
+  let newPassword = $state("");
+  let confirmPassword = $state("");
+  let passwordError = $state<string | null>(null);
+  let savingPassword = $state(false);
+
+  async function onSavePassword(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    passwordError = null;
+    if (!currentPassword) {
+      passwordError = "Entrez votre mot de passe actuel.";
+      return;
+    }
+    passwordError = validateNewPassword(newPassword);
+    if (!passwordError && newPassword !== confirmPassword) passwordError = "Les deux nouveaux mots de passe ne correspondent pas.";
+    if (!passwordError && newPassword === currentPassword) passwordError = "Le nouveau mot de passe doit être différent de l'actuel.";
+    if (passwordError) return;
+    savingPassword = true;
+    try {
+      await changePassword(currentPassword, newPassword);
+      currentPassword = newPassword = confirmPassword = "";
+      toast("Mot de passe modifié", { kind: "success" });
+    } catch (err) {
+      passwordError = errorMessage(err);
+    } finally {
+      savingPassword = false;
+    }
+  }
+
   // step to hand over projects before deleting the account
   let dialog: HTMLDialogElement;
   let handover = $state<{ projects: Project[]; candidates: Member["user"][]; reason: "transfer" | "last_admin" } | null>(null);
@@ -24,7 +136,10 @@
 
   $effect(() => {
     document.title = "Paramètres du compte — Transcendance";
-    void ensureUser().then((u) => (user = u));
+    void ensureUser().then((u) => {
+      user = u;
+      if (u && !nameChanged) name = u.name;
+    });
   });
 
   async function onLogout(): Promise<void> {
@@ -93,13 +208,85 @@
   <h1>Paramètres du compte</h1>
 
   <section class="panel profile">
-    <Avatar name={user?.name ?? "?"} id={user?.id} size={64} />
+    <Avatar name={user?.name ?? "?"} id={user?.id} src={preview ?? user?.avatar} size={72} />
     <div class="who">
       <div class="name selectable">{user?.name ?? "…"}</div>
       <div class="email selectable">{user?.email ?? ""}</div>
+      <div class="actions avatar-actions">
+        <input bind:this={fileInput} type="file" accept={AVATAR_TYPES.join(",")} hidden onchange={onPickAvatar} aria-label="Choisir une photo de profil" />
+        <button type="button" class="btn" disabled={avatarBusy} onclick={() => fileInput.click()}>
+          {#if avatarBusy}<span class="spinner"></span>{/if} {user?.avatar ? "Changer la photo" : "Ajouter une photo"}
+        </button>
+        {#if user?.avatar}
+          <button type="button" class="btn btn-ghost" disabled={avatarBusy} onclick={onRemoveAvatar}>Retirer</button>
+        {/if}
+      </div>
+      {#if avatarError}
+        <span class="field-error" role="alert">{avatarError}</span>
+      {:else}
+        <span class="hint">PNG, JPEG, GIF ou WebP, 2 Mo maximum. Sans photo, vos initiales sont affichées.</span>
+      {/if}
     </div>
   </section>
-  <p class="hint">Le nom et l'adresse e-mail ne sont pas modifiables pour l'instant.</p>
+
+  <form class="panel" onsubmit={onSaveName}>
+    <div class="field">
+      <label for="display-name">Nom affiché</label>
+      <input
+        id="display-name"
+        class="input"
+        bind:value={name}
+        maxlength={MAX_NAME_LENGTH}
+        autocomplete="name"
+        aria-describedby={nameError ? "display-name-err" : "display-name-hint"}
+        aria-invalid={nameError ? "true" : undefined}
+      />
+      {#if nameError}
+        <span class="field-error" id="display-name-err" role="alert">{nameError}</span>
+      {:else}
+        <span class="hint" id="display-name-hint">Visible par les membres de vos projets. L'adresse e-mail ne peut pas être modifiée.</span>
+      {/if}
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" disabled={!nameChanged || savingName}>
+        {#if savingName}<span class="spinner"></span>{/if} Enregistrer
+      </button>
+      {#if nameChanged}<button type="button" class="btn btn-ghost" onclick={() => ((name = user?.name ?? ""), (nameError = null))}>Annuler</button>{/if}
+    </div>
+  </form>
+
+  <form class="panel" onsubmit={onSavePassword}>
+    <div>
+      <h2>Mot de passe</h2>
+      <p class="sub">Choisissez-en un nouveau : 8 caractères au moins, avec une lettre et un chiffre. Les comptes créés uniquement avec GitHub n'ont pas de mot de passe à modifier.</p>
+    </div>
+    <div class="field">
+      <label for="current-password">Mot de passe actuel</label>
+      <input id="current-password" class="input" type="password" bind:value={currentPassword} autocomplete="current-password" />
+    </div>
+    <div class="field">
+      <label for="new-password">Nouveau mot de passe</label>
+      <input id="new-password" class="input" type="password" bind:value={newPassword} autocomplete="new-password" />
+    </div>
+    <div class="field">
+      <label for="confirm-password">Confirmer le nouveau mot de passe</label>
+      <input
+        id="confirm-password"
+        class="input"
+        type="password"
+        bind:value={confirmPassword}
+        autocomplete="new-password"
+        aria-describedby={passwordError ? "password-err" : undefined}
+        aria-invalid={passwordError ? "true" : undefined}
+      />
+      {#if passwordError}<span class="field-error" id="password-err" role="alert">{passwordError}</span>{/if}
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" disabled={savingPassword || !currentPassword || !newPassword}>
+        {#if savingPassword}<span class="spinner"></span>{/if} Changer le mot de passe
+      </button>
+    </div>
+  </form>
 
   <section class="panel">
     <div>
@@ -180,6 +367,10 @@
 </dialog>
 
 <style>
+  .actions {
+    display: flex;
+    gap: 8px;
+  }
   main {
     display: flex;
     flex-direction: column;
@@ -190,6 +381,17 @@
   }
   main h1 {
     margin-bottom: 4px;
+  }
+  .who {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+  }
+  .avatar-actions {
+    justify-content: flex-start;
+    margin: 10px 0 6px;
   }
   .profile {
     flex-direction: row;

@@ -17,6 +17,7 @@
 // source of truth regardless of how a member was added (owner creation vs. invite join).
 import type { Prisma, Project } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
+import { retryOnConflict } from "../../db/concurrency.js";
 import { ROLES } from "../permissions/roles.service.js";
 import { DEFAULT_TAGS } from "../kanban/tag.service.js";
 
@@ -124,7 +125,8 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
 
 // deleteProject removes a project and cascades to its boards/lists/cards/notes/attachments
 export async function deleteProject(id: string): Promise<void> {
-	await prisma.project.delete({ where: { id }});
+	// the cascade can deadlock with something being added to the project at that very moment: run it again
+	await retryOnConflict(() => prisma.project.delete({ where: { id }}));
 }
 
 // listProjectsForUser returns every project a given user is a member of, for the project switcher UI

@@ -48,6 +48,8 @@ export class BoardStore {
   canEdit = $derived(this.myRole === "admin" || this.myRole === "member");
   // the server refused the room: the user is not a member of this project
   accessDenied = $state(false);
+  // why the board was closed while it was open: the user was removed, or the project was deleted
+  accessLostReason = $state<"removed" | "deleted" | null>(null);
   // last failed user action, shown by the page until dismissed
   actionError = $state<string | null>(null);
   // the live connection is up
@@ -92,7 +94,11 @@ export class BoardStore {
     this.#disconnect = connectKanbanSocket(this.#projectId, {
       onEvent: (event, payload) => this.applyEvent(event, payload),
       onReconnect: () => void this.load(),
-      onStatus: (connected) => (this.connected = connected),
+      onStatus: (connected) => {
+        this.connected = connected;
+        // who is online is unknown while offline: the server sends a fresh snapshot when the connection is back
+        if (!connected) this.online.clear();
+      },
     });
   }
 
@@ -345,10 +351,27 @@ export class BoardStore {
         return;
       }
       case "presence_snapshot": {
+        // the whole truth at join time: replaces what we knew, so nobody who left meanwhile stays "online"
         const { userIds } = payload as { userIds: string[] };
+        this.online.clear();
         for (const userId of userIds) this.online.add(userId);
         return;
       }
+      case "members_changed":
+        // the member list decides who may edit: a promoted or demoted viewer sees the board change at once
+        void this.#refreshMembers();
+        return;
+      case "project_updated": {
+        const { name } = payload as { id: string; name: string };
+        if (this.project) this.project = { ...this.project, name };
+        return;
+      }
+      case "removed_from_project":
+        if ((payload as { projectId: string }).projectId === this.#projectId) this.#lose("removed");
+        return;
+      case "project_deleted":
+        if ((payload as { projectId: string }).projectId === this.#projectId) this.#lose("deleted");
+        return;
       case "join_denied":
         this.accessDenied = true;
         return;
@@ -395,6 +418,20 @@ export class BoardStore {
   }
 
   // ---- state helpers
+
+  async #refreshMembers(): Promise<void> {
+    try {
+      this.members = await api.fetchMembers(this.#projectId);
+    } catch (err) {
+      // the list is refused once we are no longer a member
+      if (err instanceof ApiError && (err.status === 403 || err.status === 404)) this.#lose("removed");
+    }
+  }
+
+  #lose(reason: "removed" | "deleted"): void {
+    this.accessLostReason = reason;
+    this.accessDenied = true;
+  }
 
   async #run(action: () => Promise<unknown>): Promise<boolean> {
     try {

@@ -15,11 +15,18 @@
 import type { User } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
+import { retryOnConflict } from "../../db/concurrency.js";
+import { hashPassword, verifyPassword } from "../auth/password.service.js";
+import { forgetAvatarFile } from "./avatar.service.js";
 import { transferProjectOwnership, NotAProjectMemberError } from "../projects/projects.service.js";
 
 export interface UpdateUserInput {
 	name?: string;
-	avatar?: string;
+}
+
+// the shape of the signed-in user in API responses and in the frontend session
+export function toPublicUser(user: User): { id: string; email: string; name: string; avatar: string | null } {
+	return { id: user.id, email: user.email, name: user.name, avatar: user.avatar };
 }
 
 // listUsers returns all users, for the admin user-management view
@@ -32,9 +39,63 @@ export async function getUser(id: string): Promise<User | null> {
 	return prisma.user.findUnique({ where: { id }});
 }
 
-// updateUser applies an admin edit to a user's account
+// updateUser applies an edit to a user's own account (display name)
 export async function updateUser(id: string, input: UpdateUserInput): Promise<User> {
 	return prisma.user.update({ where: { id }, data: input });
+}
+
+export class WrongPasswordError extends Error {
+	constructor() {
+		super("current password is wrong");
+		this.name = "WrongPasswordError";
+	}
+}
+
+// changePassword replaces the password after checking the current one. Accounts created through GitHub only have a
+// random password nobody knows, so they cannot pass the check.
+export async function changePassword(id: string, currentPassword: string, newPassword: string): Promise<void> {
+	const user = await prisma.user.findUnique({ where: { id } });
+	if (!user) throw new UserNotFoundError();
+	if (!(await verifyPassword(currentPassword, user.passwordHash, user.passwordSalt))) throw new WrongPasswordError();
+	const { hash, salt } = await hashPassword(newPassword);
+	await prisma.user.update({ where: { id }, data: { passwordHash: hash, passwordSalt: salt } });
+}
+
+export interface VisibleProfile {
+	id: string;
+	name: string;
+	avatar: string | null;
+	createdAt: Date;
+	//only the person themself and the admins of a project they share see it
+	email?: string;
+	//the projects the two people have in common, with the role of the person looked at
+	projects: { id: string; name: string; role: string }[];
+}
+
+// getVisibleProfile is what `viewerId` may see of `targetId`: their own profile, or the profile of somebody who
+// belongs to at least one of the same projects. null when the user does not exist or is a stranger, so ids cannot
+// be probed. The email is kept for the person themself and for the admins of a shared project.
+export async function getVisibleProfile(viewerId: string, targetId: string): Promise<VisibleProfile | null> {
+	const target = await prisma.user.findUnique({ where: { id: targetId } });
+	if (!target) return null;
+	const base = { id: target.id, name: target.name, avatar: target.avatar, createdAt: target.createdAt };
+
+	if (viewerId === targetId) {
+		const memberships = await prisma.projectMember.findMany({ where: { userId: targetId }, include: { project: { select: { name: true } } } });
+		return { ...base, email: target.email, projects: memberships.map((m) => ({ id: m.projectId, name: m.project.name, role: m.role })) };
+	}
+
+	const shared = await prisma.projectMember.findMany({
+		where: { userId: targetId, project: { members: { some: { userId: viewerId } } } },
+		include: { project: { select: { name: true, members: { where: { userId: viewerId }, select: { role: true } } } } },
+	});
+	if (shared.length === 0) return null;
+	const viewerIsAdmin = shared.some((m) => m.project.members[0]?.role === "admin");
+	return {
+		...base,
+		...(viewerIsAdmin ? { email: target.email } : {}),
+		projects: shared.map((m) => ({ id: m.projectId, name: m.project.name, role: m.role })),
+	};
 }
 
 export class UserNotFoundError extends Error {
@@ -73,8 +134,9 @@ export interface DeleteUserOptions {
 
 // deleteUser removes a user account and transfer owner if there's another member
 // in the project, then delete the user
-export async function deleteUser(id: string, options: DeleteUserOptions = {}): Promise<void> {
-	await prisma.$transaction(
+// Returns the projects the user was a member of and that go on without them: their other members need to know.
+export async function deleteUser(id: string, options: DeleteUserOptions = {}): Promise<{ leftProjectIds: string[] }> {
+	const { avatar, ...result } = await retryOnConflict(() => prisma.$transaction(
 		async (tx) => {
 				const user = await tx.user.findUnique({ where: { id } });
 				if (!user) {
@@ -137,8 +199,13 @@ export async function deleteUser(id: string, options: DeleteUserOptions = {}): P
 
 				await tx.notification.deleteMany({ where: { userId: id } });
 				await tx.apiKey.deleteMany({ where: { userId: id } });
+				const memberOf = await tx.projectMember.findMany({ where: { userId: id }, select: { projectId: true } });
+				const deleted = new Set(soloProjects.map((project) => project.id));
 				await tx.user.delete({ where: { id } });
+				return { avatar: user.avatar, leftProjectIds: memberOf.map((m) => m.projectId).filter((projectId) => !deleted.has(projectId)) };
 		},
 		{ isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
-	);
+	));
+	await forgetAvatarFile(avatar);
+	return result;
 }

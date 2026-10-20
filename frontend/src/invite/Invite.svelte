@@ -74,7 +74,7 @@
     {#if signedIn}
       {#if user}
         <div class="who">
-          <Avatar name={user.name} id={user.id} size={34} />
+          <Avatar name={user.name} id={user.id} src={user.avatar} size={34} />
           <div class="who-text">
             <div class="who-name selectable">{user.name}</div>
             <div class="who-email selectable">{user.email}</div>
