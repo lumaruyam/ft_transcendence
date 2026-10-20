@@ -7,7 +7,11 @@ import { getStoredToken } from "../auth/authClient";
 import { nextFromUrl, requireSession } from "./session";
 import Root from "./ui/Root.svelte";
 
-export function boot(page: Component<any>, options: { auth?: "required" | "guest" | "none"; props?: Record<string, unknown> } = {}): void {
+// footer false is for pages that already show the legal links
+export function boot(
+  page: Component<any>,
+  options: { auth?: "required" | "guest" | "none"; props?: Record<string, unknown>; footer?: boolean } = {}
+): void {
   initTheme();
   const auth = options.auth ?? "none";
 
@@ -17,5 +21,5 @@ export function boot(page: Component<any>, options: { auth?: "required" | "guest
     return;
   }
 
-  mount(Root, { target: document.getElementById("app") as HTMLElement, props: { page, props: options.props } });
+  mount(Root, { target: document.getElementById("app") as HTMLElement, props: { page, props: options.props, footer: options.footer ?? true } });
 }

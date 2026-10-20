@@ -3,7 +3,7 @@
 <script lang="ts">
   import { extensionBadge, humanSize } from "../documents/fileInfo";
   import { describeDocumentError } from "../documents/foldersApi";
-  import { downloadAttachment, isImage, linkAttachmentToCard, listAttachments, unlinkAttachmentFromCard, type Attachment } from "../files/attachmentsApi";
+  import { downloadAttachment, isPreviewable, linkAttachmentToCard, listAttachments, unlinkAttachmentFromCard, type Attachment } from "../files/attachmentsApi";
   import ImagePreview from "../files/ImagePreview.svelte";
   import { linkNoteToCard, listNotes, noteUrl, unlinkNoteFromCard, type NoteSummary } from "../notes/notesApi";
   import { timeAgo } from "../shared/format";
@@ -47,7 +47,7 @@
 
   const linkedNoteIds = $derived(new Set(notes.map((note) => note.id)));
   const linkedFileIds = $derived(new Set(files.map((file) => file.id)));
-  const images = $derived(files.filter(isImage));
+  const images = $derived(files.filter(isPreviewable));
 
   async function toggle(kind: "note" | "file", id: string): Promise<void> {
     try {
@@ -126,7 +126,7 @@
       {/each}
       {#each files as file (file.id)}
         <div class="tile">
-          {#if isImage(file)}
+          {#if isPreviewable(file)}
             <!-- double click with the mouse and Enter or Space with the keyboard -->
             <button
               type="button"

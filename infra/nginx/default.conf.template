@@ -135,6 +135,10 @@ server {
     location ~ ^/app/[^/]+/files$ {
         try_files /files/index.html =404;
     }
+    # /app/:id/search
+    location ~ ^/app/[^/]+/search$ {
+        try_files /search/index.html =404;
+    }
 
     # /app/:id -> kanban
     location ~ ^/app/[^/]+$ {

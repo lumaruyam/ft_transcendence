@@ -1,5 +1,5 @@
 import { apiRequest } from "./apiClient";
-import type { NotificationRow, SearchResult } from "./types";
+import type { NotificationRow, SearchFilters, SearchPage, SearchResult } from "./types";
 
 // the newest notifications, and how many are unread in total (not only in the returned page)
 export async function listNotifications(limit = 30): Promise<{ notifications: NotificationRow[]; unreadCount: number }> {
@@ -44,6 +44,20 @@ export async function searchProject(projectId: string, query: string): Promise<S
     path: `/search/${projectId}?q=${encodeURIComponent(query)}`,
   });
   return results;
+}
+
+export function searchProjectPage(projectId: string, filters: SearchFilters): Promise<SearchPage> {
+  const params = new URLSearchParams();
+  if (filters.q.trim()) params.set("q", filters.q.trim());
+  if (filters.types.length > 0 && filters.types.length < 3) params.set("type", filters.types.join(","));
+  if (filters.tag) params.set("tag", filters.tag);
+  if (filters.author) params.set("author", filters.author);
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+  params.set("sort", filters.sort);
+  params.set("page", String(filters.page));
+  params.set("limit", String(filters.limit));
+  return apiRequest<SearchPage>({ method: "GET", path: `/search/${projectId}?${params.toString()}` });
 }
 
 // transferTo is needed when you are the only admin of a shared project

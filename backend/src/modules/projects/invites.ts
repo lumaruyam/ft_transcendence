@@ -46,6 +46,8 @@ export const INVITE_JOIN_RATE_LIMIT = {
 	timeWindow: "1 minute",
 } as const;
 
+const MAX_INVITE_USES = 1000;
+
 export interface CreateInviteInput {
 	role: Role;
 	expiresAt?: Date;
@@ -115,8 +117,8 @@ export async function createInvite(
 	if (!input.role || !Object.hasOwn(ROLE_RANK, input.role)) {
 		errors.push("role must be admin, member or viewer");
 	}
-	if (input.maxUses !== undefined && (!Number.isInteger(input.maxUses) || input.maxUses <= 0)) {
-		errors.push("maxUses must be a positive integer");
+	if (input.maxUses !== undefined && (!Number.isInteger(input.maxUses) || input.maxUses <= 0 || input.maxUses > MAX_INVITE_USES)) {
+		errors.push(`maxUses must be an integer between 1 and ${MAX_INVITE_USES}`);
 	}
 	if (input.expiresAt !== undefined && (Number.isNaN(input.expiresAt.getTime()) || input.expiresAt.getTime() <= Date.now())) {
 		errors.push("expiresAt must be in the future");

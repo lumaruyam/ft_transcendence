@@ -43,9 +43,35 @@ export interface NotificationRow {
   createdAt: string;
 }
 
+export type SearchType = "card" | "note" | "attachment";
+export type SearchSort = "relevance" | "date" | "title";
+
 export interface SearchResult {
-  entityType: "card" | "note" | "attachment";
+  entityType: SearchType;
   entityId: string;
   title: string;
   snippet: string;
+  date: string;
+  author: { id: string; name: string } | null;
+  tags: { id: string; name: string; color: string }[];
+  folderId?: string | null;
+}
+
+export interface SearchFilters {
+  q: string;
+  types: SearchType[];
+  tag: string;
+  author: string;
+  from: string;
+  to: string;
+  sort: SearchSort;
+  page: number;
+  limit: number;
+}
+
+export interface SearchPage {
+  results: SearchResult[];
+  total: number;
+  page: number;
+  limit: number;
 }

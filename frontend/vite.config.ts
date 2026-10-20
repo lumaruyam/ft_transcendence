@@ -17,6 +17,7 @@ const PAGE_ROUTES: [RegExp, string][] = [
   [/^\/app\/[^/]+\/whiteboard\/?$/, "/whiteboard/index.html"],
   [/^\/app\/[^/]+\/notes(\/[^/]+)?\/?$/, "/notes/index.html"],
   [/^\/app\/[^/]+\/files\/?$/, "/files/index.html"],
+  [/^\/app\/[^/]+\/search\/?$/, "/search/index.html"],
   [/^\/app\/[^/]+\/?$/, "/kanban/index.html"],
   // no dot: /invite/main.ts is the page script, not a token
   [/^\/invite\/[^/.]+$/, "/invite/index.html"],
@@ -123,6 +124,7 @@ export default defineConfig({
         whiteboard:         resolve(import.meta.dirname, "src/whiteboard/index.html"),
         notes:              resolve(import.meta.dirname, "src/notes/index.html"),
         files:              resolve(import.meta.dirname, "src/files/index.html"),
+        search:             resolve(import.meta.dirname, "src/search/index.html"),
         "not-found":        resolve(import.meta.dirname, "src/not-found/index.html"),
         error:              resolve(import.meta.dirname, "src/error/index.html"),
         "api-docs":         resolve(import.meta.dirname, "src/api-docs/index.html"),

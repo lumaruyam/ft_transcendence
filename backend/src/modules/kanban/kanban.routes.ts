@@ -392,7 +392,7 @@ async function createCardHandler(
   }>,
   reply: FastifyReply
 ): Promise<void> {
-  const card = await createCard(request.body);
+  const card = await createCard({ ...request.body, createdBy: request.userId });
   reply.code(201).send(card);
   void tell(request, getProjectIdForList(card.listId), { type: "card_created", text: `a créé la carte « ${card.title} »`, entityId: card.id });
 }

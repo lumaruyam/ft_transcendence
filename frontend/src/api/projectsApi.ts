@@ -35,6 +35,10 @@ export function setMemberRole(projectId: string, userId: string, role: Role): Pr
   return apiRequest<void>({ method: "PUT", path: `/projects/${projectId}/members/${userId}`, body: { role } });
 }
 
+export function addMemberByEmail(projectId: string, email: string, role: Role): Promise<void> {
+  return apiRequest<void>({ method: "POST", path: `/projects/${projectId}/members`, body: { email, role } });
+}
+
 export function removeMember(projectId: string, userId: string): Promise<void> {
   return apiRequest<void>({ method: "DELETE", path: `/projects/${projectId}/members/${userId}` });
 }

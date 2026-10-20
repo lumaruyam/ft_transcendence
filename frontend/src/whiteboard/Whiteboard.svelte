@@ -49,8 +49,8 @@
 	.screen {
 		display: flex;
 		flex-direction: column;
-		height: 100vh;
-		height: 100dvh;
+		height: calc(100vh - var(--footer-h, 0px));
+		height: calc(100dvh - var(--footer-h, 0px));
 	}
 	.board {
 		flex: 1;

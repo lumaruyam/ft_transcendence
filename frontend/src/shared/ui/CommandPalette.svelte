@@ -31,6 +31,8 @@
     { key: "board", label: "Tableau", icon: "columns", run: () => go(base) },
     ...(isPageEnabled("notes") ? [{ key: "notes", label: "Notes", icon: "note", run: () => go(`${base}/notes`) }] : []),
     ...(isPageEnabled("whiteboard") ? [{ key: "whiteboard", label: "Tableau blanc", icon: "board", run: () => go(`${base}/whiteboard`) }] : []),
+    { key: "files", label: "Fichiers", icon: "folder", run: () => go(`${base}/files`) },
+    { key: "search", label: "Recherche avancée", hint: "Filtres, tri, pages", icon: "search", run: () => go(searchHref()) },
     { key: "settings", label: "Réglages du projet", icon: "settings", run: () => go(`${base}/settings`) },
     { key: "projects", label: "Tous mes projets", icon: "folder", run: () => go("/app") },
     {
@@ -44,21 +46,27 @@
 
   const trimmed = $derived(query.trim());
 
+  function searchHref(): string {
+    return trimmed ? `${base}/search?q=${encodeURIComponent(trimmed)}` : `${base}/search`;
+  }
+
   const entries: Entry[] = $derived.by(() => {
     if (!trimmed) return navigation;
-    const matching = navigation.filter((e) => e.label.toLowerCase().includes(trimmed.toLowerCase()));
+    const matching = navigation.filter((e) => e.key !== "search" && e.label.toLowerCase().includes(trimmed.toLowerCase()));
+    const advanced: Entry = { key: "search", label: `Tous les résultats pour « ${trimmed} »`, hint: "Recherche avancée", icon: "search", run: () => go(searchHref()) };
     const found: Entry[] = results.map((r) => ({
       key: `${r.entityType}:${r.entityId}`,
       label: r.title,
       hint: r.snippet,
-      icon: r.entityType === "card" ? "columns" : r.entityType === "note" ? "note" : "link",
-      disabled: r.entityType === "attachment" || (r.entityType === "note" && !isPageEnabled("notes")),
+      icon: r.entityType === "card" ? "columns" : r.entityType === "note" ? "note" : "folder",
+      disabled: r.entityType === "note" && !isPageEnabled("notes"),
       run: () => {
         if (r.entityType === "card") go(`${base}?card=${r.entityId}`);
         else if (r.entityType === "note") go(`${base}/notes/${r.entityId}`);
+        else go(r.folderId ? `${base}/files?folder=${r.folderId}` : `${base}/files`);
       },
     }));
-    return [...found, ...matching];
+    return [...found, advanced, ...matching];
   });
 
   function go(href: string): void {

@@ -26,15 +26,19 @@
 	import AppHeader from "../shared/ui/AppHeader.svelte";
 	import Icon from "../shared/ui/Icon.svelte";
 	import ImagePreview from "./ImagePreview.svelte";
+	import Thumbnail from "./Thumbnail.svelte";
 	import {
 		copyAttachment,
 		deleteAttachment,
 		downloadAttachment,
 		isImage,
+		isPreviewable,
 		listAttachments,
 		moveAttachment,
 		uploadAttachment,
 		UploadError,
+		UPLOAD_ACCEPT,
+		validateUpload,
 		type Attachment,
 	} from "./attachmentsApi";
 
@@ -53,6 +57,7 @@
 	let readOnly = $state(false);
 	let busy = $state(false);
 	let problem = $state("");
+	let upload = $state<{ name: string; ratio: number; index: number; count: number } | null>(null);
 
 	let previewId = $state<string | null>(null);
 	let selected = $state<Item | null>(null);
@@ -67,7 +72,7 @@
 	const path = $derived(pathTo(folders, current));
 	const subfolders = $derived(childrenOf(folders, current));
 	const visible = $derived(attachments.filter((attachment) => attachment.folderId === current));
-	const visibleImages = $derived(visible.filter(isImage));
+	const visiblePreviews = $derived(visible.filter(isPreviewable));
 	const atMaxDepth = $derived(path.length >= limits.maxDepth);
 	const atMaxChildren = $derived(subfolders.length >= limits.maxSubfolders);
 
@@ -119,30 +124,47 @@
 
 	async function onPick(event: Event): Promise<void> {
 		const input = event.currentTarget as HTMLInputElement;
-		const file = input.files?.[0];
+		const files = [...(input.files ?? [])];
 		input.value = "";
-		if (!file) return;
+		if (files.length === 0) return;
 
-		problem = "";
+		const invalid = files.map(validateUpload).filter((message): message is string => message !== null);
+		const valid = files.filter((file) => validateUpload(file) === null);
+		problem = invalid.join(" ");
+		if (valid.length === 0) return;
+
 		busy = true;
+		const target = current;
 		try {
-			const created = await uploadAttachment(projectId, file, current);
-			attachments = [created, ...attachments];
-		} catch (error) {
-			if (error instanceof UploadError) {
-				if (error.status === 403) readOnly = true;
-				problem = error.details[0] ?? describeUpload(error.message);
-			} else {
-				problem = "L'envoi a échoué. Vérifiez votre connexion.";
+			for (const [index, file] of valid.entries()) {
+				upload = { name: file.name, ratio: 0, index: index + 1, count: valid.length };
+				try {
+					const created = await uploadAttachment(projectId, file, target, (ratio) => {
+						if (upload) upload.ratio = ratio;
+					});
+					attachments = [created, ...attachments];
+				} catch (error) {
+					if (error instanceof UploadError) {
+						if (error.status === 403) readOnly = true;
+						problem = [problem, describeUpload(error)].filter(Boolean).join(" ");
+						if (error.status === 403) break;
+					} else {
+						problem = "L'envoi a échoué. Vérifiez votre connexion.";
+						break;
+					}
+				}
 			}
 		} finally {
 			busy = false;
+			upload = null;
 		}
 	}
 
-	function describeUpload(code: string): string {
-		if (code === "file_too_large") return "Ce fichier dépasse la limite de 10 Mo.";
-		if (code === "insufficient_role") return "Vous n'avez pas le droit d'ajouter des fichiers.";
+	function describeUpload(error: UploadError): string {
+		if (error.message === "file_too_large" || error.status === 413) return "Ce fichier dépasse la limite de 10 Mo.";
+		if (error.message === "insufficient_role" || error.status === 403) return "Vous n'avez pas le droit d'ajouter des fichiers.";
+		if (error.message === "network_error") return "L'envoi a échoué. Vérifiez votre connexion.";
+		if (error.message === "invalid_upload") return "Ce type de fichier n'est pas accepté.";
 		return "L'envoi a échoué.";
 	}
 
@@ -156,6 +178,16 @@
 	}
 
 	async function onDelete(attachment: Attachment): Promise<void> {
+		const ok = await confirmDialog({
+			title: `Supprimer « ${attachment.fileName} » ?`,
+			message:
+				attachment.cardIds.length > 0
+					? "Le fichier sera supprimé pour tous les membres et retiré des cartes auxquelles il est lié."
+					: "Le fichier sera supprimé pour tous les membres du projet.",
+			confirmLabel: "Supprimer",
+			danger: true,
+		});
+		if (!ok) return;
 		problem = "";
 		try {
 			await deleteAttachment(projectId, attachment.id);
@@ -352,7 +384,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<ImagePreview {projectId} images={visibleImages} bind:openId={previewId} ondownload={(image) => void onDownload(image)} />
+<ImagePreview {projectId} images={visiblePreviews} bind:openId={previewId} ondownload={(file) => void onDownload(file)} />
 
 <AppHeader project={project ?? undefined} active="files" />
 
@@ -381,8 +413,8 @@
 				</button>
 				<label class="btn btn-primary btn-sm upload">
 					<Icon name="plus" size={15} />
-					<span>{busy ? "Envoi…" : "Ajouter un fichier"}</span>
-					<input type="file" onchange={onPick} disabled={busy} />
+					<span>{busy ? "Envoi…" : "Ajouter des fichiers"}</span>
+					<input type="file" multiple accept={UPLOAD_ACCEPT} onchange={onPick} disabled={busy} />
 				</label>
 			</div>
 		{/if}
@@ -390,8 +422,20 @@
 
 	<PathBar {path} {current} onnavigate={openFolder} canDrop={(folderId) => !!dragging && canMoveTo(dragging, folderId)} ondropitem={(folderId) => void dropOnto(folderId)} />
 
+	{#if upload}
+		<div class="progress" role="status">
+			<div class="progress-label">
+				<span class="progress-name">Envoi de « {upload.name} »{upload.count > 1 ? ` · ${upload.index} sur ${upload.count}` : ""}</span>
+				<span>{Math.round(upload.ratio * 100)} %</span>
+			</div>
+			<progress max="100" value={Math.round(upload.ratio * 100)} aria-label={`Progression de l'envoi de ${upload.name}`}></progress>
+		</div>
+	{/if}
+
 	{#if problem}
 		<p class="problem" role="alert">{problem}</p>
+	{:else if !readOnly && !upload}
+		<p class="hint limits">Images, PDF, texte, Markdown, JSON ou ZIP · 10 Mo maximum par fichier.</p>
 	{/if}
 
 	{#if loadFailed}
@@ -465,16 +509,23 @@
 			{#each visible as attachment (attachment.id)}
 				{@const item = { kind: "file", id: attachment.id } as const}
 				<Tile
-					label={`${isImage(attachment) ? "Aperçu de" : "Télécharger"} ${attachment.fileName}`}
+					label={`${isPreviewable(attachment) ? "Aperçu de" : "Télécharger"} ${attachment.fileName}`}
 					selected={selected?.id === attachment.id}
 					faded={clipboard?.mode === "cut" && clipboard.id === attachment.id}
 					onselect={() => (selected = item)}
-					onopen={() => (isImage(attachment) ? (previewId = attachment.id) : void onDownload(attachment))}
+					onopen={() => (isPreviewable(attachment) ? (previewId = attachment.id) : void onDownload(attachment))}
 					ondragstart={(event) => onDragStart(event, item)}
 					ondragend={onDragEnd}
 				>
-					<span class="type">{extensionBadge(attachment)}</span>
-					<h2 class="file-name">{attachment.fileName}</h2>
+					{#if isImage(attachment)}
+						<div class="thumb-wrap">
+							<Thumbnail {projectId} {attachment} />
+							<span class="type overlay">{extensionBadge(attachment)}</span>
+						</div>
+					{:else}
+						<span class="type">{extensionBadge(attachment)}</span>
+					{/if}
+					<h2 class="file-name" class:one-line={isImage(attachment)}>{attachment.fileName}</h2>
 					<div class="foot">
 						<span class="meta">{humanSize(attachment.fileSize)}</span>
 						{#if attachment.cardIds.length > 0}
@@ -482,6 +533,9 @@
 						{/if}
 					</div>
 					{#snippet actions()}
+						{#if isPreviewable(attachment)}
+							<button type="button" class="icon" title="Aperçu" aria-label="Aperçu du fichier" onclick={() => (previewId = attachment.id)}><Icon name="eye" size={14} /></button>
+						{/if}
 						<button type="button" class="icon" title="Télécharger" aria-label="Télécharger le fichier" onclick={() => void onDownload(attachment)}><Icon name="arrowRight" size={14} /></button>
 						{#if !readOnly}
 							<button type="button" class="icon" title="Copier" aria-label="Copier le fichier" onclick={() => ((selected = item), setClipboard("copy"))}><Icon name="copy" size={14} /></button>
@@ -546,8 +600,88 @@
 		cursor: pointer;
 	}
 
+	.upload {
+		position: relative;
+	}
+
 	.upload input {
-		display: none;
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	.upload:focus-within {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	.progress {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		margin: 0 0 1rem;
+		font-size: 0.85rem;
+		color: var(--text-soft);
+	}
+
+	.progress-label {
+		display: flex;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.progress-name {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	progress {
+		width: 100%;
+		height: 6px;
+		border: 0;
+		border-radius: 999px;
+		overflow: hidden;
+		appearance: none;
+		background: var(--bg-sunken);
+	}
+
+	progress::-webkit-progress-bar {
+		background: var(--bg-sunken);
+	}
+
+	progress::-webkit-progress-value {
+		background: var(--accent);
+		transition: width 0.2s var(--ease);
+	}
+
+	progress::-moz-progress-bar {
+		background: var(--accent);
+	}
+
+	.limits {
+		margin: 0 0 1rem;
+	}
+
+	.thumb-wrap {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.type.overlay {
+		position: absolute;
+		top: 6px;
+		left: 6px;
+		background: color-mix(in srgb, var(--surface-raised) 85%, transparent);
+	}
+
+	.file-name.one-line {
+		-webkit-line-clamp: 1;
+		line-clamp: 1;
 	}
 
 	.problem {

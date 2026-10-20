@@ -1,15 +1,47 @@
 //Owner: Track 4 (Whiteboard, notes, and supporting modules)
 //user can search a word in notes, cards, and attachments within a project; this service returns the results to the frontend
 import { prisma } from "../../db/prisma/client.js";
+export type SearchType = "card" | "note" | "attachment";
+export type SearchSort = "relevance" | "date" | "title";
+
+export const SEARCH_TYPES: SearchType[] = ["card", "note", "attachment"];
+export const SEARCH_SORTS: SearchSort[] = ["relevance", "date", "title"];
+
 //interface defines the structure of a search result
 export interface SearchResult {
-	entityType: "card" | "note" | "attachment";//type
+	entityType: SearchType;//type
 	entityId: string;//ID
 	title: string;//title
 	snippet: string;//snippet,resume
+	date: string;
+	author: { id: string; name: string } | null;
+	tags: { id: string; name: string; color: string }[];
+	folderId?: string | null;
 }
 
-const MAX_RESULTS_PER_TYPE = 20;//max number for each type of search result (card, note, attachment)
+export interface SearchOptions {
+	query: string;
+	types: SearchType[];
+	tagId?: string;
+	authorId?: string;
+	from?: Date;
+	to?: Date;
+	sort: SearchSort;
+	page: number;
+	limit: number;
+}
+
+export interface SearchPage {
+	results: SearchResult[];
+	total: number;
+	page: number;
+	limit: number;
+}
+
+type Scored = SearchResult & { score: number };
+
+// safety cap on rows read per type before sorting
+const MAX_SCAN_PER_TYPE = 500;
 const SNIPPET_RADIUS = 60;//before and after the match, how many charaters to show in the snippet
 
 //intern helper function, make a snippet/query=word to search for, text=the content to search in
@@ -42,81 +74,151 @@ export function extractPlainText(node: unknown): string {
 	return record.type === "paragraph" || record.type === "heading" ? `${inner} ` : inner;
 }
 
-//searches card titles/descriptions within a project.
-export async function searchCards(projectId: string, query: string): Promise<SearchResult[]> {
-	if (query.trim() === "") return [];//return empty if user searches for empty
+function countOccurrences(text: string, needle: string): number {
+	let count = 0;
+	for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + needle.length)) count++;
+	return count;
+}
 
-	//search for cards in the project in database
+// title match weighs more than a match in the body
+function relevance(title: string, body: string, query: string): number {
+	if (query === "") return 0;
+	const needle = query.toLowerCase();
+	const name = title.toLowerCase();
+	let score = 0;
+	if (name === needle) score += 100;
+	else if (name.startsWith(needle)) score += 60;
+	else if (name.includes(needle)) score += 40;
+	return score + Math.min(countOccurrences(body.toLowerCase(), needle), 10) * 5;
+}
+
+function dateRange(options: SearchOptions): { gte?: Date; lte?: Date } | undefined {
+	if (!options.from && !options.to) return undefined;
+	return { ...(options.from ? { gte: options.from } : {}), ...(options.to ? { lte: options.to } : {}) };
+}
+
+export async function searchCards(projectId: string, options: SearchOptions): Promise<Scored[]> {
+	const query = options.query;
+	const range = dateRange(options);
 	const cards = await prisma.card.findMany({
 		where: {
-			list: { board: { projectId } },//search for cards which is this projectId
-			OR: [
-				{ title: { contains: query, mode: "insensitive" } },//insenttive to case for title
-				{ description: { contains: query, mode: "insensitive" } },//intensitive to case for description
-			],
+			list: { board: { projectId } },
+			...(query ? { OR: [
+				{ title: { contains: query, mode: "insensitive" } },
+				{ description: { contains: query, mode: "insensitive" } },
+			] } : {}),
+			...(options.tagId ? { tags: { some: { tagId: options.tagId } } } : {}),
+			...(options.authorId ? { createdBy: options.authorId } : {}),
+			...(range ? { updatedAt: range } : {}),
 		},
-		take: MAX_RESULTS_PER_TYPE,//take only the first 20 results from database
+		include: {
+			creator: { select: { id: true, name: true } },
+			tags: { select: { tag: { select: { id: true, name: true, color: true } } } },
+		},
+		take: MAX_SCAN_PER_TYPE,
 		orderBy: { updatedAt: "desc" },
 	});
 
-	return cards.map((card) => ({//cards from database are mapped to SearchResult interface, and makeSnippet is called to create a snippet for each card
+	return cards.map((card) => ({
 		entityType: "card" as const,
 		entityId: card.id,
-		title: card.title,		//if description is null, use title as snippet
-		snippet: makeSnippet(card.description ?? card.title, query),
+		title: card.title,
+		snippet: makeSnippet(card.description || card.title, query),
+		date: card.updatedAt.toISOString(),
+		author: card.creator,
+		tags: card.tags.map((row) => row.tag),
+		score: relevance(card.title, card.description ?? "", query),
 	}));
 }
 
-export async function searchNotes(projectId: string, query: string): Promise<SearchResult[]> {
-	if (query.trim() === "") return [];//return empty if user searches for empty
+// notes have no tags so a tag filter leaves them out
+export async function searchNotes(projectId: string, options: SearchOptions): Promise<Scored[]> {
+	if (options.tagId) return [];
+	const query = options.query;
 	const needle = query.toLowerCase();
-	const notes = await prisma.note.findMany({ where: { projectId }, orderBy: { updatedAt: "desc" } });
+	const range = dateRange(options);
+	const notes = await prisma.note.findMany({
+		where: {
+			projectId,
+			...(options.authorId ? { updatedBy: options.authorId } : {}),
+			...(range ? { updatedAt: range } : {}),
+		},
+		include: { editor: { select: { id: true, name: true } } },
+		orderBy: { updatedAt: "desc" },
+	});
 
-	const results: SearchResult[] = [];
+	const results: Scored[] = [];
 	for (const note of notes) {
 		const text = extractPlainText(note.contentJson).trim();
 		const inTitle = note.title.toLowerCase().includes(needle);
 		const inText = text.toLowerCase().includes(needle);
-		if (!inTitle && !inText) continue;
+		if (query && !inTitle && !inText) continue;
 		results.push({
 			entityType: "note",
 			entityId: note.id,
 			title: note.title,
-			snippet: makeSnippet(inText ? text : note.title, query),
+			snippet: makeSnippet(inText || !query ? text || note.title : note.title, query),
+			date: note.updatedAt.toISOString(),
+			author: note.editor,
+			tags: [],
+			score: relevance(note.title, text, query),
 		});
-		if (results.length === MAX_RESULTS_PER_TYPE) break;
+		if (results.length === MAX_SCAN_PER_TYPE) break;
 	}
 	return results;
 }
 
-//search attachment file names within a project.
-export async function searchAttachments(projectId: string, query: string): Promise<SearchResult[]> {
-	if (query.trim() === "") return [];//return empty if user searches for empty
+export async function searchAttachments(projectId: string, options: SearchOptions): Promise<Scored[]> {
+	if (options.tagId) return [];
+	const query = options.query;
+	const range = dateRange(options);
 	const attachments = await prisma.attachment.findMany({
-		where: {//search in database
+		where: {
 			projectId,
-			fileName: { contains: query, mode: "insensitive" },
+			...(query ? { fileName: { contains: query, mode: "insensitive" } } : {}),
+			...(options.authorId ? { uploadedBy: options.authorId } : {}),
+			...(range ? { uploadedAt: range } : {}),
 		},
-		take: MAX_RESULTS_PER_TYPE,
+		include: { uploader: { select: { id: true, name: true } } },
+		take: MAX_SCAN_PER_TYPE,
 		orderBy: { uploadedAt: "desc" },
 	});
 
 	return attachments.map((attachment) => ({
 		entityType: "attachment" as const,
-		entityId: attachment.id,//with his id at the end
+		entityId: attachment.id,
 		title: attachment.fileName,
-		snippet: attachment.fileType,//with his type at the end
+		snippet: attachment.fileType,
+		date: attachment.uploadedAt.toISOString(),
+		author: attachment.uploader,
+		tags: [],
+		folderId: attachment.folderId,
+		score: relevance(attachment.fileName, "", query),
 	}));
 }
 
-//search cards/notes/attachments results once time, and return them to the frontend
-export async function searchAll(projectId: string, query: string): Promise<SearchResult[]> {
-	if (query.trim() === "") return [];//return empty if user searches for empty
+function compare(sort: SearchSort): (a: Scored, b: Scored) => number {
+	const byDate = (a: Scored, b: Scored): number => b.date.localeCompare(a.date);
+	if (sort === "date") return byDate;
+	if (sort === "title") return (a, b) => a.title.localeCompare(b.title, "fr", { sensitivity: "base" }) || byDate(a, b);
+	return (a, b) => b.score - a.score || byDate(a, b);
+}
 
+// search every type then sort and keep one page
+export async function searchAll(projectId: string, options: SearchOptions): Promise<SearchPage> {
+	const wanted = new Set(options.types);
 	const [cards, notes, attachments] = await Promise.all([
-		searchCards(projectId, query),
-		searchNotes(projectId, query),
-		searchAttachments(projectId, query),
+		wanted.has("card") ? searchCards(projectId, options) : [],
+		wanted.has("note") ? searchNotes(projectId, options) : [],
+		wanted.has("attachment") ? searchAttachments(projectId, options) : [],
 	]);
-	return [...cards, ...notes, ...attachments];
+
+	const all = [...cards, ...notes, ...attachments].sort(compare(options.sort));
+	const start = (options.page - 1) * options.limit;
+	const results: SearchResult[] = all.slice(start, start + options.limit).map((row) => {
+		const result: SearchResult & { score?: number } = { ...row };
+		delete result.score;
+		return result;
+	});
+	return { results, total: all.length, page: options.page, limit: options.limit };
 }

@@ -117,9 +117,14 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
 		}
 	}
 
-	return prisma.project.update({
-		where: { id },
-		data: input.name !== undefined ? { name: input.name.trim() } : {}
+	if (input.name === undefined) {
+		return prisma.project.update({ where: { id }, data: {} });
+	}
+	const name = input.name.trim();
+	return prisma.$transaction(async (tx) => {
+		const project = await tx.project.update({ where: { id }, data: { name } });
+		await tx.board.updateMany({ where: { projectId: id }, data: { title: name } });
+		return project;
 	});
 }
 

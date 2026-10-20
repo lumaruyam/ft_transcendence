@@ -6,20 +6,20 @@ interface Section {
 	paragraphs: string[];
 }
 
-const LAST_UPDATED = "11 September 2026";
+const LAST_UPDATED = "20 October 2026";
 
 const SECTIONS: Section[] = [
 	{
 		title: "1. What this service is",
 		paragraphs: [
-			"ft_transcendence is a collaborative project workspace — boards, cards, notes, whiteboards, and file attachments — built as a student project at 42 Paris.",
+			"ft_transcendence is a collaborative project workspace — boards, cards, notes, whiteboards, files and Git integration — built as a student project at 42 Paris.",
 			"It is provided as-is, for free, with no guarantee of any kind. By using it you accept these terms. If you do not accept them, do not create an account.",
 		],
 	},
 	{
 		title: "2. Who may use it",
 		paragraphs: [
-			"You must be at least 16 years old.",
+			"You must be at least 15 years old.",
 			"You need one account per person. Do not share an account, and do not create an account for someone else.",
 		],
 	},
@@ -36,7 +36,7 @@ const SECTIONS: Section[] = [
 			"Do not upload content that is illegal, that infringes someone else's rights, or that contains someone else's personal data without their agreement.",
 			"Do not upload malware, and do not use the service to attack it or anything else — no attempts to break authentication, no automated scraping, no deliberate overloading.",
 			"Do not try to access projects you were not invited to, or data belonging to other users.",
-			"Respect the upload limits on file size and file type. They exist so the service stays usable for everyone.",
+			"Respect the upload limits: 10 MB per file, and only images, PDF, plain text, Markdown, JSON and ZIP files. They exist so the service stays usable for everyone.",
 		],
 	},
 	{
@@ -57,47 +57,54 @@ const SECTIONS: Section[] = [
 	{
 		title: "7. API keys",
 		paragraphs: [
-			"You can create API keys to access your data programmatically. Anything done with your key counts as done by you, so keep your keys private and revoke any key you no longer use.",
+			"Project administrators can create API keys to access a project programmatically. A key only gives access to the project it was created for. Anything done with your key counts as done by you, so keep your keys private and revoke any key you no longer use.",
 			"API requests are rate-limited. Keys that are used abusively may be revoked.",
 		],
 	},
 	{
-		title: "8. Availability and data loss",
+		title: "8. GitHub integration",
+		paragraphs: [
+			"If you sign in with GitHub or link a card to a repository, you also accept GitHub's own terms. Only link repositories you are allowed to use, and only add the project's webhook to repositories you administer.",
+			"You can revoke the application's access at any time from your GitHub settings. Cards already linked keep their last known status.",
+		],
+	},
+	{
+		title: "9. Availability and data loss",
 		paragraphs: [
 			"We do not promise that the service will be available, that it will keep working, or that your data will survive. It may go down without notice, and data may be lost.",
 			"This is a school project, not a backed-up production system. Keep your own copy of anything you cannot afford to lose.",
 		],
 	},
 	{
-		title: "9. Ending your use",
+		title: "10. Ending your use",
 		paragraphs: [
 			"You can delete your account at any time from your settings. What happens to your data when you do is described in the Privacy Policy.",
 			"We may suspend or remove an account that breaks these terms, or that puts the service or its other users at risk.",
 		],
 	},
 	{
-		title: "10. No warranty, no liability",
+		title: "11. No warranty, no liability",
 		paragraphs: [
 			"The service is provided without warranty of any kind, express or implied.",
 			"To the extent the law allows, the people who built and run this project are not liable for any damage, loss of data, or loss of any kind arising from your use of it.",
 		],
 	},
 	{
-		title: "11. Governing law",
+		title: "12. Governing law",
 		paragraphs: [
 			"These terms are governed by French law. Any dispute falls to the competent courts in France.",
 		],
 	},
 	{
-		title: "12. Changes to these terms",
+		title: "13. Changes to these terms",
 		paragraphs: [
 			"We may update these terms. When we do, we will change the date at the top of this page. Continuing to use the service after a change means you accept the new terms.",
 		],
 	},
 	{
-		title: "13. Contact",
+		title: "14. Contact",
 		paragraphs: [
-			"Questions about these terms can be sent to the team that runs this instance. For the original project, that is the five students at 42 Paris listed in the repository README.",
+			"Questions about these terms can be sent to the team that runs this instance. For the original project, that is the 42 Paris students listed in the repository README.",
 		],
 	},
 ];

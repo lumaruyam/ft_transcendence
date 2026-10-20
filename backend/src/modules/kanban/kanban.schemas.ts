@@ -13,6 +13,11 @@ const idParamSchema = {
   },
 } as const;
 
+const boardTitle = { type: "string", minLength: 1, maxLength: 100, pattern: "\\S" } as const;
+const listTitle = { type: "string", minLength: 1, maxLength: 100, pattern: "\\S" } as const;
+const cardTitle = { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" } as const;
+const cardDescription = { type: "string", maxLength: 10000 } as const;
+
 export const createBoardSchema: FastifySchema = {
   body: {
     type: "object",
@@ -20,7 +25,7 @@ export const createBoardSchema: FastifySchema = {
     additionalProperties: false,
     properties: {
       projectId: { type: "string", format: "uuid" },
-      title: { type: "string", minLength: 1 },
+      title: boardTitle,
     },
   },
 };
@@ -45,7 +50,7 @@ export const createListSchema: FastifySchema = {
     additionalProperties: false,
     properties: {
       boardId: { type: "string", format: "uuid" },
-      title: { type: "string", minLength: 1 },
+      title: listTitle,
       position: { type: "integer", minimum: 0 },
     },
   },
@@ -60,7 +65,7 @@ export const updateListSchema: FastifySchema = {
     minProperties: 1,
     additionalProperties: false,
     properties: {
-      title: { type: "string", minLength: 1 },
+      title: listTitle,
       position: { type: "integer", minimum: 0 },
     },
   },
@@ -96,8 +101,8 @@ export const createCardSchema: FastifySchema = {
     additionalProperties: false,
     properties: {
       listId: { type: "string", format: "uuid" },
-      title: { type: "string", minLength: 1 },
-      description: { type: "string" },
+      title: cardTitle,
+      description: cardDescription,
       position: { type: "integer", minimum: 0 },
     },
   },
@@ -126,8 +131,8 @@ export const updateCardSchema: FastifySchema = {
     minProperties: 1,
     additionalProperties: false,
     properties: {
-      title: { type: "string", minLength: 1 },
-      description: { type: "string" },
+      title: cardTitle,
+      description: cardDescription,
       position: { type: "integer", minimum: 0 },
     },
   },

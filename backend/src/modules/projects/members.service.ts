@@ -77,6 +77,15 @@ export async function addMember(projectId: string, userId: string, role: Role, d
 	});
 }
 
+export async function findUserByEmail(email: string): Promise<{ id: string } | null> {
+	return prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } });
+}
+
+export async function isMember(projectId: string, userId: string): Promise<boolean> {
+	const row = await prisma.projectMember.findUnique({ where: { projectId_userId: { projectId, userId } } });
+	return row !== null;
+}
+
 // removeMember removes a user's membership from a project.
 export async function removeMember(projectId: string, userId: string): Promise<void> {
 	const target = await prisma.projectMember.findUnique({

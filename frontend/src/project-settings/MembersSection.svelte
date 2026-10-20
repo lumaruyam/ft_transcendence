@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { removeMember, setMemberRole } from "../api/projectsApi";
+  import { addMemberByEmail, removeMember, setMemberRole } from "../api/projectsApi";
+  import { ApiError } from "../api/apiClient";
   import type { Member, Project, Role } from "../api/types";
   import { confirmDialog } from "../shared/confirm.svelte";
   import { errorMessage } from "../shared/errors";
@@ -19,6 +20,39 @@
   const ROLES: Role[] = ["admin", "member", "viewer"];
 
   let busyId = $state<string | null>(null);
+
+  const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  let email = $state("");
+  let newRole = $state<Role>("member");
+  let adding = $state(false);
+  let addError = $state<string | null>(null);
+
+  async function onAdd(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    addError = null;
+    const wanted = email.trim();
+    if (!EMAIL.test(wanted)) {
+      addError = "Entrez une adresse e-mail valide.";
+      return;
+    }
+    if (members.some((m) => m.user.email.toLowerCase() === wanted.toLowerCase())) {
+      addError = "Cette personne fait déjà partie du projet.";
+      return;
+    }
+    adding = true;
+    try {
+      await addMemberByEmail(project.id, wanted, newRole);
+      email = "";
+      await onchange();
+      toast(`${wanted} a été ajouté au projet`, { kind: "success" });
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "already_member") addError = "Cette personne fait déjà partie du projet.";
+      else if (err instanceof ApiError && err.code === "user_not_found") addError = "Aucun compte n'utilise cette adresse e-mail.";
+      else addError = errorMessage(err);
+    } finally {
+      adding = false;
+    }
+  }
 
   async function changeRole(member: Member, role: Role): Promise<void> {
     if (role === member.role) return;
@@ -70,6 +104,38 @@
   <p>{members.length} personne{members.length > 1 ? "s" : ""} travaillent sur ce projet.</p>
 </header>
 
+{#if isAdmin}
+  <form class="panel" onsubmit={onAdd} novalidate>
+    <h3>Ajouter un membre</h3>
+    <div class="add">
+      <div class="field grow">
+        <label for="add-email">Adresse e-mail</label>
+        <input
+          id="add-email"
+          class="input"
+          type="email"
+          autocomplete="off"
+          maxlength="254"
+          placeholder="nom@exemple.fr"
+          bind:value={email}
+          aria-invalid={addError ? "true" : undefined}
+          aria-describedby={addError ? "add-err" : "add-hint"}
+        />
+      </div>
+      <div class="field">
+        <label for="add-role">Rôle</label>
+        <select id="add-role" class="input" bind:value={newRole}>
+          {#each ROLES as role (role)}<option value={role}>{ROLE_LABEL[role]}</option>{/each}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary" disabled={adding || !email.trim()}>
+        {#if adding}<span class="spinner"></span>{:else}<Icon name="plus" size={16} />{/if} Ajouter
+      </button>
+    </div>
+    {#if addError}<span class="field-error" id="add-err" role="alert">{addError}</span>{:else}<span class="hint" id="add-hint">La personne doit déjà avoir un compte. Sinon, envoyez-lui un lien d'invitation.</span>{/if}
+  </form>
+{/if}
+
 <div class="panel list">
   {#each members as member (member.userId)}
     {@const isOwner = member.userId === project.ownerId}
@@ -118,6 +184,15 @@
 </div>
 
 <style>
+  .add {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .add .grow {
+    flex: 1;
+    min-width: 0;
+  }
   .list {
     gap: 0;
     padding: 6px 10px;
@@ -172,6 +247,10 @@
     color: var(--text-soft);
   }
   @media (max-width: 600px) {
+    .add {
+      flex-direction: column;
+      align-items: stretch;
+    }
     .row {
       flex-wrap: wrap;
     }

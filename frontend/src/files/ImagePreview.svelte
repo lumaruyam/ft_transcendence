@@ -1,9 +1,11 @@
 <script lang="ts">
 	// Owner: Track 4 (Whiteboard, notes, and supporting modules)
-	// Responsible for: the full size image preview of the Files page
+	// Responsible for: the full size preview of images, PDF and text files
 	import Icon from "../shared/ui/Icon.svelte";
 	import { extensionBadge, humanSize } from "../documents/fileInfo";
-	import { fetchAttachmentBlob, type Attachment } from "./attachmentsApi";
+	import { fetchAttachmentBlob, isImage, isPdf, type Attachment } from "./attachmentsApi";
+
+	const MAX_TEXT_CHARS = 200_000;
 
 	let {
 		projectId,
@@ -19,6 +21,7 @@
 
 	let dialog: HTMLDialogElement;
 	let url = $state<string | null>(null);
+	let text = $state<string | null>(null);
 	let failed = $state(false);
 
 	const index = $derived(images.findIndex((image) => image.id === openId));
@@ -35,12 +38,18 @@
 		let cancelled = false;
 		let created: string | null = null;
 		url = null;
+		text = null;
 		failed = false;
 		fetchAttachmentBlob(projectId, image)
-			.then((blob) => {
+			.then(async (blob) => {
 				if (cancelled) return;
-				created = URL.createObjectURL(blob);
-				url = created;
+				if (isImage(image) || isPdf(image)) {
+					created = URL.createObjectURL(new Blob([blob], { type: image.fileType }));
+					url = created;
+					return;
+				}
+				const content = await blob.text();
+				if (!cancelled) text = content.length > MAX_TEXT_CHARS ? `${content.slice(0, MAX_TEXT_CHARS)}\n…` : content;
 			})
 			.catch(() => {
 				if (!cancelled) failed = true;
@@ -89,19 +98,23 @@
 
 		<div class="stage">
 			{#if images.length > 1}
-				<button type="button" class="nav prev" title="Précédente (←)" aria-label="Image précédente" onclick={() => go(-1)}><Icon name="chevronLeft" size={22} /></button>
+				<button type="button" class="nav prev" title="Précédente (←)" aria-label="Fichier précédent" onclick={() => go(-1)}><Icon name="chevronLeft" size={22} /></button>
 			{/if}
 			{#key current.id}
-				{#if url}
+				{#if url && isImage(current)}
 					<img src={url} alt={current.fileName} />
+				{:else if url}
+					<iframe src={url} title={`Aperçu de ${current.fileName}`}></iframe>
+				{:else if text !== null}
+					<pre class="text selectable">{text}</pre>
 				{:else if failed}
-					<p class="state"><Icon name="alert" size={22} />Impossible de charger l'image.</p>
+					<p class="state"><Icon name="alert" size={22} />Impossible de charger le fichier.</p>
 				{:else}
 					<p class="state"><span class="spinner" aria-hidden="true"></span>Chargement…</p>
 				{/if}
 			{/key}
 			{#if images.length > 1}
-				<button type="button" class="nav next" title="Suivante (→)" aria-label="Image suivante" onclick={() => go(1)}><Icon name="chevronRight" size={22} /></button>
+				<button type="button" class="nav next" title="Suivante (→)" aria-label="Fichier suivant" onclick={() => go(1)}><Icon name="chevronRight" size={22} /></button>
 			{/if}
 		</div>
 
@@ -180,6 +193,30 @@
 			linear-gradient(45deg, color-mix(in srgb, var(--text) 5%, transparent) 25%, transparent 25%, transparent 75%, color-mix(in srgb, var(--text) 5%, transparent) 75%);
 		background-position: 0 0, 10px 10px;
 		background-size: 20px 20px;
+	}
+
+	iframe {
+		width: 100%;
+		height: calc(100vh - 230px);
+		border: 0;
+		border-radius: var(--radius);
+		background: var(--surface-raised);
+	}
+
+	.text {
+		align-self: stretch;
+		justify-self: stretch;
+		max-height: calc(100vh - 230px);
+		margin: 0;
+		padding: 16px 18px;
+		overflow: auto;
+		border-radius: var(--radius);
+		background: var(--surface-raised);
+		color: var(--text);
+		font-size: 0.85rem;
+		line-height: 1.55;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
 	}
 
 	img {
