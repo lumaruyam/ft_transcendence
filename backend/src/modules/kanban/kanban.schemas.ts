@@ -132,7 +132,8 @@ export const updateCardSchema: FastifySchema = {
     additionalProperties: false,
     properties: {
       title: cardTitle,
-      description: cardDescription,
+      // no maxLength on update: cards created before the limit existed must stay editable
+      description: { type: "string" },
       position: { type: "integer", minimum: 0 },
     },
   },

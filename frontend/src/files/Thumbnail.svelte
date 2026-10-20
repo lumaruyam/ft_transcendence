@@ -1,5 +1,15 @@
 <script module lang="ts">
+	const MAX_CACHED = 200;
 	const cache = new Map<string, Promise<string>>();
+
+	// keep the cache bounded: drop the oldest entry and free its blob
+	function evictOldest(): void {
+		const oldest = cache.keys().next();
+		if (oldest.done) return;
+		const pending = cache.get(oldest.value);
+		cache.delete(oldest.value);
+		pending?.then((objectUrl) => URL.revokeObjectURL(objectUrl)).catch(() => {});
+	}
 </script>
 
 <script lang="ts">
@@ -17,6 +27,7 @@
 			pending = fetchAttachmentBlob(projectId, attachment).then((blob) => URL.createObjectURL(blob));
 			pending.catch(() => cache.delete(attachment.id));
 			cache.set(attachment.id, pending);
+			if (cache.size > MAX_CACHED) evictOldest();
 		}
 		pending.then((value) => (url = value)).catch(() => (failed = true));
 	}
