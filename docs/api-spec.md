@@ -134,8 +134,12 @@ reconnecting.
 
 | Method | Path | Who | Effect |
 |---|---|---|---|
-| `GET` | `/api/users/me` | signed in | `200 { id, email, name }` |
-| `PATCH` | `/api/users/me` | signed in | `{ "name" }` (1 to 60 characters, trimmed) -> `200 { id, email, name }`. The e-mail is the login identity and cannot be changed |
+| `GET` | `/api/users/me` | signed in | `200 { id, email, name, avatar }` |
+| `PATCH` | `/api/users/me` | signed in | `{ "name" }` (1 to 60 characters, trimmed) -> `200 { id, email, name, avatar }`. The e-mail is the login identity and cannot be changed |
+| `PUT` | `/api/users/me/avatar` | signed in | `multipart/form-data`, field `file`: PNG, JPEG, GIF or WebP, 2 MiB at most (the type is read from the content, not from the name or the declared type; SVG is refused) -> `200 { avatar }` (`/api/avatars/<uuid>.<ext>`). `400 invalid_avatar`, `413 avatar_too_large`. The previous upload is deleted |
+| `DELETE` | `/api/users/me/avatar` | signed in | `204`. Back to the default avatar (the initials on a coloured disc, drawn by the frontend) |
+| `PUT` | `/api/users/me/password` | signed in | `{ "currentPassword", "newPassword" }` (same rules as signup) -> `204`. `403 wrong_password` (403, not 401, so the session is kept), `400 invalid_input`. Limited to 10 tries per 15 minutes. Accounts made through GitHub only have no known password and cannot use it |
+| `GET` | `/api/avatars/:file` | public | The picture. Public on purpose (an `<img>` cannot send the token); the name is an unguessable uuid. `Cache-Control: immutable`, `nosniff` |
 | `GET` | `/api/users/:userId` | self, or somebody who shares a project | `200 { user: { id, name, avatar, createdAt, projects: [ { id, name, role } ], email? } }`. `email` only for the person themself and the admins of a shared project. Anybody else gets `404` (ids cannot be probed) |
 | `DELETE` | `/api/users/:userId` | self only (`403` otherwise) | `204`. Owning a shared project needs `{ "transferTo": <member id> }` (`400 transfer_target_required`); being the last admin of one needs a handover too (`409 last_admin_of_membership`). Projects with nobody else are deleted with the account |
 

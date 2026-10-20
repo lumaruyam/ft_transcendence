@@ -21,6 +21,9 @@ const MESSAGES: Record<string, string> = {
   already_revoked: "Ce lien est déjà révoqué.",
   api_key_not_found: "Cette clé n'existe plus.",
   tag_name_taken: "Une étiquette porte déjà ce nom.",
+  wrong_password: "Le mot de passe actuel est incorrect.",
+  invalid_avatar: "Ce fichier n'est pas une image PNG, JPEG, GIF ou WebP valide.",
+  avatar_too_large: "L'image est trop lourde (2 Mo maximum).",
   rate_limit_exceeded: "Trop de requêtes. Patientez un instant puis réessayez.",
 };
 

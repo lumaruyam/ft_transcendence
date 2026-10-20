@@ -19,7 +19,7 @@ import { initOAuthService } from "./modules/auth/oauth.service.js";
 import { initTokenCrypto } from "./modules/auth/tokenCrypto.js";
 import { registerProjectsRoutes } from "./modules/projects/projects.routes.js";
 import { registerInviteRoutes } from "./modules/projects/invites.js";
-import { registerUserRoutes } from "./modules/permissions/users.routes.js";
+import { registerUserRoutes, registerAvatarRoutes } from "./modules/permissions/users.routes.js";
 import { registerKanbanRoutes } from "./modules/kanban/kanban.routes.js";
 import { registerFoldersRoutes } from "./modules/folders/folders.routes.js";
 import { registerNotesRoutes } from "./modules/notes/notes.routes.js";
@@ -64,6 +64,7 @@ function registerRoutes(app: FastifyInstance): void {
 	app.register(registerProjectsRoutes, { prefix: "/api/projects" });
 	app.register(registerInviteRoutes, { prefix: "/api/projects" });
 	app.register(registerUserRoutes, { prefix: "api/users" });
+	app.register(registerAvatarRoutes, { prefix: "/api/avatars" }); // uploaded pictures, public by design
 	app.register(registerKanbanRoutes, { prefix: "/api" });
 	app.register(registerGitRoutes, { prefix: "/api" });
 	app.register(registerFoldersRoutes, { prefix: "/api/folders" });

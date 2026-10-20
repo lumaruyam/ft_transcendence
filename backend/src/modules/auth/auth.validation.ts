@@ -31,6 +31,18 @@ export function validateDisplayName(name: unknown): string | null {
 	return null;
 }
 
+// validateNewPassword returns what is wrong with a password being chosen (signup and password change share the rule)
+export function validateNewPassword(password: string): string[] {
+	const errors: string[] = [];
+	if (!password || password.length < MIN_PASSWORD_LENGTH) {
+		errors.push(`password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+	}
+	if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+		errors.push("password must contain at least one letter and one number");
+	}
+	return errors;
+}
+
 // validateSignupInput checks required fields, email format, and password strength.
 export function validateSignupInput(input: SignupInput): string[] {
 	const errors: string[] = [];
@@ -38,12 +50,7 @@ export function validateSignupInput(input: SignupInput): string[] {
 	if (!input.email || !EMAIL_RE.test(input.email)) {
 		errors.push("email must be a valid email address");
 	}
-	if(!input.password || input.password.length < MIN_PASSWORD_LENGTH) {
-		errors.push(`password must be at least ${MIN_PASSWORD_LENGTH} characters`);
-	}
-	if (!/[a-zA-Z]/.test(input.password) || !/[0-9]/.test(input.password)) {
-		errors.push("password must contain at least one letter and one number");
-	}
+	errors.push(...validateNewPassword(input.password));
 	const nameError = validateDisplayName(input.name);
 	if (nameError) {
 		errors.push(nameError);

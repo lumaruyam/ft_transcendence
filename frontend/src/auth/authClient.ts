@@ -5,11 +5,14 @@
 const AUTH_API_BASE = "/api/auth";
 const TOKEN_STORAGE_KEY = "ft_transcendence.auth.token";
 const USER_STORAGE_KEY = "ft_transcendence.auth.user";
+export const USER_UPDATED_EVENT = "ft:user-updated";
 
 export interface AuthUser {
 	id: string;
 	email: string;
 	name: string;
+	// uploaded picture path, a GitHub URL, or none (the default avatar is drawn from the name)
+	avatar?: string | null;
 }
 
 export interface AuthResponse {
@@ -147,6 +150,8 @@ export function storeUser(user: AuthUser): void {
 		localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
 	} catch {
 	}
+	// the account menu of the same page shows the name and the picture
+	window.dispatchEvent(new CustomEvent(USER_UPDATED_EVENT));
 }
 
 export function clearAuthSession(): void {

@@ -3,13 +3,18 @@
   import Icon from "./Icon.svelte";
   import Popover from "./Popover.svelte";
   import ThemeSwitch from "./ThemeSwitch.svelte";
-  import { getStoredUser, logout, type AuthUser } from "../../auth/authClient";
+  import { USER_UPDATED_EVENT, getStoredUser, logout, type AuthUser } from "../../auth/authClient";
   import { ensureUser } from "../session";
 
   let user = $state<AuthUser | null>(getStoredUser());
 
   $effect(() => {
     void ensureUser().then((u) => (user = u));
+    const refresh = (): void => {
+      user = getStoredUser();
+    };
+    window.addEventListener(USER_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(USER_UPDATED_EVENT, refresh);
   });
 
   async function onLogout(): Promise<void> {
@@ -21,13 +26,13 @@
 <Popover width={270}>
   {#snippet trigger({ open, toggle })}
     <button type="button" class="trigger" aria-label="Menu du compte" aria-expanded={open} onclick={toggle}>
-      <Avatar name={user?.name ?? "?"} id={user?.id} size={32} />
+      <Avatar name={user?.name ?? "?"} id={user?.id} src={user?.avatar} size={32} />
     </button>
   {/snippet}
   {#snippet children({ close })}
     {#if user}
       <div class="who">
-        <Avatar name={user.name} id={user.id} size={38} />
+        <Avatar name={user.name} id={user.id} src={user.avatar} size={38} />
         <div class="who-text">
           <div class="who-name selectable">{user.name}</div>
           <div class="who-email selectable">{user.email}</div>

@@ -84,7 +84,7 @@ interface LoginInput {
 }
 
 function toAuthResponse(user: User, token: string) {
-	return { token, user: { id: user.id, email: user.email, name: user.name } };
+	return { token, user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar } };
 }
 
 // signupHandler creates a new user with a hashed/salted password

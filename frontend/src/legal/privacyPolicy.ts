@@ -19,7 +19,7 @@ const SECTIONS: Section[] = [
 	{
 		title: "2. What we collect",
 		paragraphs: [
-			"Account data: your email address, your display name, and your password. Passwords are never stored in readable form — we store a salted hash. If you sign in with GitHub instead, we store that provider's name and the account identifier it gives us, but not your GitHub password. You may also set an avatar image URL.",
+			"Account data: your email address, your display name, and your password. Passwords are never stored in readable form — we store a salted hash. If you sign in with GitHub instead, we store that provider's name and the account identifier it gives us, but not your GitHub password. You may also upload a profile picture (PNG, JPEG, GIF or WebP); it is stored on our server and is reachable by anyone who has its address, which is a random identifier. If you sign in with GitHub, your GitHub picture is used until you replace it.",
 			"Content you create: projects, boards, lists, cards, notes, whiteboards, and any files you upload. For each of these we also record who created or last modified it, and when.",
 			"Activity data: notifications generated for you, invitation links you create or use, API keys you generate, and — if you connect a Git repository — the webhook events we receive from GitHub about that repository.",
 			"Technical data: ordinary web server logs, which include your IP address, the page or endpoint requested, and the time. We keep these to debug problems and to notice abuse.",

@@ -11,6 +11,25 @@ export function updateProfile(name: string): Promise<{ id: string; email: string
   return apiRequest({ method: "PATCH", path: "/users/me", body: { name } });
 }
 
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+export const AVATAR_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+// uploads the profile picture (the server checks the real content and the 2 MiB cap again)
+export function uploadAvatar(file: File): Promise<{ avatar: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiRequest({ method: "PUT", path: "/users/me/avatar", body: form });
+}
+
+// back to the default avatar (coloured initials)
+export function removeAvatar(): Promise<void> {
+  return apiRequest<void>({ method: "DELETE", path: "/users/me/avatar" });
+}
+
+export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return apiRequest<void>({ method: "PUT", path: "/users/me/password", body: { currentPassword, newPassword } });
+}
+
 export async function markAllNotificationsRead(): Promise<void> {
   await apiRequest<{ updated: number }>({ method: "PUT", path: "/notifications/read-all" });
 }
