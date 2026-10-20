@@ -71,8 +71,26 @@ ensure_env() {
   if [ ! -f "$SCRIPT_DIR/.env" ]; then
     echo "==> No .env found — creating one from .env.example"
     cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+    # a brand new .env means no database exists yet, so its password can be random from the start
+    db_password="$(openssl rand -hex 16)"
+    dotenv_set POSTGRES_PASSWORD "$db_password"
+    dotenv_set DATABASE_URL "postgresql://$(dotenv_get POSTGRES_USER):$db_password@localhost:5432/$(dotenv_get POSTGRES_DB)"
     echo "    Edit .env to set real secrets before any non-local use."
   fi
+}
+
+# JWT_SECRET and GIT_WEBHOOK_SECRET must never stay at the "change_me" placeholder of .env.example: anybody could
+# then forge a session token or a webhook. They are generated here; this only replaces the placeholder (or an empty
+# value), so a secret you set yourself is left alone.
+ensure_secrets() {
+  local key value
+  for key in JWT_SECRET GIT_WEBHOOK_SECRET; do
+    value="$(dotenv_get "$key")"
+    if [ -z "$value" ] || [ "$value" = "change_me" ]; then
+      echo "==> Generating $key (it was the placeholder)"
+      dotenv_set "$key" "$(openssl rand -hex 32)"
+    fi
+  done
 }
 
 # read KEY from .env only (no fallback)
@@ -175,6 +193,7 @@ fi
 case "$1" in
   start)
     ensure_env
+    ensure_secrets
     ensure_oauth
     generate_certs
     start_stack
@@ -187,6 +206,7 @@ case "$1" in
 
   restart)
     ensure_env
+    ensure_secrets
     ensure_oauth
     generate_certs
     docker compose down

@@ -34,8 +34,11 @@ Then open **https://localhost:8443/** and accept the browser warning (self-signe
 `http://localhost:8080/` redirects to https. `https://localhost:8443/api/health` answers `"status":"ok"` when the
 backend and the database are up. The public API documentation is at `https://localhost:8443/api-docs`.
 
-Secrets in `.env` (`JWT_SECRET`, `POSTGRES_PASSWORD`, `GIT_WEBHOOK_SECRET`) start as `change_me`: fine on your
-machine, replace them with random values anywhere else (`openssl rand -hex 32`).
+`./transcendence start` generates the secrets that must not be guessable: a new `.env` gets a random `POSTGRES_PASSWORD`,
+and `JWT_SECRET` and `GIT_WEBHOOK_SECRET` are replaced when they still hold the `change_me` placeholder (a value you chose
+yourself is never touched). The backend warns at start-up if one of them is still the placeholder and refuses to start
+with it when `NODE_ENV=production`. Replacing `GIT_WEBHOOK_SECRET` means the webhooks already registered on GitHub must be
+recreated (unlink and link the branch again).
 
 ## Commands
 

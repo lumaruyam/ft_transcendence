@@ -45,8 +45,11 @@ await sleep(800);
 // ---- project + members
 let r = await call(alice, "POST", "/api/projects", { name: "Apollo" });
 const projectId = r.json().project.id;
-r = await call(alice, "POST", `/api/projects/${projectId}/members`, { userId: bob.id, role: "member" });
+// Carol is a member before Bob arrives, so that she is one of "the others" who hear about it; flush() makes sure
+// her own notification is written before Bob's is computed (notifications are sent after the response).
 r = await call(alice, "POST", `/api/projects/${projectId}/members`, { userId: carol.id, role: "viewer" });
+await flush();
+r = await call(alice, "POST", `/api/projects/${projectId}/members`, { userId: bob.id, role: "member" });
 await flush();
 check("added member is told (vous a ajouté ...)", (await notifs(bob, "member_added")).some((n) => (n.payload as any).message.startsWith("Alice vous a ajouté au projet « Apollo »")));
 check("other members hear who was added", (await notifs(carol, "member_added")).some((n) => (n.payload as any).message.includes("Alice a ajouté Bob")), JSON.stringify((await notifs(carol)).map((n) => (n.payload as any).message)));
