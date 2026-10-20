@@ -107,6 +107,13 @@ r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email:
 check("the new one does", r.statusCode === 200);
 check("login returns the avatar too", typeof r.json().user.avatar === "string");
 
+// ---- password guessing is slowed down (10 tries a minute per client address)
+const guess = (ip: string) => app.inject({ method: "POST", url: "/api/auth/login", headers: { "x-forwarded-for": ip }, payload: { email: "ava@t.t", password: "not-the-password1" } });
+const codes: number[] = [];
+for (let i = 0; i < 12; i++) codes.push((await guess("203.0.113.50")).statusCode);
+check("10 wrong passwords answer 401, then the client is limited (429)", codes.slice(0, 10).every((c) => c === 401) && codes.slice(10).every((c) => c === 429), codes.join(","));
+check("another client address is not affected", (await guess("203.0.113.51")).statusCode === 401);
+
 // ---- deleting the account removes the picture
 r = await app.inject({ method: "DELETE", url: `/api/users/${me.id}`, headers: auth, payload: { transferTo: other.id } });
 check("account deletion: 204 and the picture file is gone", r.statusCode === 204 && (await files()).length === 0, `${r.statusCode} ${r.body} ${JSON.stringify(await files())}`);

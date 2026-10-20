@@ -38,7 +38,9 @@ import { apiKeyRouteConstraint } from "./modules/publicapi/apikey.middleware.js"
 function registerPlugins(app: FastifyInstance, config: AppConfig): void {
 	// Security plugins
 	app.register(helmet); // Security headers
-	app.register(cors, {origin: true,}); // Allow all Cross-Origin Resource Sharing
+	// The site and the API share one origin behind nginx, so cross-origin access is only needed for another front end
+	// (the Vite dev server): CORS_ORIGIN names it, otherwise any origin is reflected as before.
+	app.register(cors, { origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim()) : true });
 
 	app.register(rateLimit, {
 		max: config.rateLimit.globalMax,

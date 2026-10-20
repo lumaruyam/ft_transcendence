@@ -28,9 +28,13 @@ import { requireAuth } from "../permissions/permissions.middleware.js";
 // registerAuthRoutes mounts /api/auth/signup, /api/auth/login, /api/auth/logout on the given
 // Fastify instance, called from app.ts. Canonical API base path is /api — matches
 // frontend/src/auth/{loginForm,signupForm}.ts, which already call these under /api/auth/*
+// AUTH_RATE_LIMIT slows down password guessing and mass sign-ups: 10 tries a minute per client address, far below
+// the global limit. A person mistyping a password never gets near it.
+export const AUTH_RATE_LIMIT = { max: 10, timeWindow: "1 minute" } as const;
+
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
-	app.post("/signup", signupHandler);
-	app.post("/login", loginHandler);
+	app.post("/signup", { config: { rateLimit: AUTH_RATE_LIMIT } }, signupHandler);
+	app.post("/login", { config: { rateLimit: AUTH_RATE_LIMIT } }, loginHandler);
 	app.post("/logout", logoutHandler);
 	app.get("/oauth/github/callback", oauthCallbackHandler);
 	app.get("/oauth/github/redirect", oauthRedirectHandler);

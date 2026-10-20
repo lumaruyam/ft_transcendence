@@ -92,15 +92,27 @@ export function loadConfig(): AppConfig {
 		throw new Error(`Environment variable NODE_ENV must be one of "development", "test", "production", got "${nodeEnv}"`);
 	}
 
+	const jwtSecret = requireEnv("JWT_SECRET");
+	const webhookSecret = requireEnv("GIT_WEBHOOK_SECRET");
+	// "change_me" is the placeholder of .env.example: with a secret everybody knows, anybody could forge a session
+	// token or a webhook. `./transcendence start` generates real ones; a production start refuses the placeholders.
+	for (const [name, value] of [["JWT_SECRET", jwtSecret], ["GIT_WEBHOOK_SECRET", webhookSecret]]) {
+		if (value === "change_me" || value.length < 16) {
+			const message = `${name} is the placeholder (or too short): set a long random value in .env (openssl rand -hex 32)`;
+			if (nodeEnv === "production") throw new Error(message);
+			if (nodeEnv === "development") console.warn(`[security] ${message}`);
+		}
+	}
+
 	return {
 		nodeEnv,
 		host: optionalEnv("HOST", "0.0.0.0"),
 		port: optionalIntEnv("PORT", 3000),
 		databaseUrl: requireEnv("DATABASE_URL"),
-		jwtSecret: requireEnv("JWT_SECRET"),
+		jwtSecret,
 		oauthGithub: loadGithubOAuthConfig(),
 		oauthTokenEncryptionKey: requireEnv("OAUTH_TOKEN_ENCRYPTION_KEY"),
-		gitWebhookSecret: requireEnv("GIT_WEBHOOK_SECRET"),
+		gitWebhookSecret: webhookSecret,
 		publicApiRateLimitDefault: optionalIntEnv("PUBLIC_API_RATE_LIMIT_DEFAULT", 100),
 		rateLimit: {
 			globalMax: optionalIntEnv("RATE_LIMIT_GLOBAL_MAX", 300),
