@@ -151,7 +151,7 @@ flowchart LR
     B["Browser<br/>Svelte pages (Vite MPA)<br/>React island for Excalidraw"]
     N["nginx 1.27<br/>HTTPS, security headers, CSP<br/>the only way in"]
     A["backend<br/>Node 22, Fastify 5, Socket.IO"]
-    D[("PostgreSQL 16<br/>21 tables")]
+    D[("PostgreSQL 16<br/>22 tables")]
     F["frontend build container<br/>Vite build into a static volume"]
     G["GitHub<br/>OAuth, REST API, webhooks"]
 
@@ -169,7 +169,7 @@ Everything runs in Docker Compose. nginx is the only published entry point: it t
 
 ## Database schema
 
-PostgreSQL, **21 tables**, managed with Prisma (`backend/prisma/schema.prisma`), with versioned migrations applied automatically at start-up and checked identical to the schema. `project_members`, `card_tags`, `card_notes` and `card_attachments` are join tables with a composite primary key. The full column list and the delete rules are in [`docs/db-schema.md`](docs/db-schema.md).
+PostgreSQL, **22 tables**, managed with Prisma (`backend/prisma/schema.prisma`), with versioned migrations applied automatically at start-up and checked identical to the schema. `project_members`, `card_tags`, `card_notes` and `card_attachments` are join tables with a composite primary key. `app_settings` stands on its own, with no relation: it holds the runtime switches an admin can flip without a redeploy (today the one that opens and closes account creation). The full column list and the delete rules are in [`docs/db-schema.md`](docs/db-schema.md).
 
 ```mermaid
 erDiagram
@@ -327,6 +327,11 @@ erDiagram
         json payload
         datetime processed_at
         datetime created_at
+    }
+    app_settings {
+        string key PK
+        string value
+        datetime updated_at
     }
     api_keys {
         string id PK
@@ -516,9 +521,9 @@ It is tested with signed deliveries in `backend/tests/e2e/git-webhooks.e2e.ts`.
 
 ### 7. Use an ORM for the database (Minor, 1 pt)
 
-*Why.* A typed schema with explicit relations and versioned migrations is safer than hand-written SQL in a project with 21 tables.
+*Why.* A typed schema with explicit relations and versioned migrations is safer than hand-written SQL in a project with 22 tables.
 
-*How.* Every query goes through Prisma, including transactions and the `Serializable` ones used for concurrent writes. There is **no raw SQL** in the backend. 21 models with explicit relations and versioned migrations that are checked identical to the schema at start-up.
+*How.* Every query goes through Prisma, including transactions and the `Serializable` ones used for concurrent writes. There is **no raw SQL** in the backend. 22 models with explicit relations and versioned migrations that are checked identical to the schema at start-up.
 
 ### 8. Remote authentication with OAuth 2.0 (Minor, 1 pt)
 
