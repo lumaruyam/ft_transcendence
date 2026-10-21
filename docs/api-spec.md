@@ -1,13 +1,7 @@
-<!-- Owner: Shared, coordinated by the Tech Lead -->
-<!-- Responsible for: documenting the Public API endpoints (Track 1's publicapi module), required by the Public API major module. -->
 
 # API Specification
 
-**Path note:** implementation now lives at `backend/src/modules/publicapi/` (Fastify
-routes in `publicapi.routes.ts`, API key logic in `apikeys.service.ts`, rate limiting
-in `ratelimit.middleware.ts`; auth middleware in `apikey.middleware.ts`; key-management routes)
-`backend/internal/publicapi/`. The endpoint contract, auth model, and rate-limit
-behavior described below are unchanged by the pivot.
+The code is in `backend/src/modules/publicapi/` (routes in `publicapi.routes.ts`, API keys in `apikeys.service.ts`, rate limit in `ratelimit.middleware.ts`, key check in `apikey.middleware.ts`).
 
 ## Endpoints (5 documented, per the Public API major module requirement)
 
@@ -42,7 +36,7 @@ curl -H "X-API-Key: tk_..." https://host/api/projects
 A key identifies *who* and optionally *where*; it never grants access by itself:
 
 - `api_keys.user_id` is the issuing user. Requests act as that user, and every project-scoped
-  route still runs `requireRole` against `project_members` (docs/architecture.md §5), so
+  route still runs `requireRole` against `project_members`, so
   demoting or removing the user cuts the key's access immediately. Keys with a null `user_id`
   are rejected (fail closed).
 - `api_keys.project_id`, when set, restricts the key to that project (`403 api_key_project_mismatch`
@@ -89,7 +83,7 @@ and notifications behave as for the frontend. `assignee` is not exposed (no colu
 ## Rate limiting
 
 `rateLimitMiddleware` runs a fixed one-minute window per API key, limit = `api_keys.rate_limit`
-(requests/minute), in-process (per-instance, see docs/architecture.md §8). It is separate from
+(requests/minute), in-process (per-instance). It is separate from
 the IP-keyed global limit in `app.ts`, which also still applies.
 
 Every key-authenticated response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and
@@ -247,7 +241,7 @@ frontend's other `/api/*` calls), not part of the API-key-based Public API secti
 - **Dedicated join rate limit.** `POST /api/projects/invites/{token}/join` carries its own
   `@fastify/rate-limit` policy (`INVITE_JOIN_RATE_LIMIT` in `invites.ts`: 5 requests/minute,
   keyed by IP), stricter than and independent of the global default described in
-  `docs/architecture.md` "Rate limiting strategy". This endpoint is the most attractive target
+  the rate limit settings. This endpoint is the most attractive target
   for brute-forcing/enumerating invite tokens, since a valid guess has a real side effect
   (project membership), so it gets its own tighter budget rather than sharing the global one.
 - **Post-join authorization always goes through `project_members`, never the invite.** Once

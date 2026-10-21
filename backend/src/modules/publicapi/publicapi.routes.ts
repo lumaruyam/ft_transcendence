@@ -5,7 +5,7 @@
 // requireApiKey          401 — valid X-API-Key, sets request.apiKey + request.userId
 // rateLimitMiddleware    429 — per-key quota (api_keys.rate_limit), sets X-RateLimit-* headers
 // enforceKeyProjectScope 403 — a project-scoped key can't reach another project
-// requireRole            403 — the key's user must hold the role in project_members (docs/architecture.md §5)
+// requireRole            403 — the key's user must hold the role in project_members
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireRole } from "../permissions/permissions.middleware.js";

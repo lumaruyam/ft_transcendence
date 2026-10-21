@@ -5,6 +5,7 @@
   import { MAX_NAME_LENGTH, validateName, validateNewPassword } from "../auth/validation";
   import { listMembers, listMyProjects } from "../api/projectsApi";
   import type { Member, Project } from "../api/types";
+  import { startOAuthLink } from "../auth/oauthFlow";
   import { clearAuthSession, getStoredUser, logout, storeUser } from "../auth/authClient";
   import { confirmDialog } from "../shared/confirm.svelte";
   import { errorMessage } from "../shared/errors";
@@ -196,6 +197,18 @@
     }
   }
 
+  let linkingGithub = $state(false);
+
+  async function onLinkGithub(): Promise<void> {
+    linkingGithub = true;
+    try {
+      await startOAuthLink("/settings");
+    } catch (err) {
+      linkingGithub = false;
+      toast(errorMessage(err), { kind: "error" });
+    }
+  }
+
   function closeHandover(): void {
     dialog.close();
     handover = null;
@@ -258,7 +271,7 @@
   <form class="panel" onsubmit={onSavePassword}>
     <div>
       <h2>Mot de passe</h2>
-      <p class="sub">Choisissez-en un nouveau : 8 caractères au moins, avec une lettre et un chiffre. Les comptes créés uniquement avec GitHub n'ont pas de mot de passe à modifier.</p>
+      <p class="sub">Choisissez-en un nouveau : 8 caractères au moins, avec une lettre et un chiffre.</p>
     </div>
     <div class="field">
       <label for="current-password">Mot de passe actuel</label>
@@ -287,6 +300,18 @@
       </button>
     </div>
   </form>
+
+  <section class="panel">
+    <div>
+      <h2>GitHub</h2>
+      <p class="sub">Liez votre compte GitHub pour vous connecter avec GitHub et utiliser l'intégration Git. L'adresse e-mail de GitHub peut être différente de celle de ce compte. La connexion GitHub ne fonctionne que pour un compte lié ici.</p>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" disabled={linkingGithub} onclick={onLinkGithub}>
+        {#if linkingGithub}<span class="spinner"></span>{:else}<Icon name="github" size={18} />{/if} Lier mon compte GitHub
+      </button>
+    </div>
+  </section>
 
   <section class="panel">
     <div>

@@ -12,6 +12,7 @@
 
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: admin-facing user CRUD required by the Advanced permissions major module
+import { generateJwt } from "../auth/jwt.service.js";
 import type { User } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
@@ -27,11 +28,6 @@ export interface UpdateUserInput {
 // the shape of the signed-in user in API responses and in the frontend session
 export function toPublicUser(user: User): { id: string; email: string; name: string; avatar: string | null } {
 	return { id: user.id, email: user.email, name: user.name, avatar: user.avatar };
-}
-
-// listUsers returns all users, for the admin user-management view
-export async function listUsers(): Promise<User[]> {
-	return prisma.user.findMany({ orderBy: { createdAt: "asc" } });
 }
 
 // getUser fetches a single user by ID
@@ -53,12 +49,14 @@ export class WrongPasswordError extends Error {
 
 // changePassword replaces the password after checking the current one. Accounts created through GitHub only have a
 // random password nobody knows, so they cannot pass the check.
-export async function changePassword(id: string, currentPassword: string, newPassword: string): Promise<void> {
+// Every other session of the account is revoked; the returned token keeps the caller signed in.
+export async function changePassword(id: string, currentPassword: string, newPassword: string): Promise<string> {
 	const user = await prisma.user.findUnique({ where: { id } });
 	if (!user) throw new UserNotFoundError();
 	if (!(await verifyPassword(currentPassword, user.passwordHash, user.passwordSalt))) throw new WrongPasswordError();
 	const { hash, salt } = await hashPassword(newPassword);
-	await prisma.user.update({ where: { id }, data: { passwordHash: hash, passwordSalt: salt } });
+	const updated = await prisma.user.update({ where: { id }, data: { passwordHash: hash, passwordSalt: salt, tokenVersion: { increment: 1 } } });
+	return generateJwt(id, updated.tokenVersion);
 }
 
 export interface VisibleProfile {

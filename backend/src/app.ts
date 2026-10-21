@@ -1,5 +1,6 @@
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: building and configuring the Fastify application instance — route registration, plugins, and middleware wiring.
+import { createHmac } from "node:crypto";
 import Fastify, { FastifyInstance } from "fastify";
 import { Prisma } from "@prisma/client";
 import { isConflict } from "./db/concurrency.js";
@@ -13,6 +14,7 @@ import fastifyRawBody from "fastify-raw-body";
 
 // Import route handlers
 import { registerHealthRoutes } from "./modules/health/health.routes.js";
+import { registerAdminRoutes } from "./modules/admin/admin.routes.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { initJwtService } from "./modules/auth/jwt.service.js";
 import { initOAuthService } from "./modules/auth/oauth.service.js";
@@ -40,7 +42,7 @@ function registerPlugins(app: FastifyInstance, config: AppConfig): void {
 	app.register(helmet); // Security headers
 	// The site and the API share one origin behind nginx, so cross-origin access is only needed for another front end
 	// (the Vite dev server): CORS_ORIGIN names it, otherwise any origin is reflected as before.
-	app.register(cors, { origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim()) : true });
+	app.register(cors, { origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim()) : config.nodeEnv !== "production" });
 
 	app.register(rateLimit, {
 		max: config.rateLimit.globalMax,
@@ -56,9 +58,12 @@ function registerPlugins(app: FastifyInstance, config: AppConfig): void {
 }
 
 // Register all routes
-function registerRoutes(app: FastifyInstance): void {
+function registerRoutes(app: FastifyInstance, config: AppConfig): void {
 	app.register(registerHealthRoutes, { prefix: "/api" }); // Smoke test — no auth
 	app.register(registerAuthRoutes, { prefix: "/api/auth" }); // Public routes (no auth required)
+	// signup admin page: password from .env, no user account; only mounted when SIGNUP_ADMIN_PASSWORD is usable
+	const adminPassword = config.signupAdminPassword;
+	app.register(registerAdminRoutes, { prefix: "/api/admin", signupAdminPassword: adminPassword === "change_me" || adminPassword.length < 12 ? "" : adminPassword });
 	app.register(registerGitWebhookRoutes, { prefix: "/api"}); // Webhook routes (HMAC-signed, no JWT)
 
 	// Protected routes (require JWT)
@@ -85,7 +90,14 @@ export function buildApp(config: AppConfig): FastifyInstance {
 	// compose network (which overwrites the header with the real client address). Without it every request would
 	// look like it comes from nginx, and the per-IP rate limits would be shared by all users. A connection from a
 	// public address cannot choose its own IP. The backend is not published on the host anyway.
-	const app = Fastify({ logger: true, trustProxy: "loopback, linklocal, uniquelocal", routerOptions: { constraints: { apiAuth: apiKeyRouteConstraint } } });
+	const app = Fastify({ logger: {
+		// the OAuth callback URL carries the one-time ?code= and ?state=: keep them out of the logs
+		serializers: {
+			req(req) {
+				return { method: req.method, url: req.url?.replace(/([?&](?:code|state)=)[^&]*/g, "$1[redacted]"), host: req.host, remoteAddress: req.ip };
+			},
+		},
+	}, trustProxy: "loopback, linklocal, uniquelocal", routerOptions: { constraints: { apiAuth: apiKeyRouteConstraint } } });
 
 	// A request that loses a race with another user's change (the thing it targets was deleted a moment ago, a unique
 	// value was taken first, a transaction was aborted) must answer with a normal client error, not a 500.
@@ -113,11 +125,11 @@ export function buildApp(config: AppConfig): FastifyInstance {
 	});
 
 	initJwtService(config.jwtSecret);
-	initOAuthService({ github: config.oauthGithub, stateSecret: config.jwtSecret });
+	initOAuthService({ github: config.oauthGithub, stateSecret: createHmac("sha256", config.jwtSecret).update("oauth-state").digest("hex") });
 	initTokenCrypto(config.oauthTokenEncryptionKey);
 	initApiKeys({ defaultRateLimit: config.publicApiRateLimitDefault });
 	registerPlugins(app, config);
-	registerRoutes(app);
+	registerRoutes(app, config);
 
 	return app;
 }

@@ -60,42 +60,36 @@ check("no user created by rejected callbacks", (await prisma.user.count()) === 0
 res = await callback(state, nonce, "error=access_denied");
 check("consent refused -> OAuthAccessDeniedError", fragment(res).get("error") === "OAuthAccessDeniedError", String(res.headers.location));
 
-// 4. first login: new user, private profile email resolved from /user/emails
+// 4. GitHub never creates an account: an unlinked identity is refused
 ({ state, nonce } = await startLogin());
 res = await callback(state, nonce);
-let token = fragment(res).get("token");
-check("first login -> token issued", !!token, String(res.headers.location));
+check("unlinked GitHub identity -> OAuthNoLinkedAccountError, no token", fragment(res).get("error") === "OAuthNoLinkedAccountError" && !fragment(res).get("token"), String(res.headers.location));
+check("no user created by GitHub login", (await prisma.user.count()) === 0);
+
+// 5. the signed-in user links GitHub from the settings, then GitHub signs in that account
+const octo = await prisma.user.create({ data: { email: "octo@example.com", passwordHash: "x", passwordSalt: "x", name: "Octo" } });
+res = await app.inject({ method: "POST", url: "/api/auth/oauth/github/link", headers: { authorization: `Bearer ${generateJwt(octo.id)}` } });
+res = await callback(new URL(res.json().url).searchParams.get("state")!, nonceOf(res));
+check("link callback -> #linked=1, no new token", fragment(res).get("linked") === "1" && !fragment(res).get("token"), String(res.headers.location));
+({ state, nonce } = await startLogin());
+res = await callback(state, nonce);
+const token = fragment(res).get("token");
+check("linked identity -> token of the linked account", !!token && validateJwt(token).userId === octo.id, String(res.headers.location));
 check("state cookie cleared after callback", /Max-Age=0/.test(cookieOf(res)));
-let user = await prisma.user.findUniqueOrThrow({ where: { email: "octo@example.com" } });
-check("user created with the verified primary email (lowercased) and GitHub name/avatar", user.name === "Octo Cat" && user.avatar === "https://a/1.png");
-check("token belongs to that user", validateJwt(token!).userId === user.id);
-const account = await prisma.oAuthAccount.findFirstOrThrow({ where: { userId: user.id } });
-check("GitHub token stored encrypted, decryptable", account.accessToken !== "gho_token_for_1" && (await getDecryptedAccessToken(user.id)) === "gho_token_for_1");
-
-// 5. state replay is bound to the nonce but can be reused within TTL: second login same identity -> same user
+const account = await prisma.oAuthAccount.findFirstOrThrow({ where: { userId: octo.id } });
+check("GitHub token stored encrypted, decryptable", account.accessToken !== "gho_token_for_1" && (await getDecryptedAccessToken(octo.id)) === "gho_token_for_1");
 ({ state, nonce } = await startLogin());
 res = await callback(state, nonce);
-check("second login -> same user, no duplicate", (await prisma.user.count()) === 1 && validateJwt(fragment(res).get("token")!).userId === user.id);
+check("second login -> same user, no duplicate", (await prisma.user.count()) === 1 && validateJwt(fragment(res).get("token")!).userId === octo.id);
 
-// 6. existing password account with the same (verified) email gets the GitHub identity attached
+// 6. an existing account with the same e-mail is NOT taken over by a GitHub login (local signup does not verify e-mails)
 const pwd = await prisma.user.create({ data: { email: "pwd@example.com", passwordHash: "x", passwordSalt: "x", name: "Pwd" } });
-gh = { id: 2, login: "pwd", name: null, avatar: null, emails: [{ email: "other@x.io", primary: false, verified: true }, { email: "PWD@example.com", primary: true, verified: true }] };
+gh = { id: 2, login: "pwd", name: null, avatar: null, emails: [{ email: "PWD@example.com", primary: true, verified: true }] };
 ({ state, nonce } = await startLogin());
 res = await callback(state, nonce);
-check("same verified email -> linked onto the existing account", validateJwt(fragment(res).get("token")!).userId === pwd.id && (await prisma.user.count()) === 2);
+check("same verified e-mail but not linked -> refused, nothing attached", fragment(res).get("error") === "OAuthNoLinkedAccountError" && (await prisma.oAuthAccount.count({ where: { userId: pwd.id } })) === 0 && (await prisma.user.count()) === 2);
 
-// 7. unverified emails are never trusted
-gh = { id: 3, login: "evil", name: "Evil", avatar: null, emails: [{ email: "pwd@example.com", primary: true, verified: false }] };
-({ state, nonce } = await startLogin());
-res = await callback(state, nonce);
-check("only unverified emails -> OAuthExchangeError, no takeover", fragment(res).get("error") === "OAuthExchangeError" && (await prisma.oAuthAccount.count({ where: { providerId: "3" } })) === 0);
-gh = { id: 3, login: "evil", name: "Evil", avatar: null, emails: [{ email: "pwd@example.com", primary: true, verified: false }, { email: "evil@x.io", primary: false, verified: true }] };
-({ state, nonce } = await startLogin());
-res = await callback(state, nonce);
-const evil = await prisma.user.findUnique({ where: { email: "evil@x.io" } });
-check("unverified address ignored, verified one used for a new account", !!evil && evil.id !== pwd.id);
-
-// 8. link flow
+// 7. link flow
 res = await app.inject({ method: "POST", url: "/api/auth/oauth/github/link" });
 check("link without JWT -> 401", res.statusCode === 401);
 const jwtPwd = generateJwt(pwd.id);
@@ -103,17 +97,18 @@ res = await app.inject({ method: "POST", url: "/api/auth/oauth/github/link", hea
 const linkUrl = new URL(res.json().url);
 check("link with JWT -> authorize url + state cookie", res.statusCode === 200 && linkUrl.hostname === "github.com" && !!nonceOf(res));
 // the logged-in user links a GitHub account whose email differs from the account email
-await prisma.oAuthAccount.deleteMany({ where: { userId: pwd.id } });
 gh = { id: 4, login: "different", name: "Diff", avatar: null, emails: [{ email: "unrelated@x.io", primary: true, verified: true }] };
 res = await callback(linkUrl.searchParams.get("state")!, nonceOf(res));
 check("link callback -> #linked=1, no new token", fragment(res).get("linked") === "1" && !fragment(res).get("token"), String(res.headers.location));
 check("GitHub identity attached to the signed-in user (email differs)", (await getDecryptedAccessToken(pwd.id)) === "gho_token_for_4" && (await prisma.user.count({ where: { email: "unrelated@x.io" } })) === 0);
+({ state, nonce } = await startLogin());
+res = await callback(state, nonce);
+check("login with that GitHub identity -> the account with the other e-mail", validateJwt(fragment(res).get("token")!).userId === pwd.id, String(res.headers.location));
 // linking an identity that belongs to somebody else
-const jwtEvil = generateJwt(evil!.id);
-res = await app.inject({ method: "POST", url: "/api/auth/oauth/github/link", headers: { authorization: `Bearer ${jwtEvil}` } });
+const other = await prisma.user.create({ data: { email: "other@example.com", passwordHash: "x", passwordSalt: "x", name: "Other" } });
+res = await app.inject({ method: "POST", url: "/api/auth/oauth/github/link", headers: { authorization: `Bearer ${generateJwt(other.id)}` } });
 const nonceE = nonceOf(res);
 const stateE = new URL(res.json().url).searchParams.get("state")!;
-gh = { id: 4, login: "different", name: "Diff", avatar: null, emails: [] };
 res = await callback(stateE, nonceE);
 check("GitHub identity already owned by another user -> OAuthAccountConflictError", fragment(res).get("error") === "OAuthAccountConflictError", String(res.headers.location));
 

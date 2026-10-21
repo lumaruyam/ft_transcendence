@@ -4,6 +4,7 @@ import { Server as SocketIOServer } from "socket.io";
 import type { Server as HttpServer } from "http";
 import { broadcastLeftIfGone, handleReconnect } from "./presence.js";
 import { validateJwt, JwtExpiredError } from "../auth/jwt.service.js";
+import { isSessionCurrent } from "../auth/session.service.js";
 import { userRoom } from "./rooms.js";
 import { createTokenBucket } from "./socketLimit.js";
 import { SOCKET_ROLE_TTL_MS, getUserRole } from "../permissions/roles.service.js";
@@ -28,7 +29,7 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
 
   // The JWT sent in the handshake (auth.token) is verified here, the same way requireAuth does for HTTP.
   // socket.data.userId is the verified user id, never the raw token.
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (typeof token !== "string" || token.length === 0) {
       next(new Error("unauthorized"));
@@ -36,6 +37,10 @@ export function createKanbanHub(httpServer: HttpServer): SocketIOServer {
     }
     try {
       const claims = validateJwt(token);
+      if (!(await isSessionCurrent(claims.userId, claims.tokenVersion))) {
+        next(new Error("unauthorized"));
+        return;
+      }
       socket.data.userId = claims.userId;
       socket.data.tokenExpiresAt = claims.exp * 1000;
       next();

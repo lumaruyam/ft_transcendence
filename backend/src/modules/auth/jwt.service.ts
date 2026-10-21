@@ -34,6 +34,8 @@ function getSecret(): string {
 export interface JwtClaims {
 	userId: string;
 	exp: number;
+	// User.tokenVersion at issue time; tokens issued before the claim existed count as 0
+	tokenVersion: number;
 }
 
 export class JwtExpiredError extends Error {
@@ -51,8 +53,8 @@ export class JwtInvalidError extends Error {
 }
 
 // generateJwt issues a signed session token for a freshly authenticated user.
-export function generateJwt(userId: string): string {
-	return jwt.sign({ userId }, getSecret(), { expiresIn: TOKEN_TTL });
+export function generateJwt(userId: string, tokenVersion = 0): string {
+	return jwt.sign({ userId, tv: tokenVersion }, getSecret(), { expiresIn: TOKEN_TTL });
 }
 
 // validateJwt parses and verifies a token presented on an incoming request, for use by permissions.middleware.ts.
@@ -63,7 +65,7 @@ export function validateJwt(token: string): JwtClaims {
 		{
 			throw new JwtInvalidError("unexpected token payload shape");
 		}
-	return { userId: decoded.userId, exp: decoded.exp };
+	return { userId: decoded.userId, exp: decoded.exp, tokenVersion: typeof decoded.tv === "number" ? decoded.tv : 0 };
 	} catch (err) {
 		if (err instanceof jwt.TokenExpiredError) {
 			throw new JwtExpiredError();
@@ -81,5 +83,5 @@ export function validateJwt(token: string): JwtClaims {
 // refreshJwt issues a new token ahead of expiry so long sessions don't force a re-login mid-use.
 export function refreshJwt(token: string): string {
 	const claims = validateJwt(token);
-	return generateJwt(claims.userId);
+	return generateJwt(claims.userId, claims.tokenVersion);
 }

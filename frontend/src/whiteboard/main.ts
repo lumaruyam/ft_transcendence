@@ -3,7 +3,7 @@
 import { boot } from "../shared/boot";
 import Whiteboard from "./Whiteboard.svelte";
 
-//the route is /app/:id/whiteboard (see docs/frontend-routing.md)
+//the route is /app/:id/whiteboard
 const projectId = window.location.pathname.match(/^\/app\/([^/]+)\/whiteboard\/?$/)?.[1];
 
 if (!projectId) {

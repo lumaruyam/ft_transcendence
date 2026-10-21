@@ -77,7 +77,7 @@ const SECTIONS: Section[] = [
 	{
 		title: "9. Cookies and browser storage",
 		paragraphs: [
-			"We use no cookies. We store a few things in your browser's local storage: the token that keeps you signed in and a copy of your name and email for display, your light or dark theme choice, and the last repository address you typed when linking a card to Git. Signing out removes the token and the copy of your profile. Clearing your browser data removes everything.",
+			"We use one short-lived cookie, only while you log in with GitHub or link your GitHub account: it is set by our server, cannot be read by scripts, and is deleted when the sign-in ends. It only protects that sign-in against forged requests. We use no other cookies. We store a few things in your browser's local storage: the token that keeps you signed in and a copy of your name and email for display, your light or dark theme choice, and the last repository address you typed when linking a card to Git. Signing out removes the token and the copy of your profile. Clearing your browser data removes everything.",
 			"We use no advertising cookies, no analytics and no third-party trackers.",
 		],
 	},

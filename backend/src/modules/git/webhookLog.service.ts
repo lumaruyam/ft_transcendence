@@ -4,6 +4,7 @@ import { Prisma, type WebhookEvent } from "@prisma/client";
 import { prisma } from '../../db/prisma/client.js';
 
 export interface LogWebhookEvent {
+  deliveryId?: string;
   provider: string;
   repo: string;
   eventType: string;
@@ -24,6 +25,7 @@ export async function logWebhookEvent(input: LogWebhookEvent): Promise<WebhookEv
       provider: input.provider,
       repo: input.repo,
       eventType: input.eventType,
+      deliveryId: input.deliveryId ?? null,
       payload: (input.payload as Prisma.InputJsonValue) ?? {},
       processedAt: null,
     },

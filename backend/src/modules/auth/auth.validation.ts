@@ -32,6 +32,13 @@ export function validateDisplayName(name: unknown): string | null {
 	return null;
 }
 
+// the passwords everybody tries first that still pass the length/letter/digit rule
+const COMMON_PASSWORDS = new Set([
+	"password1", "password123", "passw0rd", "p@ssw0rd", "qwerty123", "qwertyuiop1", "azerty123", "azertyuiop1",
+	"abc12345", "abcd1234", "iloveyou1", "welcome1", "welcome123", "admin123", "letmein123", "changeme1", "12345678a",
+	"a1234567", "a12345678", "motdepasse1", "motdepasse123", "football1", "monkey123", "dragon123", "master123",
+]);
+
 // validateNewPassword returns what is wrong with a password being chosen (signup and password change share the rule)
 export function validateNewPassword(password: string): string[] {
 	const errors: string[] = [];
@@ -43,6 +50,9 @@ export function validateNewPassword(password: string): string[] {
 	}
 	if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
 		errors.push("password must contain at least one letter and one number");
+	}
+	if (COMMON_PASSWORDS.has(password.toLowerCase())) {
+		errors.push("password is too common");
 	}
 	return errors;
 }

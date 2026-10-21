@@ -1,4 +1,5 @@
 import { apiRequest } from "./apiClient";
+import { storeToken } from "../auth/authClient";
 import type { NotificationRow, SearchFilters, SearchPage, SearchResult } from "./types";
 
 // the newest notifications, and how many are unread in total (not only in the returned page)
@@ -26,8 +27,10 @@ export function removeAvatar(): Promise<void> {
   return apiRequest<void>({ method: "DELETE", path: "/users/me/avatar" });
 }
 
-export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
-  return apiRequest<void>({ method: "PUT", path: "/users/me/password", body: { currentPassword, newPassword } });
+// the other sessions of the account are revoked by the server; the returned token keeps this one signed in
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const { token } = await apiRequest<{ token: string }>({ method: "PUT", path: "/users/me/password", body: { currentPassword, newPassword } });
+  storeToken(token);
 }
 
 export async function markAllNotificationsRead(): Promise<void> {

@@ -2,7 +2,6 @@
   import AuthLayout from "../auth/AuthLayout.svelte";
   import PasswordField from "../auth/PasswordField.svelte";
   import { signup, storeAuthSession, AuthApiError } from "../auth/authClient";
-  import { startOAuthLogin } from "../auth/oauthFlow";
   import { MAX_NAME_LENGTH, validateEmail, validateName, validateNewPassword } from "../auth/validation";
   import Icon from "../shared/ui/Icon.svelte";
   import { loginUrl, nextFromUrl } from "../shared/session";
@@ -40,6 +39,8 @@
         document.getElementById("email")?.focus();
       } else if (err instanceof AuthApiError && err.status === 0) {
         formError = err.message;
+      } else if (err instanceof AuthApiError && err.status === 403 && err.code === "signup_disabled") {
+        formError = "Les inscriptions sont fermées pour le moment.";
       } else if (err instanceof AuthApiError && err.status === 429) {
         formError = "Trop de tentatives. Patientez une minute puis réessayez.";
       } else {
@@ -109,12 +110,6 @@
 
     <button type="submit" class="btn btn-primary btn-block" disabled={busy}>
       {#if busy}<span class="spinner"></span> Création…{:else}Créer mon compte{/if}
-    </button>
-
-    <div class="or"><span>ou</span></div>
-
-    <button type="button" class="btn btn-block" disabled={busy} onclick={() => startOAuthLogin(next === "/app" ? undefined : next)}>
-      <Icon name="github" size={18} /> Continuer avec GitHub
     </button>
 
     <p class="legal">

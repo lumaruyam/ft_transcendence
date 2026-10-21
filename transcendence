@@ -3,6 +3,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+FIRST_RUN=""
 CERTS_DIR="$SCRIPT_DIR/infra/nginx/certs"
 
 # read a KEY=value from .env, falling back to .env.example, then a hard default
@@ -22,9 +23,10 @@ show_urls() {
   https="$(env_value HTTPS_PORT 8443)"
   echo ""
   echo "==> Up. Open:"
-  echo "      https://localhost:${https}/            — app (self-signed cert, accept the warning)"
+  echo "      https://localhost:${https}/            — app (accept the browser warning if the cert is self-signed)"
   echo "      https://localhost:${https}/api/health  — backend smoke test (should say \"status\":\"ok\")"
   echo "      http://localhost:${http}/              — redirects to https"
+  echo "      https://localhost:${https}/api/admin/signup — open/close account creation (SIGNUP_ADMIN_PASSWORD in .env)"
 }
 
 STAMP_FILE="$SCRIPT_DIR/.build-hash"
@@ -71,6 +73,7 @@ ensure_env() {
   if [ ! -f "$SCRIPT_DIR/.env" ]; then
     echo "==> No .env found — creating one from .env.example"
     cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+    FIRST_RUN=1
     # a brand new .env means no database exists yet, so its password can be random from the start
     db_password="$(openssl rand -hex 16)"
     dotenv_set POSTGRES_PASSWORD "$db_password"
@@ -123,6 +126,83 @@ dotenv_set() {
   rm -f "$tmp"
 }
 
+# ask "label" default: prompt for a value, Enter keeps the default
+ask() {
+  local answer=""
+  read -r -p "    $1 [$2]: " answer || true
+  printf '%s\n' "${answer:-$2}"
+}
+
+# First-run questions, so nothing has to be edited by hand in .env: ports, public address, signup admin password.
+# Without a terminal (CI) every default is kept. Also available later as './transcendence setup'.
+ask_setup() {
+  local http https origin mode pass="" cert="" key=""
+  [ -t 0 ] || return 0
+  echo "==> Configuration (Enter keeps the value in brackets)"
+  echo "    dev  = relaxed checks, verbose warnings (local work)."
+  echo "    prod = placeholder secrets refused, CORS locked to the public address."
+  mode="$(ask "Mode (dev/prod)" "$([ "$(dotenv_get NODE_ENV)" = production ] && echo prod || echo dev)")"
+  case "$mode" in
+    prod|production) mode=production ;;
+    *) mode=development ;;
+  esac
+  dotenv_set NODE_ENV "$mode"
+  http="$(ask "HTTP port " "$(env_value HTTP_PORT 8080)")"
+  https="$(ask "HTTPS port" "$(env_value HTTPS_PORT 8443)")"
+  dotenv_set HTTP_PORT "$http"
+  dotenv_set HTTPS_PORT "$https"
+  echo "    Public https address of the app (e.g. https://transcendence.example.com), used for GitHub webhooks."
+  echo "    Leave empty for a local install (GitHub cannot reach localhost)."
+  origin="$(ask "Public address" "$(dotenv_get WEBHOOK_PUBLIC_URL)")"
+  origin="${origin%/}"
+  dotenv_set WEBHOOK_PUBLIC_URL "$origin"
+  dotenv_set GITHUB_OAUTH_REDIRECT_URI "${origin:-https://localhost:$https}/api/auth/oauth/github/callback"
+  # the backend refuses to start in production without it; in dev it stays open (the Vite dev server)
+  if [ "$mode" = production ]; then
+    dotenv_set CORS_ORIGIN "${origin:-https://localhost:$https}"
+  else
+    dotenv_set CORS_ORIGIN ""
+  fi
+  echo "    TLS certificate: Enter = self-signed (browsers warn). Or give the paths of your own (e.g. Let's Encrypt:"
+  echo "    /etc/letsencrypt/live/<domain>/fullchain.pem and privkey.pem); they are copied again on every start/restart."
+  read -r -p "    Certificate file [self-signed]: " cert || true
+  if [ -n "$cert" ]; then
+    read -r -p "    Private key file: " key || true
+    if [ -r "$cert" ] && [ -r "$key" ]; then
+      dotenv_set CERT_FILE "$cert"
+      dotenv_set KEY_FILE "$key"
+    else
+      echo "    Cannot read one of the two files: keeping the self-signed certificate."
+      cert=""
+    fi
+  fi
+  if [ -z "$cert" ]; then
+    dotenv_set CERT_FILE ""
+    dotenv_set KEY_FILE ""
+  fi
+  echo "    Password of the admin page ${origin:-https://localhost:$https}/api/admin/signup (opens/closes account creation)."
+  read -r -s -p "    SIGNUP_ADMIN_PASSWORD (12+ characters, Enter = generate one): " pass || true
+  echo ""
+  if [ -n "$pass" ] && [ "${#pass}" -lt 12 ]; then
+    echo "    Too short, generating one instead."
+    pass=""
+  fi
+  if [ -n "$pass" ]; then
+    dotenv_set SIGNUP_ADMIN_PASSWORD "$pass"
+  fi
+}
+
+# a password left at the placeholder of .env.example (blank answer, no terminal, old .env) gets a random value
+ensure_admin_password() {
+  local value
+  value="$(dotenv_get SIGNUP_ADMIN_PASSWORD)"
+  if [ -z "$value" ] || [ "$value" = "change_me" ] || [ "${#value}" -lt 12 ]; then
+    value="$(openssl rand -hex 12)"
+    dotenv_set SIGNUP_ADMIN_PASSWORD "$value"
+    echo "==> Generated SIGNUP_ADMIN_PASSWORD: $value   (kept in .env)"
+  fi
+}
+
 # GitHub OAuth app credentials. Blank answer or no terminal: random placeholders
 # (GitHub login won't work until you run ./transcendence oauth).
 ask_oauth() {
@@ -146,6 +226,13 @@ ask_oauth() {
 }
 
 ensure_oauth() {
+  [ -n "$FIRST_RUN" ] && ask_setup
+  ensure_admin_password
+  # the backend refuses to start in production without CORS_ORIGIN (an older .env may lack it)
+  if [ "$(dotenv_get NODE_ENV)" = production ] && [ -z "$(dotenv_get CORS_ORIGIN)" ]; then
+    dotenv_set CORS_ORIGIN "$(dotenv_get WEBHOOK_PUBLIC_URL)"
+    [ -n "$(dotenv_get CORS_ORIGIN)" ] || dotenv_set CORS_ORIGIN "https://localhost:$(env_value HTTPS_PORT 8443)"
+  fi
   # first run or missing credentials
   if [ -z "$(dotenv_get GITHUB_CLIENT_ID)" ] || [ -z "$(dotenv_get GITHUB_CLIENT_SECRET)" ]; then
     ask_oauth
@@ -159,6 +246,21 @@ ensure_oauth() {
 }
 
 generate_certs() {
+  local cert key
+  cert="$(dotenv_get CERT_FILE)"
+  key="$(dotenv_get KEY_FILE)"
+  if [ -n "$cert" ] && [ -n "$key" ]; then
+    if [ ! -r "$cert" ] || [ ! -r "$key" ]; then
+      echo "==> CERT_FILE / KEY_FILE in .env are not readable ($cert, $key). Fix them with '$0 setup'."
+      exit 1
+    fi
+    mkdir -p "$CERTS_DIR"
+    cp "$cert" "$CERTS_DIR/server.crt"
+    cp "$key" "$CERTS_DIR/server.key"
+    chmod 600 "$CERTS_DIR/server.key"
+    echo "==> Using your TLS certificate ($cert)"
+    return 0
+  fi
   if [ ! -f "$CERTS_DIR/server.crt" ] || [ ! -f "$CERTS_DIR/server.key" ]; then
     echo "==> Generating self-signed SSL certificates..."
     mkdir -p "$CERTS_DIR"
@@ -206,7 +308,7 @@ check_db() {
 }
 
 usage() {
-  echo "Usage: $0 {start|stop|restart|reload|clean|clear|oauth} [--no-cache]"
+  echo "Usage: $0 {start|stop|restart|reload|clean|clear|oauth|setup} [--no-cache]"
   echo ""
   echo "  start           — start all containers, building only what changed since the last build"
   echo "  stop            — stop and remove all containers (images are kept)"
@@ -217,6 +319,7 @@ usage() {
   echo "  clear           — stop everything and delete ALL state: database, uploads, served frontend, build stamps."
   echo "                    .env and certificates are kept. The next start recreates a fresh database"
   echo "  oauth           — (re)enter the GitHub OAuth credentials stored in .env"
+  echo "  setup           — re-ask ports, public address and signup admin password (stored in .env)"
   echo ""
   echo "  --no-cache      — rebuild the images from scratch (re-runs npm ci; slow)"
   exit 1
@@ -283,6 +386,13 @@ case "$1" in
     ensure_env
     ask_oauth
     echo "==> Saved in .env. Run '$0 restart' for the backend to pick it up."
+    ;;
+
+  setup)
+    ensure_env
+    ask_setup
+    ensure_admin_password
+    echo "==> Saved in .env. Run '$0 restart' to apply."
     ;;
 
   *)

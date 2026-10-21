@@ -18,12 +18,14 @@ import { Prisma, type User } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 import { validateSignupInput, type SignupInput } from "./auth.validation.js";
 import { hashPassword, verifyPassword } from "./password.service.js";
-import { generateJwt } from "./jwt.service.js";
+import { generateJwt, validateJwt } from "./jwt.service.js";
+import { revokeSessions } from "./session.service.js";
 import {
 	handleOAuthCallback, startOAuthFlow, isOAuthCookieSecure, OAUTH_STATE_COOKIE, OAUTH_STATE_TTL_SECONDS,
-	OAuthNotConfiguredError, OAuthExchangeError, OAuthStateError, OAuthAccountConflictError, OAuthAccessDeniedError,
+	OAuthNotConfiguredError, OAuthExchangeError, OAuthStateError, OAuthAccountConflictError, OAuthAccessDeniedError, OAuthNoLinkedAccountError,
 } from "./oauth.service.js";
 import { MAX_PASSWORD_LENGTH } from "./auth.validation.js";
+import { isSignupOpen } from "./signupGate.js";
 import { requireAuth } from "../permissions/permissions.middleware.js";
 
 // registerAuthRoutes mounts /api/auth/signup, /api/auth/login, /api/auth/logout on the given
@@ -35,6 +37,8 @@ export const AUTH_RATE_LIMIT = { max: 10, timeWindow: "1 minute" } as const;
 
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 	app.post("/signup", { config: { rateLimit: AUTH_RATE_LIMIT } }, signupHandler);
+	// public: lets the signup form (and the admin page) know whether account creation is open
+	app.get("/signup-status", async () => ({ open: await isSignupOpen() }));
 	app.post("/login", { config: { rateLimit: AUTH_RATE_LIMIT } }, loginHandler);
 	app.post("/logout", logoutHandler);
 	app.get("/oauth/github/callback", oauthCallbackHandler);
@@ -94,6 +98,10 @@ function toAuthResponse(user: User, token: string) {
 
 // signupHandler creates a new user with a hashed/salted password
 async function signupHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	if (!(await isSignupOpen())) {
+		reply.code(403).send({ error: "signup_disabled" });
+		return ;
+	}
 	const input = request.body as Partial<SignupInput> | undefined;
 	const email = typeof input?.email === "string" ? input.email.trim().toLowerCase() : "";
 	const password = typeof input?.password === "string" ? input.password : "";
@@ -117,7 +125,7 @@ async function signupHandler(request: FastifyRequest, reply: FastifyReply): Prom
 		const user = await prisma.user.create({
 			data: { email, name, passwordHash: hash, passwordSalt: salt },
 		});
-		reply.code(201).send(toAuthResponse(user, generateJwt(user.id)));
+		reply.code(201).send(toAuthResponse(user, generateJwt(user.id, user.tokenVersion)));
 		} catch (err) {
 			if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
 				reply.code(409).send({ error: "email_already_registered" });
@@ -152,12 +160,22 @@ async function loginHandler(request: FastifyRequest, reply: FastifyReply): Promi
 		return ;
 	}
 
-	reply.code(200).send(toAuthResponse(user, generateJwt(user.id)));
+	reply.code(200).send(toAuthResponse(user, generateJwt(user.id, user.tokenVersion)));
 }
 
 // logoutHandler invalidates the caller's current session
 async function logoutHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-	//  If a blocklist is added later for early revocation, insert the token's jti here
+	// logout revokes every token of the user (all devices): the version bump makes earlier tokens fail in requireAuth
+	// and in the Socket.IO handshake. A missing or bad token has nothing to revoke, and logout still answers 204.
+	const header = request.headers.authorization;
+	const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : undefined;
+	if (token) {
+		try {
+			await revokeSessions(validateJwt(token).userId);
+		} catch (err) {
+			request.log.info({ err }, "logout: nothing to revoke");
+		}
+	}
 	reply.code(204).send();
 }
 
@@ -179,12 +197,12 @@ async function oauthCallbackHandler(request: FastifyRequest, reply: FastifyReply
 			reply.redirect("/auth/callback#linked=1");
 			return;
 		}
-		const token = generateJwt(user.id);
+		const token = generateJwt(user.id, user.tokenVersion);
 		reply.redirect(`/auth/callback#token=${encodeURIComponent(token)}`);
 	} catch (err) {
 		if (
 			err instanceof OAuthNotConfiguredError || err instanceof OAuthExchangeError ||
-			err instanceof OAuthStateError || err instanceof OAuthAccountConflictError) {
+			err instanceof OAuthStateError || err instanceof OAuthAccountConflictError || err instanceof OAuthNoLinkedAccountError) {
 			request.log.warn({ err }, "OAuth callback failed");
 			reply.redirect(`/auth/callback#error=${encodeURIComponent(err.name)}`);
 			return;

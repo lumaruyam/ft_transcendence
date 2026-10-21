@@ -25,6 +25,8 @@ export interface AppConfig {
 	jwtSecret: string;
 	oauthGithub: OAuthProviderConfig;
 	oauthTokenEncryptionKey: string;
+	// password of the admin page that opens/closes signup (SIGNUP_ADMIN_PASSWORD); empty = page disabled
+	signupAdminPassword: string;
 	gitWebhookSecret: string;
 	publicApiRateLimitDefault: number;
   // rateLimit configures the @fastify/rate-limit plugin registered globally in app.ts.
@@ -97,11 +99,22 @@ export function loadConfig(): AppConfig {
 	// "change_me" is the placeholder of .env.example: with a secret everybody knows, anybody could forge a session
 	// token or a webhook. `./transcendence start` generates real ones; a production start refuses the placeholders.
 	for (const [name, value] of [["JWT_SECRET", jwtSecret], ["GIT_WEBHOOK_SECRET", webhookSecret]]) {
-		if (value === "change_me" || value.length < 16) {
-			const message = `${name} is the placeholder (or too short): set a long random value in .env (openssl rand -hex 32)`;
+		if (value === "change_me" || value.length < 32) {
+			const message = `${name} is the placeholder (or shorter than 32 characters): set a long random value in .env (openssl rand -hex 32)`;
 			if (nodeEnv === "production") throw new Error(message);
 			if (nodeEnv === "development") console.warn(`[security] ${message}`);
 		}
+	}
+
+	if (nodeEnv === "production" && optionalEnv("CORS_ORIGIN", "") === "") {
+		throw new Error("CORS_ORIGIN must be set in production (the public https origin of the app, e.g. https://transcendence.example.com)");
+	}
+
+	const signupAdminPassword = process.env.SIGNUP_ADMIN_PASSWORD?.trim() ?? "";
+	if (signupAdminPassword !== "" && (signupAdminPassword === "change_me" || signupAdminPassword.length < 12)) {
+		const message = "SIGNUP_ADMIN_PASSWORD is the placeholder (or shorter than 12 characters): the signup admin page is disabled";
+		if (nodeEnv === "production") throw new Error(message);
+		console.warn(`[security] ${message}`);
 	}
 
 	return {
@@ -112,10 +125,11 @@ export function loadConfig(): AppConfig {
 		jwtSecret,
 		oauthGithub: loadGithubOAuthConfig(),
 		oauthTokenEncryptionKey: requireEnv("OAUTH_TOKEN_ENCRYPTION_KEY"),
+		signupAdminPassword: signupAdminPassword,
 		gitWebhookSecret: webhookSecret,
 		publicApiRateLimitDefault: optionalIntEnv("PUBLIC_API_RATE_LIMIT_DEFAULT", 100),
 		rateLimit: {
-			globalMax: optionalIntEnv("RATE_LIMIT_GLOBAL_MAX", 300),
+			globalMax: optionalIntEnv("RATE_LIMIT_GLOBAL_MAX", 600),
 			globalWindowMs: optionalIntEnv("RATE_LIMIT_GLOBAL_WINDOW_MS", 60000),
 		},
 	};

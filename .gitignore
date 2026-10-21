@@ -76,3 +76,7 @@ backend/scratch/
 
 # --- build stamps (./transcendence) ---
 .build-hash
+
+# Local working notes (not part of the project)
+STATE.md
+TASKS.md

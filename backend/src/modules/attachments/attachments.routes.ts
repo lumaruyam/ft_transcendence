@@ -141,6 +141,7 @@ async function getAttachmentHandler(request: FastifyRequest, reply: FastifyReply
 	//"attachment" rather than "inline": the browser saves the file instead of rendering it on our
 	reply
 		.header("Content-Type", attachment.fileType)
+		.header("X-Content-Type-Options", "nosniff")
 		.header("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`)
 		.send(data);
 }

@@ -1,3 +1,9 @@
+# Old TODO (finished)
+
+This is an old planning file from the start of the project. The work in it is finished. It is kept only as a record and does not describe the current state of the project. For the current state, read the README.
+
+---
+
 # TODO — where to start, by track
 
 Scaffolding only: every file below has an `Owner:` comment and a responsibility line at

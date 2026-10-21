@@ -19,6 +19,8 @@ model User {
   passwordSalt  String   @map("password_salt")
   name          String
   avatar        String?
+  // bumped on logout and password change: a session token carries the value it was issued with and stops working when it differs
+  tokenVersion  Int      @default(0) @map("token_version")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -353,6 +355,8 @@ model WebhookEvent {
   provider    String
   repo        String
   eventType   String    @map("event_type")
+  // X-GitHub-Delivery: a delivery seen twice is a replay (null for events logged before this column existed)
+  deliveryId  String?   @unique @map("delivery_id")
   payload     Json
   processedAt DateTime? @map("processed_at")
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -373,4 +377,14 @@ model ApiKey {
   user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("api_keys")
+}
+
+// AppSetting maps to `app_settings` — small runtime switches an admin can flip without redeploying
+// (today: "signup_open", see modules/auth/signupGate.ts).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
 }

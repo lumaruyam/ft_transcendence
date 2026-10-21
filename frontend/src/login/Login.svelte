@@ -88,8 +88,10 @@
     <div class="or"><span>ou</span></div>
 
     <button type="button" class="btn btn-block" disabled={busy} onclick={() => startOAuthLogin(next === "/app" ? undefined : next)}>
-      <Icon name="github" size={18} /> Continuer avec GitHub
+      <Icon name="github" size={18} /> Se connecter avec GitHub
     </button>
+
+    <p class="hint-github">Disponible une fois GitHub lié à votre compte (Paramètres).</p>
 
     <p class="switch">Pas encore de compte ? <a href={signupUrl(next)}>Créer un compte</a></p>
   </form>
@@ -125,6 +127,12 @@
     flex: 1;
     height: 1px;
     background: var(--line);
+  }
+  .hint-github {
+    text-align: center;
+    color: var(--text-soft);
+    font-size: 0.85rem;
+    margin: -4px 0 0;
   }
   .switch {
     text-align: center;

@@ -174,8 +174,8 @@ async function changePasswordHandler(request: FastifyRequest, reply: FastifyRepl
 		return;
 	}
 	try {
-		await changePassword(request.userId as string, body.currentPassword, body.newPassword);
-		reply.code(204).send();
+		const token = await changePassword(request.userId as string, body.currentPassword, body.newPassword);
+		reply.code(200).send({ token });
 	} catch (err) {
 		if (err instanceof WrongPasswordError) {
 			// 403 and not 401: the session is fine, the frontend must not log the person out

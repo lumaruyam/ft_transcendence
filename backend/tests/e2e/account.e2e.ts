@@ -1,5 +1,5 @@
 // Standard user management: avatar upload (type sniffing, size cap, replacement, default avatar, public serving, cleanup)
-// and password change (current password required, validation, new password works, old one does not).
+// and password change (current password required, validation, new password works, old one does not, old tokens revoked).
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { check, failures, report, testConfig } from "./helpers.js";
@@ -29,7 +29,7 @@ function multipart(data: Buffer, filename = "me.png", type = "image/png") {
 const signup = await app.inject({ method: "POST", url: "/api/auth/signup", payload: { email: "ava@t.t", password: "oldpass123", name: "Ava Lovelace" } });
 const token: string = signup.json().token;
 const me = signup.json().user as { id: string; avatar: string | null };
-const auth = { authorization: `Bearer ${token}` };
+let auth = { authorization: `Bearer ${token}` };
 const other = await prisma.user.create({ data: { email: "other@t.t", passwordHash: "x", passwordSalt: "x", name: "Other" } });
 
 check("a new account has no avatar (the frontend draws the default one)", me.avatar === null, String(me.avatar));
@@ -100,7 +100,11 @@ r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email:
 check("nothing changed after the failures: old password still logs in", r.statusCode === 200);
 
 r = await pw("oldpass123", "newpass456");
-check("correct current password + valid new one: 204", r.statusCode === 204, r.body);
+const newToken: string = r.json().token;
+check("correct current password + valid new one: 200 with a new token", r.statusCode === 200 && typeof newToken === "string", r.body);
+check("the token used to change it is revoked (401)", (await app.inject({ method: "GET", url: "/api/users/me", headers: auth })).statusCode === 401);
+check("the token returned by the change works", (await app.inject({ method: "GET", url: "/api/users/me", headers: { authorization: `Bearer ${newToken}` } })).statusCode === 200);
+auth = { authorization: `Bearer ${newToken}` };
 r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "ava@t.t", password: "oldpass123" } });
 check("the old password no longer logs in", r.statusCode === 401);
 r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "ava@t.t", password: "newpass456" } });

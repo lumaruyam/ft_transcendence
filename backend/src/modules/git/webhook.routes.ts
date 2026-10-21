@@ -1,5 +1,6 @@
 // Owner: Track 3 (Git integration)
 // Responsible for: the webhook receiver endpoint for push, pull_request, and merge events — the core of the custom "Git/webhook integration" Major module. TS equivalent of backend/internal/git/webhook.go (Go skeleton, removed).
+import { prisma } from '../../db/prisma/client.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply, FastifyBaseLogger } from 'fastify';
 import crypto from 'node:crypto';
 import {type LogWebhookEvent, logWebhookEvent, markWebhookProcessed} from './webhookLog.service.js';
@@ -73,12 +74,19 @@ app.post('/webhooks/git', {config: { rawBody: true }}, async (request: FastifyRe
 	const githubEvent = request.headers['x-github-event'];// take type of event
 	if(typeof githubEvent !== 'string')
 		return reply.code(400).send({error: 'Github only'});
+	// a signed delivery that is sent again is a replay (the HMAC covers the body only): process each delivery id once
+	const deliveryHeader = request.headers['x-github-delivery'];
+	const deliveryId = typeof deliveryHeader === 'string' && deliveryHeader.length > 0 && deliveryHeader.length <= 100 ? deliveryHeader : undefined;
+	// (one whose processing failed stays unprocessed, so GitHub's own redelivery still goes through)
+	if (deliveryId && (await prisma.webhookEvent.findUnique({ where: { deliveryId }, select: { processedAt: true } }))?.processedAt)
+		return reply.code(200).send({ duplicate: true });
 	const body = request.body as BaseGitHubPayload; // for parsing full_name
 	const repoName = body?.repository?.full_name || 'unknown';
 
 	//log start and save res for id of note of prisma
 	const loggedEvent = await safeLogWebhookEvent({
 		provider: 'github',
+		deliveryId,
 		repo: repoName,
 		eventType: githubEvent,
 		payload: request.body,

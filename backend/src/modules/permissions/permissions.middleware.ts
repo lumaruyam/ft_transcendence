@@ -12,6 +12,7 @@
 
 // Owner: Track 1 (Foundation, Auth, and API infrastructure)
 // Responsible for: Fastify preHandler hooks enforcing authentication and role-based access for the Advanced permissions module
+import { isSessionCurrent } from "../auth/session.service.js";
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { ROLE_RANK, getUserRole, type Role } from "./roles.service.js";
 import { validateJwt, JwtExpiredError, JwtInvalidError } from "../auth/jwt.service.js";
@@ -35,6 +36,10 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply):
 
 	try {
 		const claims = validateJwt(token);
+		if (!(await isSessionCurrent(claims.userId, claims.tokenVersion))) {
+			reply.code(401).send({ error: "invalid_token" });
+			return;
+		}
 		request.userId = claims.userId;
 	} catch (err) {
 		if (err instanceof JwtExpiredError) {

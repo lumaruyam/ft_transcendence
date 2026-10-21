@@ -14,10 +14,9 @@
 // Responsible for: OAuth2 login flow (GitHub only), covering the OAuth minor module and feeding the credential source Track 3 needs for Octokit API calls.
 import { randomBytes, timingSafeEqual } from "crypto";
 import jwt from "jsonwebtoken";
-import { Prisma, type User } from "@prisma/client";
+import type { User } from "@prisma/client";
 import { prisma } from "../../db/prisma/client.js";
 import type { OAuthProviderConfig } from "../../config/env.js";
-import { hashPassword } from "./password.service.js";
 import { encryptToken, decryptToken } from "./tokenCrypto.js";
 
 const PROVIDER = "github";
@@ -75,6 +74,14 @@ export class OAuthAccessDeniedError extends Error {
 	constructor() {
 		super("the user refused the GitHub authorization");
 		this.name = "OAuthAccessDeniedError";
+	}
+}
+
+// OAuthNoLinkedAccountError: this GitHub identity is not linked to any account (link it from the settings first)
+export class OAuthNoLinkedAccountError extends Error {
+	constructor() {
+		super("this GitHub account is not linked to any account");
+		this.name = "OAuthNoLinkedAccountError";
 	}
 }
 
@@ -267,10 +274,6 @@ async function fetchGitHubProfile(accessToken: string, options: { needEmail: boo
 	};
 }
 
-async function randomUnusablePassword(): Promise<{ hash: string; salt: string }> {
-	return hashPassword(randomBytes(32).toString("hex"));
-}
-
 // upsertOAuthAccount stores (or refreshes) the encrypted GitHub token for a user's linked
 // identity. Uses upsert rather than a plain create so a concurrent re-login for the same GitHub
 // identity can never race against the (provider, providerId) unique constraint
@@ -300,65 +303,27 @@ export async function handleOAuthCallback(
 	return { user: await loginWithGitHub(code), linked: false };
 }
 
+// GitHub only signs in an account that was linked to it on purpose, from the settings of a signed-in user
+// (linkOAuthAccount). It never creates an account and never attaches itself to an account that merely has the same
+// e-mail: local signup does not verify e-mails, so an attacker could pre-register the victim's address with a password
+// they know and inherit the victim's GitHub login.
 async function loginWithGitHub(code: string): Promise<User> {
 	const { accessToken } = await exchangeCodeForToken(code);
-	const profile = await fetchGitHubProfile(accessToken, { needEmail: true });
-	if (!profile.email) {
-		throw new OAuthExchangeError("no email in the GitHub profile");
-	}
-	const email = profile.email;
+	const profile = await fetchGitHubProfile(accessToken, { needEmail: false });
 
-	// 1. Already linked to this provider identity
 	const existingAccount = await prisma.oAuthAccount.findUnique({
 		where: { provider_providerId: { provider: PROVIDER, providerId: profile.oauthId }},
 		include: { user: true },
 	});
-	if (existingAccount) {
-		const user = existingAccount.user.avatar || !profile.avatar
+	if (!existingAccount) {
+		throw new OAuthNoLinkedAccountError();
+	}
+	const user = existingAccount.user.avatar || !profile.avatar
 		? existingAccount.user
 		: await prisma.user.update({
 			where: { id: existingAccount.userId },
 			data: { avatar: profile.avatar },
 		});
-		await upsertOAuthAccount(user.id, profile.oauthId, accessToken);
-		return user;
-	}
-
-	// 2. Not linked yet, but an account with this email already exists —> link onto it rather
-	// than creating a duplicate User
-	const existingByEmail = await prisma.user.findUnique({
-		where: { email }
-	});
-	if (existingByEmail) {
-		const user = existingByEmail.avatar || !profile.avatar
-		? existingByEmail
-		: await prisma.user.update({
-			where: { id: existingByEmail.id },
-			data: { avatar: profile.avatar },
-		});
-		await upsertOAuthAccount(user.id, profile.oauthId, accessToken);
-		return user;
-	}
-
-	// 3. Brand new user
-	const { hash, salt } = await randomUnusablePassword();
-	let user: User;
-	try {
-		user = await prisma.user.create({
-			data: {
-				email,
-				name: profile.name,
-				avatar: profile.avatar,
-				passwordHash: hash,
-				passwordSalt: salt,
-			},
-		});
-	} catch (err) {
-		if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-			throw new OAuthAccountConflictError(`account ${email} was just created by a concurrent request`);
-		}
-		throw err;
-	}
 	await upsertOAuthAccount(user.id, profile.oauthId, accessToken);
 	return user;
 }

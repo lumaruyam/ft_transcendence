@@ -18,7 +18,7 @@
 
     <p class="help">Deux solutions pour retrouver l'accès :</p>
     <ul>
-      <li>Si votre compte est lié à GitHub, connectez-vous avec GitHub.</li>
+      <li>Si vous avez lié GitHub à votre compte, connectez-vous avec GitHub.</li>
       <li>Sinon, demandez à la personne qui administre cette instance de vous aider.</li>
     </ul>
 

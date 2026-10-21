@@ -4,6 +4,7 @@
   import { listNotifications, markAllNotificationsRead, markNotificationRead } from "../../api/accountApi";
   import { createSocketConnection } from "../../api/wsClientWrapper";
   import { getStoredToken } from "../../auth/authClient";
+  import { safeNext } from "../session";
   import type { NotificationRow } from "../../api/types";
   import { timeAgo } from "../format";
   import { toast } from "../toast.svelte";
@@ -94,7 +95,7 @@
   // an in-app path opens in this tab, an absolute http(s) address (GitHub) in a new one; anything else is ignored
   function target(url: unknown): { href: string; external: boolean } | null {
     const raw = String(url ?? "");
-    if (raw.startsWith("/") && !raw.startsWith("//")) return { href: raw, external: false };
+    if (safeNext(raw, "") !== "") return { href: raw, external: false };
     try {
       const parsed = new URL(raw);
       return parsed.protocol === "https:" || parsed.protocol === "http:" ? { href: parsed.href, external: true } : null;
