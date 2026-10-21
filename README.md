@@ -49,7 +49,7 @@ Everything else (Node.js, PostgreSQL, dependencies) runs in the containers.
 ### Start the project
 
 ```bash
-git clone https://github.com/lumaruyam/ft_transcendence.git && cd ft_transcendence
+git clone <repository-url> && cd ft_transcendence
 ./transcendence start
 ```
 
