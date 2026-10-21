@@ -21,7 +21,12 @@ export interface ProjectEvent {
 	//card_created, note_updated, file_deleted, member_removed...: the kind of change
 	type: string;
 	//what happened, without the actor: "a créé la carte « X »". With no actor it is the whole sentence.
+	//Stored as `message`: the French wording, kept for notifications read without `key` (older clients, old rows).
 	text: string;
+	//the sentence the frontend writes in the reader's language (notif.ev.<key>), with these values in it.
+	//The actor's name is added by the frontend from actorName.
+	key: string;
+	params?: Record<string, string>;
 	//the thing that changed, used to coalesce repeated updates
 	entityId?: string;
 	//in-app page to open from the notification, e.g. /app/<projectId>/notes/<noteId>
@@ -86,6 +91,8 @@ async function deliver(event: ProjectEvent): Promise<void> {
 
 	const payload = {
 		message: actor ? `${actor.name} ${event.text}` : event.text,
+		key: event.key,
+		params: event.params ?? {},
 		projectId: event.projectId,
 		projectName: project.name,
 		actorId: event.actorId,

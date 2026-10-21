@@ -45,6 +45,7 @@ function tellProject(
 	type: string,
 	entityId: string,
 	text: { named: string; anonymous: string },
+	name: string,
 	coalesce = false,
 ): void {
 	const actorId = request.apiKey?.userId ?? null;
@@ -53,6 +54,9 @@ function tellProject(
 		actorId,
 		type,
 		text: actorId ? text.named : text.anonymous,
+		// api_card_created / api_card_created_anonymous... in the reader's language
+		key: `api_${type}${actorId ? "" : "_anonymous"}`,
+		params: { name },
 		entityId,
 		path: `/app/${projectId}`,
 		coalesce,
@@ -101,7 +105,7 @@ async function createCardHandler(request: FastifyRequest, reply: FastifyReply): 
 	tellProject(request, projectId, "card_created", card.id, {
 		named: `a créé la carte « ${card.title} » via l'API`,
 		anonymous: `Une carte a été créée via l'API : « ${card.title} »`,
-	});
+	}, card.title);
 }
 
 // updateCardHandler updates a card via the public API — PUT /api/projects/{id}/cards/{cardId}
@@ -129,7 +133,7 @@ async function updateCardHandler(request: FastifyRequest, reply: FastifyReply): 
 	tellProject(request, projectId, "card_updated", card.id, {
 		named: `a modifié la carte « ${card.title} » via l'API`,
 		anonymous: `Une carte a été modifiée via l'API : « ${card.title} »`,
-	}, true);
+	}, card.title, true);
 }
 
 // deleteCardHandler deletes a card via the public API — DELETE /api/projects/{id}/cards/{cardId}
@@ -147,7 +151,7 @@ async function deleteCardHandler(request: FastifyRequest, reply: FastifyReply): 
 		tellProject(request, projectId, "card_deleted", cardId, {
 			named: `a supprimé la carte « ${deleted.title} » via l'API`,
 			anonymous: `Une carte a été supprimée via l'API : « ${deleted.title} »`,
-		});
+		}, deleted.title);
 	}
 }
 

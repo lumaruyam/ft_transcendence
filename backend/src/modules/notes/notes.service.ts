@@ -153,6 +153,8 @@ export async function saveNoteDoc(noteId: string, doc: Y.Doc, userId: string | n
 			actorId: userId,
 			type: "note_updated",
 			text: `a modifié la note « ${note.title} »`,
+			key: "note_updated",
+			params: { name: note.title },
 			entityId: noteId,
 			path: `/app/${note.projectId}/notes/${noteId}`,
 			coalesce: true,

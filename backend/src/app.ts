@@ -61,7 +61,7 @@ function registerRoutes(app: FastifyInstance, config: AppConfig): void {
 	app.register(registerHealthRoutes, { prefix: "/api" }); // Smoke test — no auth
 	app.register(registerAuthRoutes, { prefix: "/api/auth" }); // Public routes (no auth required)
 	// signup admin page: password from .env, no user account; only mounted when SIGNUP_ADMIN_PASSWORD is usable
-	const adminPassword = config.signupAdminPassword;
+	const adminPassword = config.signupAdminPassword ?? "";
 	app.register(registerAdminRoutes, { prefix: "/api/admin", signupAdminPassword: adminPassword === "change_me" || adminPassword.length < 12 ? "" : adminPassword });
 	app.register(registerGitWebhookRoutes, { prefix: "/api"}); // Webhook routes (HMAC-signed, no JWT)
 

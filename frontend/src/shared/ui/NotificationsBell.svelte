@@ -7,6 +7,7 @@
   import { getStoredToken } from "../../auth/authClient";
   import type { NotificationRow } from "../../api/types";
   import { timeAgo } from "../format";
+  import { notificationText } from "../notificationText";
   import { toast } from "../toast.svelte";
 
   let items = $state<NotificationRow[]>([]);
@@ -164,7 +165,7 @@
 {#snippet content(item: NotificationRow)}
   <span class="dot" aria-hidden="true"></span>
   <span class="body">
-    <span class="msg">{item.payload.message ?? t("notif.cardUpdated")}</span>
+    <span class="msg">{notificationText(item)}</span>
     <span class="time">{item.payload.projectName ? `${item.payload.projectName} · ` : ""}{timeAgo(item.createdAt)}</span>
   </span>
 {/snippet}

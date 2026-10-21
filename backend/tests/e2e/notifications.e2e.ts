@@ -13,7 +13,7 @@ import { io } from "socket.io-client";
 
 const app = buildApp({
 	nodeEnv: "test", host: "127.0.0.1", port: 0, databaseUrl: process.env.DATABASE_URL!, jwtSecret: "jwt-secret-for-tests",
-	oauthGithub: { clientId: "", clientSecret: "", redirectUri: "" }, oauthTokenEncryptionKey: "ab".repeat(32),
+	oauthGithub: { clientId: "", clientSecret: "", redirectUri: "" }, oauthTokenEncryptionKey: "ab".repeat(32), signupAdminPassword: "",
 	gitWebhookSecret: "x", publicApiRateLimitDefault: 100, rateLimit: { globalMax: 10000, globalWindowMs: 60000 },
 } as any);
 createKanbanHub(app.server);
@@ -70,6 +70,7 @@ const cardId = r.json().id;
 await flush();
 const created = (await notifs(bob, "card_created"))[0];
 check("card created -> message and in-app url", (created.payload as any).message === "Alice a créé la carte « Écrire le README »" && (created.payload as any).url === `/app/${projectId}` && (created.payload as any).projectName === "Apollo", JSON.stringify(created?.payload));
+check("card created -> key and values for the reader's language", (created.payload as any).key === "card_created" && (created.payload as any).params?.name === "Écrire le README" && (created.payload as any).actorName === "Alice", JSON.stringify(created?.payload));
 
 await call(alice, "PUT", `/api/cards/${cardId}`, { description: "v1" });
 await flush();
@@ -182,6 +183,7 @@ check("role change tells the person", (await notifs(bob, "member_role")).some((n
 await call(alice, "DELETE", `/api/projects/${projectId}/members/${bob.id}`);
 await flush();
 check("removed member is told, the others too", (await notifs(bob, "member_removed")).some((n) => (n.payload as any).message === "Alice vous a retiré du projet « Apollo »") && (await notifs(carol, "member_removed")).some((n) => (n.payload as any).message === "Alice a retiré Bob du projet"));
+check("member removed -> one key for the person, another for the others", (await notifs(bob, "member_removed")).some((n) => (n.payload as any).key === "member_removed_you" && (n.payload as any).params?.project === "Apollo") && (await notifs(carol, "member_removed")).some((n) => (n.payload as any).key === "member_removed" && (n.payload as any).params?.user === "Bob"));
 r = await call(alice, "POST", `/api/projects/${projectId}/invites`, { role: "member" });
 const token = r.json().token;
 r = await call(dave, "POST", `/api/projects/invites/${token}/join`);

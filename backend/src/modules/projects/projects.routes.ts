@@ -87,7 +87,7 @@ async function updateProjectHandler(request: FastifyRequest, reply: FastifyReply
 		reply.code(200).send({ project });
 		announceProjectUpdated(project);
 		if (body?.name !== undefined) {
-			void notifyProject({ projectId, actorId: request.userId as string, type: "project_updated", text: `a renommé le projet en « ${project.name} »`, entityId: projectId, path: `/app/${projectId}`, coalesce: true });
+			void notifyProject({ projectId, actorId: request.userId as string, type: "project_updated", text: `a renommé le projet en « ${project.name} »`, key: "project_renamed", params: { name: project.name }, entityId: projectId, path: `/app/${projectId}`, coalesce: true });
 		}
 	} catch (err) {
 		if (err instanceof InvalidProjectInputError) {
@@ -111,7 +111,7 @@ async function deleteProjectHandler(request: FastifyRequest, reply: FastifyReply
 		return;
 	}
 	//the members are deleted with the project: they are told before, and there is no page left to open
-	await notifyProject({ projectId, actorId: request.userId as string, type: "project_deleted", text: `a supprimé le projet « ${project.name} »`, entityId: projectId, path: null });
+	await notifyProject({ projectId, actorId: request.userId as string, type: "project_deleted", text: `a supprimé le projet « ${project.name} »`, key: "project_deleted", params: { name: project.name }, entityId: projectId, path: null });
 	await announceProjectDeleted(projectId);
 	await deleteProject(projectId);
 	reply.code(204).send();
@@ -141,9 +141,13 @@ async function tellMemberChange(
 			role: `a changé le rôle de ${user.name} (rôle : ${role})`,
 			removed: userId === actorId ? "a quitté le projet" : `a retiré ${user.name} du projet`,
 		}[change];
+		// role is the code (admin, member, viewer): the frontend shows it in the reader's language
+		const params = { project: project.name, user: user.name, role: role ?? "" };
+		const keyToThem = `member_${change}_you`;
+		const keyToOthers = change === "removed" && userId === actorId ? "member_left" : `member_${change}`;
 		// nobody is left to tell the removed person's project about themselves: members are looked up after the change
-		await notifyProject({ ...base, type: `member_${change}`, text: toThem, to: [userId] });
-		await notifyProject({ ...base, type: `member_${change}`, text: toOthers, exclude: [userId] });
+		await notifyProject({ ...base, type: `member_${change}`, text: toThem, key: keyToThem, params, to: [userId] });
+		await notifyProject({ ...base, type: `member_${change}`, text: toOthers, key: keyToOthers, params, exclude: [userId] });
 	} catch (err) {
 		request.log.warn({ err }, "could not notify the project members");
 	}

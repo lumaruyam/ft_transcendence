@@ -98,6 +98,8 @@ export async function uploadAttachment(uploadedBy: string, input: UploadAttachme
 		actorId: uploadedBy,
 		type: "file_uploaded",
 		text: `a ajouté le fichier « ${attachment.fileName} »`,
+		key: "file_uploaded",
+		params: { name: attachment.fileName },
 		entityId: attachment.id,
 		path: `/app/${attachment.projectId}/files`,
 	});

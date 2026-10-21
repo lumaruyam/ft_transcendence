@@ -64,7 +64,7 @@ window.addEventListener("storage", (event) => {
 
 // t("auth.nameTooLong", { max: 60 }) replaces {max} in the message; a key missing from a language falls back to French
 export function t(key: MessageKey, params?: Record<string, string | number>): string {
-  let text: string = DICTIONARIES[i18n.lang][key] ?? fr[key];
+  let text: string = DICTIONARIES[i18n.lang][key] ?? fr[key] ?? key;
   if (params) {
     for (const [name, value] of Object.entries(params)) text = text.replaceAll(`{${name}}`, String(value));
   }
