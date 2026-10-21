@@ -7,7 +7,7 @@ import { generateJwt } from "../../src/modules/auth/jwt.service.js";
 
 const app = buildApp({
 	nodeEnv: "test", host: "127.0.0.1", port: 0, databaseUrl: process.env.DATABASE_URL!, jwtSecret: "jwt-secret-for-tests",
-	oauthGithub: { clientId: "", clientSecret: "", redirectUri: "" }, oauthTokenEncryptionKey: "ab".repeat(32),
+	oauthGithub: { clientId: "", clientSecret: "", redirectUri: "" }, oauthTokenEncryptionKey: "ab".repeat(32), signupAdminPassword: "",
 	gitWebhookSecret: "x", publicApiRateLimitDefault: 100, rateLimit: { globalMax: 100000, globalWindowMs: 60000 },
 } as any);
 await app.ready();

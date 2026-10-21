@@ -21,9 +21,10 @@ import { hashPassword, verifyPassword } from "./password.service.js";
 import { generateJwt } from "./jwt.service.js";
 import {
 	handleOAuthCallback, startOAuthFlow, isOAuthCookieSecure, OAUTH_STATE_COOKIE, OAUTH_STATE_TTL_SECONDS,
-	OAuthNotConfiguredError, OAuthExchangeError, OAuthStateError, OAuthAccountConflictError, OAuthAccessDeniedError,
+	OAuthNotConfiguredError, OAuthExchangeError, OAuthStateError, OAuthAccountConflictError, OAuthAccessDeniedError, OAuthSignupDisabledError,
 } from "./oauth.service.js";
 import { MAX_PASSWORD_LENGTH } from "./auth.validation.js";
+import { isSignupOpen } from "./signupGate.js";
 import { requireAuth } from "../permissions/permissions.middleware.js";
 
 // registerAuthRoutes mounts /api/auth/signup, /api/auth/login, /api/auth/logout on the given
@@ -35,6 +36,8 @@ export const AUTH_RATE_LIMIT = { max: 10, timeWindow: "1 minute" } as const;
 
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 	app.post("/signup", { config: { rateLimit: AUTH_RATE_LIMIT } }, signupHandler);
+	// public: lets the signup form (and the admin page) know whether account creation is open
+	app.get("/signup-status", async () => ({ open: await isSignupOpen() }));
 	app.post("/login", { config: { rateLimit: AUTH_RATE_LIMIT } }, loginHandler);
 	app.post("/logout", logoutHandler);
 	app.get("/oauth/github/callback", oauthCallbackHandler);
@@ -94,6 +97,10 @@ function toAuthResponse(user: User, token: string) {
 
 // signupHandler creates a new user with a hashed/salted password
 async function signupHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	if (!(await isSignupOpen())) {
+		reply.code(403).send({ error: "signup_disabled" });
+		return ;
+	}
 	const input = request.body as Partial<SignupInput> | undefined;
 	const email = typeof input?.email === "string" ? input.email.trim().toLowerCase() : "";
 	const password = typeof input?.password === "string" ? input.password : "";
@@ -184,7 +191,7 @@ async function oauthCallbackHandler(request: FastifyRequest, reply: FastifyReply
 	} catch (err) {
 		if (
 			err instanceof OAuthNotConfiguredError || err instanceof OAuthExchangeError ||
-			err instanceof OAuthStateError || err instanceof OAuthAccountConflictError) {
+			err instanceof OAuthStateError || err instanceof OAuthAccountConflictError || err instanceof OAuthSignupDisabledError) {
 			request.log.warn({ err }, "OAuth callback failed");
 			reply.redirect(`/auth/callback#error=${encodeURIComponent(err.name)}`);
 			return;

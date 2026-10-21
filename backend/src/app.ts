@@ -13,6 +13,7 @@ import fastifyRawBody from "fastify-raw-body";
 
 // Import route handlers
 import { registerHealthRoutes } from "./modules/health/health.routes.js";
+import { registerAdminRoutes } from "./modules/admin/admin.routes.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { initJwtService } from "./modules/auth/jwt.service.js";
 import { initOAuthService } from "./modules/auth/oauth.service.js";
@@ -56,9 +57,12 @@ function registerPlugins(app: FastifyInstance, config: AppConfig): void {
 }
 
 // Register all routes
-function registerRoutes(app: FastifyInstance): void {
+function registerRoutes(app: FastifyInstance, config: AppConfig): void {
 	app.register(registerHealthRoutes, { prefix: "/api" }); // Smoke test — no auth
 	app.register(registerAuthRoutes, { prefix: "/api/auth" }); // Public routes (no auth required)
+	// signup admin page: password from .env, no user account; only mounted when SIGNUP_ADMIN_PASSWORD is usable
+	const adminPassword = config.signupAdminPassword ?? "";
+	app.register(registerAdminRoutes, { prefix: "/api/admin", signupAdminPassword: adminPassword === "change_me" || adminPassword.length < 12 ? "" : adminPassword });
 	app.register(registerGitWebhookRoutes, { prefix: "/api"}); // Webhook routes (HMAC-signed, no JWT)
 
 	// Protected routes (require JWT)
@@ -117,7 +121,7 @@ export function buildApp(config: AppConfig): FastifyInstance {
 	initTokenCrypto(config.oauthTokenEncryptionKey);
 	initApiKeys({ defaultRateLimit: config.publicApiRateLimitDefault });
 	registerPlugins(app, config);
-	registerRoutes(app);
+	registerRoutes(app, config);
 
 	return app;
 }

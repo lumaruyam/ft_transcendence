@@ -40,6 +40,8 @@
         document.getElementById("email")?.focus();
       } else if (err instanceof AuthApiError && err.status === 0) {
         formError = err.message;
+      } else if (err instanceof AuthApiError && err.status === 403 && err.code === "signup_disabled") {
+        formError = "Les inscriptions sont fermées pour le moment.";
       } else if (err instanceof AuthApiError && err.status === 429) {
         formError = "Trop de tentatives. Patientez une minute puis réessayez.";
       } else {

@@ -25,6 +25,8 @@ export interface AppConfig {
 	jwtSecret: string;
 	oauthGithub: OAuthProviderConfig;
 	oauthTokenEncryptionKey: string;
+	// password of the admin page that opens/closes signup (SIGNUP_ADMIN_PASSWORD); empty = page disabled
+	signupAdminPassword: string;
 	gitWebhookSecret: string;
 	publicApiRateLimitDefault: number;
   // rateLimit configures the @fastify/rate-limit plugin registered globally in app.ts.
@@ -104,6 +106,13 @@ export function loadConfig(): AppConfig {
 		}
 	}
 
+	const signupAdminPassword = process.env.SIGNUP_ADMIN_PASSWORD?.trim() ?? "";
+	if (signupAdminPassword !== "" && (signupAdminPassword === "change_me" || signupAdminPassword.length < 12)) {
+		const message = "SIGNUP_ADMIN_PASSWORD is the placeholder (or shorter than 12 characters): the signup admin page is disabled";
+		if (nodeEnv === "production") throw new Error(message);
+		console.warn(`[security] ${message}`);
+	}
+
 	return {
 		nodeEnv,
 		host: optionalEnv("HOST", "0.0.0.0"),
@@ -112,6 +121,7 @@ export function loadConfig(): AppConfig {
 		jwtSecret,
 		oauthGithub: loadGithubOAuthConfig(),
 		oauthTokenEncryptionKey: requireEnv("OAUTH_TOKEN_ENCRYPTION_KEY"),
+		signupAdminPassword: signupAdminPassword,
 		gitWebhookSecret: webhookSecret,
 		publicApiRateLimitDefault: optionalIntEnv("PUBLIC_API_RATE_LIMIT_DEFAULT", 100),
 		rateLimit: {
