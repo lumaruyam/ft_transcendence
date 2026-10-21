@@ -34,6 +34,16 @@ export async function markAllNotificationsRead(): Promise<void> {
   await apiRequest<{ updated: number }>({ method: "PUT", path: "/notifications/read-all" });
 }
 
+// removes every notification of the signed-in user
+export function deleteAllNotifications(): Promise<void> {
+  return apiRequest<void>({ method: "DELETE", path: "/notifications" });
+}
+
+// removes one notification
+export function deleteNotification(id: string): Promise<void> {
+  return apiRequest<void>({ method: "DELETE", path: `/notifications/${id}` });
+}
+
 export function markNotificationRead(id: string): Promise<void> {
   return apiRequest<void>({ method: "PUT", path: `/notifications/${id}/read` });
 }
