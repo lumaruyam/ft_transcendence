@@ -58,7 +58,7 @@ export function generateJwt(userId: string): string {
 // validateJwt parses and verifies a token presented on an incoming request, for use by permissions.middleware.ts.
 export function validateJwt(token: string): JwtClaims {
 	try {
-		const decoded = jwt.verify(token, getSecret());
+		const decoded = jwt.verify(token, getSecret(), { algorithms: ["HS256"] });
 		if (typeof decoded === "string" || typeof decoded.userId !== "string" || typeof decoded.exp !== "number")
 		{
 			throw new JwtInvalidError("unexpected token payload shape");

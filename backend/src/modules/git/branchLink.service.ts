@@ -19,8 +19,8 @@ async function getGitHubToken(userId: string): Promise<string> {
 //to find owner and repo
 export function parseRepoUrl(repoUrl: string): { owner: string; repo: string } {
   const cleaned = repoUrl.trim().replace(/\.git$/, "").replace(/^(https?:\/\/github\.com\/|git@github\.com:)/, "");
-  const [owner, repo] = cleaned.split("/");
-  if (!owner || !repo) {
+  const [owner, repo, ...rest] = cleaned.split("/");
+  if (!owner || !repo || rest.length > 0 || !/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(repo) || /^\.+$/.test(owner) || /^\.+$/.test(repo)) {
     throw new Error(`Invalid GitHub repository URL: ${repoUrl}`);
   }
   return { owner, repo };
@@ -38,7 +38,7 @@ function handleOctokitError(err: unknown, context?: {repo: string; entity?: stri
     throw new Error(`Not found: remote entity or repository ${repoInfo} does not exist`);
   if (status === 422)
     throw new Error(`${entityInfo} already exists or request payload is invalid on GitHub`);
-  throw err;
+  throw new Error("GitHub request failed");
 }
 
 // createBranch creates a new branch on the linked repository via the provider's API.

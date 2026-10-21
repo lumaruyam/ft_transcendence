@@ -83,7 +83,19 @@ ensure_env() {
 # then forge a session token or a webhook. They are generated here; this only replaces the placeholder (or an empty
 # value), so a secret you set yourself is left alone.
 ensure_secrets() {
-  local key value
+  local key value db_password
+  value="$(dotenv_get POSTGRES_PASSWORD)"
+  if [ -z "$value" ] || [ "$value" = "change_me" ]; then
+    if docker volume ls -q | grep -q '_db_data$'; then
+      echo "==> POSTGRES_PASSWORD is the placeholder, but a database already exists with it."
+      echo "    Run '$0 clear' to recreate the database with a random password."
+    else
+      echo "==> Generating POSTGRES_PASSWORD (it was the placeholder)"
+      db_password="$(openssl rand -hex 16)"
+      dotenv_set POSTGRES_PASSWORD "$db_password"
+      dotenv_set DATABASE_URL "postgresql://$(dotenv_get POSTGRES_USER):$db_password@localhost:5432/$(dotenv_get POSTGRES_DB)"
+    fi
+  fi
   for key in JWT_SECRET GIT_WEBHOOK_SECRET; do
     value="$(dotenv_get "$key")"
     if [ -z "$value" ] || [ "$value" = "change_me" ]; then
@@ -168,8 +180,33 @@ start_stack() {
   fi
 }
 
+# the db healthcheck only runs pg_isready, which succeeds even when the volume holds an old database created with
+# another password. Log in through the network address of the service with the credentials of .env: the
+# socket and 127.0.0.1 are trusted by the image and never check the password
+check_db() {
+  local user pass name i out=""
+  user="$(env_value POSTGRES_USER postgres)"
+  pass="$(env_value POSTGRES_PASSWORD "")"
+  name="$(env_value POSTGRES_DB postgres)"
+  echo "==> Checking the database..."
+  for i in $(seq 1 10); do
+    if out="$(PGPASSWORD="$pass" docker compose exec -T -e PGCONNECT_TIMEOUT=3 -e PGPASSWORD db \
+      psql -h db -U "$user" -d "$name" -tAc 'select 1' 2>&1)"; then
+      echo "    Database OK"
+      return 0
+    fi
+    case "$out" in *"authentication failed"*|*"does not exist"*) break ;; esac
+    sleep 2
+  done
+  echo "    Database check FAILED:"
+  echo "$out" | sed 's/^/      /'
+  echo "    The database volume is probably an old one (other password or name than .env)."
+  echo "    Run '$0 clear' then '$0 start' to recreate it from scratch (all data is lost)."
+  return 1
+}
+
 usage() {
-  echo "Usage: $0 {start|stop|restart|reload|clean|oauth} [--no-cache]"
+  echo "Usage: $0 {start|stop|restart|reload|clean|clear|oauth} [--no-cache]"
   echo ""
   echo "  start           — start all containers, building only what changed since the last build"
   echo "  stop            — stop and remove all containers (images are kept)"
@@ -177,6 +214,8 @@ usage() {
   echo "  reload          — rebuild the frontend only and refresh what nginx serves"
   echo "  clean           — delete build leftovers (node_modules, dist, unused image layers)."
   echo "                    Safe while running; images in use and the database are kept"
+  echo "  clear           — stop everything and delete ALL state: database, uploads, served frontend, build stamps."
+  echo "                    .env and certificates are kept. The next start recreates a fresh database"
   echo "  oauth           — (re)enter the GitHub OAuth credentials stored in .env"
   echo ""
   echo "  --no-cache      — rebuild the images from scratch (re-runs npm ci; slow)"
@@ -197,6 +236,7 @@ case "$1" in
     ensure_oauth
     generate_certs
     start_stack
+    check_db
     show_urls
     ;;
 
@@ -211,6 +251,7 @@ case "$1" in
     generate_certs
     docker compose down
     start_stack
+    check_db
     show_urls
     ;;
 
@@ -229,6 +270,13 @@ case "$1" in
     rm -rf "$SCRIPT_DIR"/{backend,frontend}/{node_modules,dist}
     echo "==> Removing unused image layers (images used by containers are kept)..."
     docker image prune -f
+    ;;
+
+  clear)
+    echo "==> Removing containers and volumes (database, uploads, frontend)..."
+    docker compose down -v --remove-orphans
+    rm -f "$STAMP_FILE"
+    echo "==> State cleared. '$0 start' will create a fresh database."
     ;;
 
   oauth)

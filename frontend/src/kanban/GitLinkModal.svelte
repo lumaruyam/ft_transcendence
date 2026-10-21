@@ -12,7 +12,7 @@
   let { store }: { store: BoardStore } = $props();
 
   // same shapes the backend accepts: owner/repo, a github.com URL or an ssh address
-  const REPO = /^(?:https?:\/\/github\.com\/|git@github\.com:)?[\w.-]+\/[\w.-]+?(?:\.git)?\/?$/;
+  const REPO = /^(?:https?:\/\/github\.com\/|git@github\.com:)?(?!\.+\/)[\w.-]+\/(?!\.+(?:\.git)?\/?$)[\w.-]+?(?:\.git)?\/?$/;
   const BRANCH = /^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*\.lock$)(?!\/)(?!.*\/$)[A-Za-z0-9._/-]{1,200}$/;
 
   let dialog: HTMLDialogElement;

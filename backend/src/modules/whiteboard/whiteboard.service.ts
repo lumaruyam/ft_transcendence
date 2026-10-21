@@ -62,6 +62,9 @@ async function mergeAndStore(
 }
 
 export class SceneTooLargeError extends Error {}
+export class FileQuotaError extends Error {}
+
+const MAX_FILES_PER_PROJECT = 30;
 
 function readStoredElements(sceneJson: Prisma.JsonValue | undefined): SceneElement[] {
 	if (typeof sceneJson !== "object" || sceneJson === null || Array.isArray(sceneJson)) return [];
@@ -75,6 +78,15 @@ export async function saveWhiteboardFile(
 	mimeType: string,
 	dataUrl: string,
 ): Promise<void> {
+	const existing = await prisma.whiteboardFile.findUnique({
+		where: { projectId_fileId: { projectId, fileId } },
+		select: { id: true },
+	});
+	if (!existing) {
+		if ((await prisma.whiteboardFile.count({ where: { projectId } })) >= MAX_FILES_PER_PROJECT) {
+			throw new FileQuotaError();
+		}
+	}
 	await prisma.whiteboardFile.upsert({
 		where: { projectId_fileId: { projectId, fileId } },
 		update: {},

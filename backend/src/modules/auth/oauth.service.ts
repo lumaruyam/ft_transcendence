@@ -117,7 +117,7 @@ interface OAuthStateClaims {
 
 // whether the state cookie must carry the Secure flag: true when the app is served over https
 export function isOAuthCookieSecure(): boolean {
-	return getConfig().github.redirectUri.startsWith("https://");
+	return process.env.NODE_ENV === "production" || getConfig().github.redirectUri.startsWith("https://");
 }
 
 function generateState(linkUserId?: string): { state: string; nonce: string } {
