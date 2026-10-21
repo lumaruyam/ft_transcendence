@@ -136,7 +136,7 @@ ask() {
 # First-run questions, so nothing has to be edited by hand in .env: ports, public address, signup admin password.
 # Without a terminal (CI) every default is kept. Also available later as './transcendence setup'.
 ask_setup() {
-  local http https origin mode pass="" cert="" key=""
+  local http https bind origin mode pass="" cert="" key=""
   [ -t 0 ] || return 0
   echo "==> Configuration (Enter keeps the value in brackets)"
   echo "    dev  = relaxed checks, verbose warnings (local work)."
@@ -151,10 +151,19 @@ ask_setup() {
   https="$(ask "HTTPS port" "$(env_value HTTPS_PORT 8443)")"
   dotenv_set HTTP_PORT "$http"
   dotenv_set HTTPS_PORT "$https"
+  echo "    Listen address: 127.0.0.1 = this machine only, 0.0.0.0 = reachable from the Internet (needed for a public server)."
+  bind="$(ask "Listen address" "$([ "$mode" = production ] && echo 0.0.0.0 || echo "$(env_value BIND_ADDRESS 127.0.0.1)")")"
+  dotenv_set BIND_ADDRESS "$bind"
   echo "    Public https address of the app (e.g. https://transcendence.example.com), used for GitHub webhooks."
   echo "    Leave empty for a local install (GitHub cannot reach localhost)."
   origin="$(ask "Public address" "$(dotenv_get WEBHOOK_PUBLIC_URL)")"
   origin="${origin%/}"
+  case "$origin" in
+    "") ;;
+    https://*) ;;
+    http://*) echo "    The address must use https: using https:// instead."; origin="https://${origin#http://}" ;;
+    *) origin="https://$origin" ;;
+  esac
   dotenv_set WEBHOOK_PUBLIC_URL "$origin"
   dotenv_set GITHUB_OAUTH_REDIRECT_URI "${origin:-https://localhost:$https}/api/auth/oauth/github/callback"
   # the backend refuses to start in production without it; in dev it stays open (the Vite dev server)
