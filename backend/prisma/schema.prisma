@@ -374,3 +374,13 @@ model ApiKey {
 
   @@map("api_keys")
 }
+
+// AppSetting maps to `app_settings` — small runtime switches an admin can flip without redeploying
+// (today: "signup_open", see modules/auth/signupGate.ts).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}

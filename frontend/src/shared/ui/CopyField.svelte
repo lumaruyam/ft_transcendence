@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../i18n.svelte";
   import Icon from "./Icon.svelte";
   import { toast } from "../toast.svelte";
 
@@ -11,12 +12,12 @@
     try {
       await navigator.clipboard.writeText(value);
       copied = true;
-      toast("Copié dans le presse-papiers", { kind: "success", duration: 2000 });
+      toast(t("copy.done"), { kind: "success", duration: 2000 });
       setTimeout(() => (copied = false), 2000);
     } catch {
       // clipboard blocked: select the text instead
       input.select();
-      toast("Sélectionné : appuyez sur Ctrl+C pour copier.");
+      toast(t("copy.selected"));
     }
   }
 </script>
@@ -25,7 +26,7 @@
   <input bind:this={input} class="input" readonly {value} aria-label={label} onfocus={(e) => e.currentTarget.select()} />
   <button type="button" class="btn" onclick={copy}>
     <Icon name={copied ? "check" : "copy"} size={16} />
-    {copied ? "Copié" : "Copier"}
+    {copied ? t("copy.copied") : t("copy.copy")}
   </button>
 </div>
 

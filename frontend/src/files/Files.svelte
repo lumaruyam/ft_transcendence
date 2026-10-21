@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
 	// Owner: Track 4 (Whiteboard, notes, and supporting modules)
 	// Responsible for: the project files page
 	import { onMount } from "svelte";
@@ -77,7 +78,7 @@
 	const atMaxChildren = $derived(subfolders.length >= limits.maxSubfolders);
 
 	$effect(() => {
-		document.title = project ? `Fichiers · ${project.name} — Transcendance` : "Fichiers — Transcendance";
+		document.title = project ? `${t("nav.files")} · ${project.name} — Transcendance` : `${t("nav.files")} — Transcendance`;
 	});
 
 	onMount(() => {
@@ -149,7 +150,7 @@
 						problem = [problem, describeUpload(error)].filter(Boolean).join(" ");
 						if (error.status === 403) break;
 					} else {
-						problem = "L'envoi a échoué. Vérifiez votre connexion.";
+						problem = t("files.uploadNetwork");
 						break;
 					}
 				}
@@ -161,11 +162,11 @@
 	}
 
 	function describeUpload(error: UploadError): string {
-		if (error.message === "file_too_large" || error.status === 413) return "Ce fichier dépasse la limite de 10 Mo.";
-		if (error.message === "insufficient_role" || error.status === 403) return "Vous n'avez pas le droit d'ajouter des fichiers.";
-		if (error.message === "network_error") return "L'envoi a échoué. Vérifiez votre connexion.";
-		if (error.message === "invalid_upload") return "Ce type de fichier n'est pas accepté.";
-		return "L'envoi a échoué.";
+		if (error.message === "file_too_large" || error.status === 413) return t("files.tooLarge");
+		if (error.message === "insufficient_role" || error.status === 403) return t("files.noUploadRight");
+		if (error.message === "network_error") return t("files.uploadNetwork");
+		if (error.message === "invalid_upload") return t("files.typeRejected");
+		return t("files.uploadFailed");
 	}
 
 	async function onDownload(attachment: Attachment): Promise<void> {
@@ -173,18 +174,18 @@
 		try {
 			await downloadAttachment(projectId, attachment);
 		} catch {
-			problem = "Le téléchargement a échoué.";
+			problem = t("files.downloadFailed");
 		}
 	}
 
 	async function onDelete(attachment: Attachment): Promise<void> {
 		const ok = await confirmDialog({
-			title: `Supprimer « ${attachment.fileName} » ?`,
+			title: t("list.deleteTitle", { name: attachment.fileName }),
 			message:
 				attachment.cardIds.length > 0
-					? "Le fichier sera supprimé pour tous les membres et retiré des cartes auxquelles il est lié."
-					: "Le fichier sera supprimé pour tous les membres du projet.",
-			confirmLabel: "Supprimer",
+					? t("files.deleteLinked")
+					: t("files.deleteText"),
+			confirmLabel: t("common.delete"),
 			danger: true,
 		});
 		if (!ok) return;
@@ -197,10 +198,10 @@
 		} catch (error) {
 			if (error instanceof ApiError && error.status === 403) {
 				readOnly = true;
-				problem = "Vous n'avez pas le droit de supprimer des fichiers.";
+				problem = t("files.noDeleteRight");
 				return;
 			}
-			problem = "La suppression a échoué.";
+			problem = t("files.deleteFailed");
 		}
 	}
 
@@ -235,9 +236,9 @@
 
 	async function onDeleteFolder(folder: Folder): Promise<void> {
 		const ok = await confirmDialog({
-			title: `Supprimer le dossier « ${folder.name} » ?`,
-			message: "Seul un dossier vide peut être supprimé.",
-			confirmLabel: "Supprimer",
+			title: t("files.deleteFolderTitle", { name: folder.name }),
+			message: t("files.deleteFolderText"),
+			confirmLabel: t("common.delete"),
 			danger: true,
 		});
 		if (!ok) return;
@@ -294,14 +295,14 @@
 	function setClipboard(mode: "copy" | "cut"): void {
 		if (readOnly || !selected) return;
 		clipboard = { ...selected, mode };
-		toast(mode === "copy" ? "Copié" : "Coupé", { duration: 1600 });
+		toast(mode === "copy" ? t("copy.copied") : t("files.cutDone"), { duration: 1600 });
 	}
 
 	async function paste(): Promise<void> {
 		if (readOnly || !clipboard) return;
 		const { mode, ...item } = clipboard;
 		if (mode === "cut" ? !canMoveTo(item, current) : !canCopyTo(item, current)) {
-			toast(mode === "cut" ? "Cet élément est déjà ici." : "Impossible de copier un dossier dans lui-même.", { kind: "error" });
+			toast(mode === "cut" ? t("files.alreadyHere") : t("files.copyIntoItself"), { kind: "error" });
 			return;
 		}
 		if (await transfer(item, current, mode)) {
@@ -366,7 +367,7 @@
 
 	function contents(folder: Folder): string {
 		const count = attachments.filter((row) => row.folderId === folder.id).length + folders.filter((row) => row.parentId === folder.id).length;
-		return count === 0 ? "Vide" : `${count} élément${count > 1 ? "s" : ""}`;
+		return count === 0 ? t("files.emptyFolder") : count > 1 ? t("files.items", { n: count }) : t("files.item");
 	}
 
 	function clipboardName(): string {
@@ -393,27 +394,27 @@
 	<header class="title">
 		<div class="heading">
 			<span class="badge"><Icon name="folder" size={20} /></span>
-			<h1>Fichiers</h1>
+			<h1>{t("nav.files")}</h1>
 		</div>
 		{#if !readOnly}
 			<div class="buttons">
 				{#if clipboard}
-					<button type="button" class="btn btn-ghost btn-sm" title={`Coller « ${clipboardName()} » ici (Ctrl+V)`} onclick={() => void paste()}>
-						<Icon name="copy" size={15} /> Coller
+					<button type="button" class="btn btn-ghost btn-sm" title={t("files.pasteHint", { name: clipboardName() })} onclick={() => void paste()}>
+						<Icon name="copy" size={15} /> {t("files.paste")}
 					</button>
 				{/if}
 				<button
 					type="button"
 					class="btn btn-ghost btn-sm"
 					disabled={atMaxDepth || atMaxChildren}
-					title={atMaxDepth ? `Profondeur maximale atteinte (${limits.maxDepth} niveaux)` : atMaxChildren ? `Maximum de ${limits.maxSubfolders} sous-dossiers atteint` : ""}
+					title={atMaxDepth ? t("folders.maxDepth", { n: limits.maxDepth }) : atMaxChildren ? t("files.maxChildren", { n: limits.maxSubfolders }) : ""}
 					onclick={() => ((creating = true), (newName = ""))}
 				>
-					<Icon name="folder" size={15} /> Nouveau dossier
+					<Icon name="folder" size={15} /> {t("files.newFolder")}
 				</button>
 				<label class="btn btn-primary btn-sm upload">
 					<Icon name="plus" size={15} />
-					<span>{busy ? "Envoi…" : "Ajouter des fichiers"}</span>
+					<span>{busy ? t("files.sending") : t("files.add")}</span>
 					<input type="file" multiple accept={UPLOAD_ACCEPT} onchange={onPick} disabled={busy} />
 				</label>
 			</div>
@@ -425,34 +426,34 @@
 	{#if upload}
 		<div class="progress" role="status">
 			<div class="progress-label">
-				<span class="progress-name">Envoi de « {upload.name} »{upload.count > 1 ? ` · ${upload.index} sur ${upload.count}` : ""}</span>
+				<span class="progress-name">{t("files.sendingName", { name: upload.name })}{upload.count > 1 ? ` · ${t("files.nOfM", { n: upload.index, m: upload.count })}` : ""}</span>
 				<span>{Math.round(upload.ratio * 100)} %</span>
 			</div>
-			<progress max="100" value={Math.round(upload.ratio * 100)} aria-label={`Progression de l'envoi de ${upload.name}`}></progress>
+			<progress max="100" value={Math.round(upload.ratio * 100)} aria-label={t("files.progress", { name: upload.name })}></progress>
 		</div>
 	{/if}
 
 	{#if problem}
 		<p class="problem" role="alert">{problem}</p>
 	{:else if !readOnly && !upload}
-		<p class="hint limits">Images, PDF, texte, Markdown, JSON ou ZIP · 10 Mo maximum par fichier.</p>
+		<p class="hint limits">{t("files.limits")}</p>
 	{/if}
 
 	{#if loadFailed}
-		<p class="empty">Impossible de charger les fichiers. Rechargez la page.</p>
+		<p class="empty">{t("files.loadFailed")}</p>
 	{:else if loaded && !creating && subfolders.length === 0 && visible.length === 0}
-		<p class="empty">{current === null ? "Aucun fichier pour l'instant." : "Ce dossier est vide."}</p>
+		<p class="empty">{current === null ? t("files.empty") : t("files.folderEmpty")}</p>
 	{:else}
 		<TileGrid fixed>
 			{#if creating}
-				<Tile label="Nouveau dossier">
-					<span class="type folder-type"><Icon name="folder" size={12} /> DOSSIER</span>
+				<Tile label={t("files.newFolder")}>
+					<span class="type folder-type"><Icon name="folder" size={12} /> {t("files.folderBadge")}</span>
 					<form class="new" onsubmit={(event) => (event.preventDefault(), void onCreateFolder())}>
 						<input
 							bind:value={newName}
 							maxlength="100"
-							placeholder="Nom du dossier"
-							aria-label="Nom du nouveau dossier"
+							placeholder={t("files.folderName")}
+							aria-label={t("files.newFolderName")}
 							use:focusOnMount
 							onblur={() => void onCreateFolder()}
 							onkeydown={(event) => event.key === "Escape" && ((newName = ""), (creating = false))}
@@ -464,7 +465,7 @@
 			{#each subfolders as folder (folder.id)}
 				{@const item = { kind: "folder", id: folder.id } as const}
 				<Tile
-					label={`Dossier ${folder.name}`}
+					label={t("files.folderLabel", { name: folder.name })}
 					selected={selected?.id === folder.id}
 					faded={clipboard?.mode === "cut" && clipboard.id === folder.id}
 					dropActive={dropOver === folder.id}
@@ -476,13 +477,13 @@
 					ondragleave={() => (dropOver = null)}
 					ondrop={(event) => (event.preventDefault(), void dropOnto(folder.id))}
 				>
-					<span class="type folder-type"><Icon name="folder" size={12} /> DOSSIER</span>
+					<span class="type folder-type"><Icon name="folder" size={12} /> {t("files.folderBadge")}</span>
 					{#if renamingId === folder.id}
 						<input
 							class="rename"
 							bind:value={renameDraft}
 							maxlength="100"
-							aria-label="Nom du dossier"
+							aria-label={t("files.folderName")}
 							use:focusOnMount
 							onblur={() => void onRename(folder)}
 							onkeydown={(event) => {
@@ -495,12 +496,12 @@
 					{/if}
 					<div class="foot"><span class="meta">{contents(folder)}</span></div>
 					{#snippet actions()}
-						<button type="button" class="icon" title="Ouvrir" aria-label="Ouvrir le dossier" onclick={() => openFolder(folder.id)}><Icon name="arrowRight" size={14} /></button>
+						<button type="button" class="icon" title={t("common.open")} aria-label={t("files.openFolder")} onclick={() => openFolder(folder.id)}><Icon name="arrowRight" size={14} /></button>
 						{#if !readOnly}
-							<button type="button" class="icon" title="Renommer" aria-label="Renommer le dossier" onclick={() => ((renamingId = folder.id), (renameDraft = folder.name))}><Icon name="pencil" size={14} /></button>
-							<button type="button" class="icon" title="Copier" aria-label="Copier le dossier" onclick={() => ((selected = item), setClipboard("copy"))}><Icon name="copy" size={14} /></button>
-							<button type="button" class="icon" title="Couper" aria-label="Couper le dossier" onclick={() => ((selected = item), setClipboard("cut"))}><Icon name="cut" size={14} /></button>
-							<button type="button" class="icon" title="Supprimer" aria-label="Supprimer le dossier" onclick={() => void onDeleteFolder(folder)}><Icon name="trash" size={14} /></button>
+							<button type="button" class="icon" title={t("common.rename")} aria-label={t("files.renameFolder")} onclick={() => ((renamingId = folder.id), (renameDraft = folder.name))}><Icon name="pencil" size={14} /></button>
+							<button type="button" class="icon" title={t("copy.copy")} aria-label={t("files.copyFolder")} onclick={() => ((selected = item), setClipboard("copy"))}><Icon name="copy" size={14} /></button>
+							<button type="button" class="icon" title={t("files.cut")} aria-label={t("files.cutFolder")} onclick={() => ((selected = item), setClipboard("cut"))}><Icon name="cut" size={14} /></button>
+							<button type="button" class="icon" title={t("common.delete")} aria-label={t("files.deleteFolder")} onclick={() => void onDeleteFolder(folder)}><Icon name="trash" size={14} /></button>
 						{/if}
 					{/snippet}
 				</Tile>
@@ -509,7 +510,7 @@
 			{#each visible as attachment (attachment.id)}
 				{@const item = { kind: "file", id: attachment.id } as const}
 				<Tile
-					label={`${isPreviewable(attachment) ? "Aperçu de" : "Télécharger"} ${attachment.fileName}`}
+					label={isPreviewable(attachment) ? t("docs.previewOf", { name: attachment.fileName }) : t("files.downloadName", { name: attachment.fileName })}
 					selected={selected?.id === attachment.id}
 					faded={clipboard?.mode === "cut" && clipboard.id === attachment.id}
 					onselect={() => (selected = item)}
@@ -529,18 +530,18 @@
 					<div class="foot">
 						<span class="meta">{humanSize(attachment.fileSize)}</span>
 						{#if attachment.cardIds.length > 0}
-							<span class="chip" title="Cartes liées">{attachment.cardIds.length} carte{attachment.cardIds.length > 1 ? "s" : ""}</span>
+							<span class="chip" title={t("notes.linkedCards")}>{attachment.cardIds.length > 1 ? t("board.cards", { n: attachment.cardIds.length }) : t("board.card", { n: attachment.cardIds.length })}</span>
 						{/if}
 					</div>
 					{#snippet actions()}
 						{#if isPreviewable(attachment)}
-							<button type="button" class="icon" title="Aperçu" aria-label="Aperçu du fichier" onclick={() => (previewId = attachment.id)}><Icon name="eye" size={14} /></button>
+							<button type="button" class="icon" title={t("files.preview")} aria-label={t("files.previewFile")} onclick={() => (previewId = attachment.id)}><Icon name="eye" size={14} /></button>
 						{/if}
-						<button type="button" class="icon" title="Télécharger" aria-label="Télécharger le fichier" onclick={() => void onDownload(attachment)}><Icon name="arrowRight" size={14} /></button>
+						<button type="button" class="icon" title={t("files.download")} aria-label={t("files.downloadFile")} onclick={() => void onDownload(attachment)}><Icon name="arrowRight" size={14} /></button>
 						{#if !readOnly}
-							<button type="button" class="icon" title="Copier" aria-label="Copier le fichier" onclick={() => ((selected = item), setClipboard("copy"))}><Icon name="copy" size={14} /></button>
-							<button type="button" class="icon" title="Couper" aria-label="Couper le fichier" onclick={() => ((selected = item), setClipboard("cut"))}><Icon name="cut" size={14} /></button>
-							<button type="button" class="icon" title="Supprimer" aria-label="Supprimer le fichier" onclick={() => void onDelete(attachment)}><Icon name="trash" size={14} /></button>
+							<button type="button" class="icon" title={t("copy.copy")} aria-label={t("files.copyFile")} onclick={() => ((selected = item), setClipboard("copy"))}><Icon name="copy" size={14} /></button>
+							<button type="button" class="icon" title={t("files.cut")} aria-label={t("files.cutFile")} onclick={() => ((selected = item), setClipboard("cut"))}><Icon name="cut" size={14} /></button>
+							<button type="button" class="icon" title={t("common.delete")} aria-label={t("files.deleteFile")} onclick={() => void onDelete(attachment)}><Icon name="trash" size={14} /></button>
 						{/if}
 					{/snippet}
 				</Tile>

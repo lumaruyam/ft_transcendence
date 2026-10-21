@@ -1,31 +1,32 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import { theme, setThemePref, type ThemePref } from "../theme.svelte";
+  import { t, type MessageKey } from "../i18n.svelte";
 
   let { compact = false }: { compact?: boolean } = $props();
 
-  const OPTIONS: { value: ThemePref; label: string; icon: string }[] = [
-    { value: "system", label: "Auto", icon: "monitor" },
-    { value: "light", label: "Clair", icon: "sun" },
-    { value: "dark", label: "Sombre", icon: "moon" },
+  const OPTIONS: { value: ThemePref; label: MessageKey; icon: string }[] = [
+    { value: "system", label: "theme.system", icon: "monitor" },
+    { value: "light", label: "theme.light", icon: "sun" },
+    { value: "dark", label: "theme.dark", icon: "moon" },
   ];
 </script>
 
-<div class="switch" class:compact role="radiogroup" aria-label="Thème">
+<div class="switch" class:compact role="radiogroup" aria-label={t("theme.label")}>
   {#each OPTIONS as option (option.value)}
     <button
       type="button"
       role="radio"
       aria-checked={theme.pref === option.value}
       class:active={theme.pref === option.value}
-      title={option.value === "system" ? "Suit le réglage de votre navigateur" : option.label}
+      title={option.value === "system" ? t("theme.systemHint") : t(option.label)}
       onclick={(event) => {
         const box = event.currentTarget.getBoundingClientRect();
         setThemePref(option.value, { x: box.left + box.width / 2, y: box.top + box.height / 2 });
       }}
     >
       <Icon name={option.icon} size={15} />
-      {#if !compact}<span>{option.label}</span>{/if}
+      {#if !compact}<span>{t(option.label)}</span>{/if}
     </button>
   {/each}
 </div>

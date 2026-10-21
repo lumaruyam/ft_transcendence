@@ -1,5 +1,6 @@
 <!-- Polls /api/health and reloads when the backend is back. -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import CenterPage from "../shared/ui/CenterPage.svelte";
 
   let attempts = $state(0);
@@ -25,18 +26,21 @@
     const timer = setInterval(check, 5000);
     return () => clearInterval(timer);
   });
+  $effect(() => {
+    document.title = `${t("down.pageTitle")} · Transcendance`;
+  });
 </script>
 
 <CenterPage>
   <div class="mark" aria-hidden="true"><span class="pulse"></span></div>
-  <h1>Le service reprend son souffle</h1>
-  <p>Nous n'arrivons pas à joindre le serveur. Vos données sont en sécurité — cette page se rechargera d'elle-même dès que tout est rétabli.</p>
+  <h1>{t("down.title")}</h1>
+  <p>{t("down.text")}</p>
   <div class="actions">
     <button type="button" class="btn btn-primary" disabled={checking} onclick={check}>
-      {#if checking}<span class="spinner"></span> Vérification…{:else}Réessayer maintenant{/if}
+      {#if checking}<span class="spinner"></span> {t("down.checking")}{:else}{t("down.retry")}{/if}
     </button>
   </div>
-  {#if attempts > 0}<p class="faint">Tentative {attempts} — nouvelle vérification dans quelques secondes.</p>{/if}
+  {#if attempts > 0}<p class="faint">{t("down.attempt", { n: attempts })}</p>{/if}
 </CenterPage>
 
 <style>

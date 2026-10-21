@@ -1,6 +1,7 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
      Responsible for: the kanban page shell: header, toolbar and board. -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { onMount } from "svelte";
   import AppHeader from "../shared/ui/AppHeader.svelte";
   import Icon from "../shared/ui/Icon.svelte";
@@ -54,7 +55,7 @@
   });
 
   $effect(() => {
-    document.title = store.project ? `${store.project.name} · Tableau — Transcendance` : "Tableau — Transcendance";
+    document.title = store.project ? `${store.project.name} · ${t("nav.board")} — Transcendance` : `${t("nav.board")} — Transcendance`;
   });
 
   const cardCount = $derived(store.board?.lists.reduce((n, l) => n + l.cards.length, 0) ?? 0);
@@ -72,18 +73,18 @@
     <div class="banner error" role="alert">
       <Icon name="alert" size={16} />
       <span>{store.actionError}</span>
-      <button type="button" class="icon-btn" aria-label="Fermer" onclick={() => store.dismissError()}><Icon name="x" size={16} /></button>
+      <button type="button" class="icon-btn" aria-label={t("common.close")} onclick={() => store.dismissError()}><Icon name="x" size={16} /></button>
     </div>
   {/if}
 
   {#if !store.connected && store.loadState === "ready" && !store.accessDenied}
     <div class="banner warn" role="status" aria-live="polite">
       <Icon name="wifiOff" size={16} />
-      <span>Connexion perdue : reconnexion en cours. Les changements des autres n'apparaissent plus, et le tableau se met à jour dès le retour de la connexion.</span>
+      <span>{t("board.offline")}</span>
     </div>
   {/if}
 
-  <LoadStage {gate} label="Chargement du tableau…">
+  <LoadStage {gate} label={t("board.loading")}>
     {#snippet skeleton()}
       <BoardSkeleton />
     {/snippet}
@@ -92,23 +93,23 @@
         <div class="state">
           <div class="state-icon"><Icon name="lock" size={26} /></div>
           {#if store.accessLostReason === "deleted"}
-            <h2>Ce projet a été supprimé</h2>
-            <p>Un administrateur vient de le supprimer : il n'est plus accessible.</p>
+            <h2>{t("board.deletedTitle")}</h2>
+            <p>{t("board.deletedText")}</p>
           {:else if store.accessLostReason === "removed"}
-            <h2>Vous ne faites plus partie de ce projet</h2>
-            <p>Un administrateur vous a retiré du projet. Demandez un nouveau lien d'invitation si c'est une erreur.</p>
+            <h2>{t("board.removedTitle")}</h2>
+            <p>{t("board.removedText")}</p>
           {:else}
-            <h2>Vous n'avez pas accès à ce projet</h2>
-            <p>Il n'existe peut-être plus, ou vous n'en faites pas partie. Demandez un lien d'invitation à un administrateur.</p>
+            <h2>{t("board.noAccessTitle")}</h2>
+            <p>{t("board.noAccessText")}</p>
           {/if}
-          <a class="btn btn-primary" href="/app">Retour à mes projets</a>
+          <a class="btn btn-primary" href="/app">{t("common.backToProjects")}</a>
         </div>
       {:else if store.loadState === "error"}
         <div class="state">
           <div class="state-icon"><Icon name="wifiOff" size={26} /></div>
-          <h2>Impossible de charger le tableau</h2>
-          <p>Vérifiez votre connexion, puis réessayez.</p>
-          <button type="button" class="btn btn-primary" onclick={() => void store.load()}>Réessayer</button>
+          <h2>{t("board.loadFailed")}</h2>
+          <p>{t("common.checkConnection")}</p>
+          <button type="button" class="btn btn-primary" onclick={() => void store.load()}>{t("common.retry")}</button>
         </div>
       {:else}
         <div class="toolbar">
@@ -117,22 +118,22 @@
             <input
               type="search"
               bind:value={store.filter}
-              placeholder="Filtrer par texte ou étiquette…"
-              aria-label="Filtrer les cartes du tableau"
+              placeholder={t("board.filter")}
+              aria-label={t("board.filterLabel")}
               onkeydown={(e) => e.key === "Escape" && (store.filter = "")}
             />
             {#if filtering}
-              <button type="button" class="clear" aria-label="Effacer le filtre" onclick={() => (store.filter = "")}><Icon name="x" size={14} /></button>
+              <button type="button" class="clear" aria-label={t("board.clearFilter")} onclick={() => (store.filter = "")}><Icon name="x" size={14} /></button>
             {/if}
           </div>
           {#if filtering}
-            <span class="count">Glisser-déposer désactivé pendant le filtrage</span>
+            <span class="count">{t("board.dragDisabled")}</span>
           {:else}
-            <span class="count">{cardCount} carte{cardCount > 1 ? "s" : ""}</span>
+            <span class="count">{cardCount > 1 ? t("board.cards", { n: cardCount }) : t("board.card", { n: cardCount })}</span>
           {/if}
           <span class="spacer"></span>
           {#if !store.canEdit}
-            <span class="chip" title="Votre rôle ne permet pas de modifier le tableau"><Icon name="eye" size={13} /> Lecture seule</span>
+            <span class="chip" title={t("board.readOnlyHint")}><Icon name="eye" size={13} /> {t("board.readOnly")}</span>
           {/if}
         </div>
         <Board {store} />

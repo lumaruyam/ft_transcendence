@@ -1,31 +1,35 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import AuthLayout from "../auth/AuthLayout.svelte";
   import { startOAuthLogin } from "../auth/oauthFlow";
   import Icon from "../shared/ui/Icon.svelte";
+  $effect(() => {
+    document.title = `${t("forgot.title")} · Transcendance`;
+  });
 </script>
 
 <AuthLayout>
   <div class="box">
     <header>
-      <h1>Mot de passe oublié</h1>
-      <p class="sub">La réinitialisation par e-mail n'est pas encore disponible sur cette instance.</p>
+      <h1>{t("forgot.title")}</h1>
+      <p class="sub">{t("forgot.sub")}</p>
     </header>
 
     <div class="alert alert-info">
       <Icon name="info" size={17} />
-      <span>Vos mots de passe ne sont jamais lisibles, même par nous : nous ne pouvons pas vous les renvoyer.</span>
+      <span>{t("forgot.info")}</span>
     </div>
 
-    <p class="help">Deux solutions pour retrouver l'accès :</p>
+    <p class="help">{t("forgot.help")}</p>
     <ul>
-      <li>Si votre compte est lié à GitHub, connectez-vous avec GitHub.</li>
-      <li>Sinon, demandez à la personne qui administre cette instance de vous aider.</li>
+      <li>{t("forgot.github")}</li>
+      <li>{t("forgot.admin")}</li>
     </ul>
 
     <button type="button" class="btn btn-block" onclick={() => startOAuthLogin()}>
-      <Icon name="github" size={18} /> Continuer avec GitHub
+      <Icon name="github" size={18} /> {t("auth.github")}
     </button>
-    <a class="btn btn-ghost btn-block" href="/login"><Icon name="arrowLeft" size={16} /> Retour à la connexion</a>
+    <a class="btn btn-ghost btn-block" href="/login"><Icon name="arrowLeft" size={16} /> {t("auth.backToLogin")}</a>
   </div>
 </AuthLayout>
 

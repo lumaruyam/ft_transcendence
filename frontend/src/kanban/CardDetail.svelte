@@ -1,6 +1,7 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
      Responsible for: the card dialog: title, description (autosaved), list, git info and delete. -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { toast } from "../shared/toast.svelte";
   import { formatDateTime, timeAgo } from "../shared/format";
   import Icon from "../shared/ui/Icon.svelte";
@@ -97,9 +98,9 @@
     const url = `${location.origin}/app/${store.project.id}?card=${open.card.id}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast("Lien de la carte copié", { kind: "success" });
+      toast(t("card.linkCopied"), { kind: "success" });
     } catch {
-      toast("Copie impossible : copiez l'adresse depuis la barre du navigateur.", { kind: "error" });
+      toast(t("card.copyFailed"), { kind: "error" });
     }
   }
 
@@ -110,8 +111,8 @@
     }
   }
 
-  const PR_LABELS: Record<string, string> = { open: "PR ouverte", merged: "PR fusionnée" };
-  const prLabel = $derived(PR_LABELS[open?.card.gitLink?.prStatus ?? ""] ?? null);
+  const prStatus = $derived(open?.card.gitLink?.prStatus);
+  const prLabel = $derived(prStatus === "open" ? t("git.prOpen") : prStatus === "merged" ? t("git.prMerged") : null);
   // link to the branch on GitHub (the repo URL is normalized by the backend)
   const branchUrl = $derived(
     open?.card.gitLink ? safeUrl(`${open.card.gitLink.repoUrl}/tree/${encodeURIComponent(open.card.gitLink.branchName).replace(/%2F/g, "/")}`) : null
@@ -131,7 +132,7 @@
 <dialog
   class="modal"
   bind:this={dialog}
-  aria-label="Détail de la carte"
+  aria-label={t("card.detail")}
   oncancel={(event) => {
     // Escape: save first, then close
     event.preventDefault();
@@ -145,12 +146,12 @@
 >
   {#if open}
     <div class="head">
-      <span class="where">Dans la liste <strong>{open.list.title}</strong></span>
+      <span class="where">{t("card.inList")} <strong>{open.list.title}</strong></span>
       <div class="head-actions">
-        <button type="button" class="icon-btn" aria-label="Copier le lien de la carte" title="Copier le lien" onclick={copyLink}>
+        <button type="button" class="icon-btn" aria-label={t("card.copyLinkLabel")} title={t("card.copyLink")} onclick={copyLink}>
           <Icon name="link" size={17} />
         </button>
-        <button type="button" class="icon-btn" aria-label="Fermer" onclick={close}><Icon name="x" size={18} /></button>
+        <button type="button" class="icon-btn" aria-label={t("common.close")} onclick={close}><Icon name="x" size={18} /></button>
       </div>
     </div>
 
@@ -160,16 +161,16 @@
           large
           value={open.card.title}
           editable={store.canEdit}
-          label="Titre de la carte"
+          label={t("card.title")}
           maxlength={200}
           onsave={(title) => store.editCard(open.card.id, { title })}
         />
 
         <div class="field">
           <div class="label-row">
-            <label for="card-description">Description</label>
+            <label for="card-description">{t("card.description")}</label>
             <span class="save" aria-live="polite">
-              {#if saveState === "saving"}Enregistrement…{:else if saveState === "saved"}<Icon name="check" size={13} /> Enregistré{:else if dirty && store.canEdit}Modifications non enregistrées{/if}
+              {#if saveState === "saving"}{t("common.saving")}{:else if saveState === "saved"}<Icon name="check" size={13} /> {t("common.saved")}{:else if dirty && store.canEdit}{t("common.unsaved")}{/if}
             </span>
           </div>
           <textarea
@@ -179,13 +180,13 @@
             maxlength={DESCRIPTION_MAX}
             readonly={!store.canEdit}
             rows="7"
-            placeholder={store.canEdit ? "Ajoutez du contexte, des liens, des critères d'acceptation…" : "Aucune description."}
+            placeholder={store.canEdit ? t("card.descriptionPlaceholder") : t("card.noDescription")}
             oninput={() => (typing = true)}
             onblur={() => void save()}
             onkeydown={onKeydownInDescription}
           ></textarea>
-          {#if store.canEdit && description.length > DESCRIPTION_MAX * 0.9}<span class="hint">{description.length} / {DESCRIPTION_MAX} caractères</span>{/if}
-          {#if store.canEdit}<span class="hint">Enregistrement automatique · <kbd>Ctrl</kbd> + <kbd>Entrée</kbd> pour enregistrer tout de suite</span>{/if}
+          {#if store.canEdit && description.length > DESCRIPTION_MAX * 0.9}<span class="hint">{t("card.charCount", { n: description.length, max: DESCRIPTION_MAX })}</span>{/if}
+          {#if store.canEdit}<span class="hint">{t("card.autosave")} · <kbd>Ctrl</kbd> + <kbd>{t("card.enterKey")}</kbd> {t("card.saveNow")}</span>{/if}
         </div>
 
         {#if store.project}
@@ -209,7 +210,7 @@
               </div>
               {#if open.card.gitLink}<div class="repo selectable">{open.card.gitLink.repoUrl.replace("https://github.com/", "")}</div>{/if}
             {:else if store.canEdit}
-              <span class="none">Aucune branche liée.</span>
+              <span class="none">{t("git.noBranch")}</span>
             {/if}
             {#if safeUrl(open.card.linkedPrUrl)}
               <a class="git-row" href={safeUrl(open.card.linkedPrUrl)} target="_blank" rel="noopener noreferrer">
@@ -220,10 +221,10 @@
               <div class="git-actions">
                 <button type="button" class="btn btn-ghost btn-sm" onclick={() => (store.gitCardId = open.card.id)}>
                   <Icon name={open.card.linkedBranch ? "pencil" : "plus"} size={14} />
-                  {open.card.linkedBranch ? "Modifier" : "Lier une branche"}
+                  {open.card.linkedBranch ? t("common.edit") : t("git.linkBranch")}
                 </button>
                 {#if open.card.gitLink}
-                  <button type="button" class="btn btn-ghost btn-sm" onclick={() => void store.unlinkBranch(open.card.id)}>Retirer</button>
+                  <button type="button" class="btn btn-ghost btn-sm" onclick={() => void store.unlinkBranch(open.card.id)}>{t("common.remove")}</button>
                 {/if}
               </div>
             {/if}
@@ -233,7 +234,7 @@
 
       <aside class="side">
         <div class="field">
-          <label for="card-list">Liste</label>
+          <label for="card-list">{t("card.list")}</label>
           <select id="card-list" class="input" value={open.list.id} disabled={!store.canEdit} onchange={onMove}>
             {#each store.board?.lists ?? [] as list (list.id)}
               <option value={list.id}>{list.title}</option>
@@ -242,7 +243,7 @@
         </div>
 
         <div class="field">
-          <span class="label">Étiquettes</span>
+          <span class="label">{t("tags.title")}</span>
           {#if open.card.tags?.length}
             <div class="tag-list">
               {#each open.card.tags as tag (tag.id)}<TagChip {tag} />{/each}
@@ -251,29 +252,29 @@
           {#if store.canEdit}
             <button type="button" class="btn btn-ghost btn-sm tag-btn" onclick={() => (tagsOpen = true)}>
               <Icon name={open.card.tags?.length ? "pencil" : "plus"} size={14} />
-              {open.card.tags?.length ? "Modifier" : "Ajouter"}
+              {open.card.tags?.length ? t("common.edit") : t("common.add")}
             </button>
           {:else if !open.card.tags?.length}
-            <span class="none">Aucune</span>
+            <span class="none">{t("tags.none")}</span>
           {/if}
         </div>
 
         {#if open.card.status && open.card.status.toLowerCase() !== "todo"}
           <div class="field">
-            <span class="label">Statut</span>
+            <span class="label">{t("card.status")}</span>
             <span class="chip chip-accent status">{open.card.status}</span>
           </div>
         {/if}
 
         <div class="dates">
-          {#if open.card.createdAt}<div><Icon name="clock" size={14} /> Créée le {formatDateTime(open.card.createdAt)}</div>{/if}
-          {#if open.card.updatedAt && open.card.updatedAt !== open.card.createdAt}<div>Modifiée {timeAgo(open.card.updatedAt)}</div>{/if}
+          {#if open.card.createdAt}<div><Icon name="clock" size={14} /> {t("card.createdOn", { date: formatDateTime(open.card.createdAt) })}</div>{/if}
+          {#if open.card.updatedAt && open.card.updatedAt !== open.card.createdAt}<div>{t("card.updated", { ago: timeAgo(open.card.updatedAt) })}</div>{/if}
         </div>
 
         {#if store.canEdit}
-          <button type="button" class="btn btn-danger btn-sm del" onclick={onDelete}><Icon name="trash" size={15} /> Supprimer</button>
+          <button type="button" class="btn btn-danger btn-sm del" onclick={onDelete}><Icon name="trash" size={15} /> {t("common.delete")}</button>
         {:else}
-          <div class="chip">Lecture seule</div>
+          <div class="chip">{t("board.readOnly")}</div>
         {/if}
       </aside>
     </div>

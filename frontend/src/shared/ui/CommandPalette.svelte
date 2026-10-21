@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../i18n.svelte";
   import Icon from "./Icon.svelte";
   import { searchProject } from "../../api/accountApi";
   import type { SearchResult } from "../../api/types";
@@ -28,17 +29,17 @@
 
   // pages disabled in features.ts are hidden
   const navigation: Entry[] = $derived([
-    { key: "board", label: "Tableau", icon: "columns", run: () => go(base) },
-    ...(isPageEnabled("notes") ? [{ key: "notes", label: "Notes", icon: "note", run: () => go(`${base}/notes`) }] : []),
-    ...(isPageEnabled("whiteboard") ? [{ key: "whiteboard", label: "Tableau blanc", icon: "board", run: () => go(`${base}/whiteboard`) }] : []),
-    { key: "files", label: "Fichiers", icon: "folder", run: () => go(`${base}/files`) },
-    { key: "search", label: "Recherche avancée", hint: "Filtres, tri, pages", icon: "search", run: () => go(searchHref()) },
-    { key: "settings", label: "Réglages du projet", icon: "settings", run: () => go(`${base}/settings`) },
-    { key: "projects", label: "Tous mes projets", icon: "folder", run: () => go("/app") },
+    { key: "board", label: t("nav.board"), icon: "columns", run: () => go(base) },
+    ...(isPageEnabled("notes") ? [{ key: "notes", label: t("nav.notes"), icon: "note", run: () => go(`${base}/notes`) }] : []),
+    ...(isPageEnabled("whiteboard") ? [{ key: "whiteboard", label: t("nav.whiteboard"), icon: "board", run: () => go(`${base}/whiteboard`) }] : []),
+    { key: "files", label: t("nav.files"), icon: "folder", run: () => go(`${base}/files`) },
+    { key: "search", label: t("palette.advancedSearch"), hint: t("palette.advancedHint"), icon: "search", run: () => go(searchHref()) },
+    { key: "settings", label: t("palette.projectSettings"), icon: "settings", run: () => go(`${base}/settings`) },
+    { key: "projects", label: t("palette.allProjects"), icon: "folder", run: () => go("/app") },
     {
       key: "theme",
-      label: "Changer de thème",
-      hint: theme.pref === "system" ? "Auto" : theme.pref === "light" ? "Clair" : "Sombre",
+      label: t("palette.changeTheme"),
+      hint: t(`theme.${theme.pref}`),
       icon: "sun",
       run: () => cycleTheme(),
     },
@@ -53,7 +54,7 @@
   const entries: Entry[] = $derived.by(() => {
     if (!trimmed) return navigation;
     const matching = navigation.filter((e) => e.key !== "search" && e.label.toLowerCase().includes(trimmed.toLowerCase()));
-    const advanced: Entry = { key: "search", label: `Tous les résultats pour « ${trimmed} »`, hint: "Recherche avancée", icon: "search", run: () => go(searchHref()) };
+    const advanced: Entry = { key: "search", label: t("palette.allResults", { q: trimmed }), hint: t("palette.advancedSearch"), icon: "search", run: () => go(searchHref()) };
     const found: Entry[] = results.map((r) => ({
       key: `${r.entityType}:${r.entityId}`,
       label: r.title,
@@ -147,7 +148,7 @@
 <dialog
   class="modal"
   bind:this={dialog}
-  aria-label="Recherche et navigation"
+  aria-label={t("palette.label")}
   onclose={() => (open = false)}
   onclick={(event) => {
     if (event.target === dialog) open = false;
@@ -159,8 +160,8 @@
       bind:this={input}
       bind:value={query}
       onkeydown={onKeydown}
-      placeholder="Rechercher une carte, une note… ou aller à"
-      aria-label="Rechercher"
+      placeholder={t("palette.placeholder")}
+      aria-label={t("nav.search")}
       role="combobox"
       aria-expanded="true"
       aria-controls="pal-list"
@@ -168,7 +169,7 @@
       autocomplete="off"
       spellcheck="false"
     />
-    {#if searching}<span class="spinner"></span>{:else}<kbd>Échap</kbd>{/if}
+    {#if searching}<span class="spinner"></span>{:else}<kbd>{t("palette.esc")}</kbd>{/if}
   </div>
 
   <ul id="pal-list" role="listbox">
@@ -189,7 +190,7 @@
     {/each}
     {#if trimmed && !searching && results.length === 0}
       <li class="empty" role="presentation">
-        {searchFailed ? "La recherche a échoué. Réessayez." : `Aucun résultat pour « ${trimmed} ».`}
+        {searchFailed ? t("palette.failed") : t("palette.noResult", { q: trimmed })}
       </li>
     {/if}
   </ul>

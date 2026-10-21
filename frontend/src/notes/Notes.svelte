@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
 	// Owner: Track 4 (Whiteboard, notes, and supporting modules)
 	// Responsible for: one note with its live collaborative editor
 	import { onMount, onDestroy } from "svelte";
@@ -35,7 +36,7 @@
 	const backUrl = $derived(`/app/${projectId}/notes`);
 
 	$effect(() => {
-		document.title = `${title || "Note"} · ${project?.name ?? "Notes"} — Transcendance`;
+		document.title = `${title || t("notes.note")} · ${project?.name ?? t("nav.notes")} — Transcendance`;
 	});
 
 	onMount(() => {
@@ -46,7 +47,7 @@
 			.then((note) => {
 				title = savedTitle = note.title;
 			})
-			.catch(() => (failure = "Cette note n'existe pas ou vous n'y avez pas accès."));
+			.catch(() => (failure = t("notes.notFound")));
 
 		const ydoc = new Y.Doc();
 		const awareness = new Awareness(ydoc);
@@ -60,7 +61,7 @@
 				Collaboration.configure({ document: ydoc }),
 				CollaborationCaret.configure({
 					provider: { awareness },
-					user: { name: me?.name ?? "Anonyme", color: colorFor(me?.id ?? "") },
+					user: { name: me?.name ?? t("notes.anonymous"), color: colorFor(me?.id ?? "") },
 				}),
 			],
 			// read only until the first sync so nothing is typed on an empty document
@@ -73,8 +74,8 @@
 				readOnly = !canEdit;
 				editor?.setEditable(canEdit);
 			},
-			onDenied: () => (failure = "Vous n'avez pas accès à cette note."),
-			onDeleted: () => (failure = "Cette note a été supprimée."),
+			onDenied: () => (failure = t("notes.noAccess")),
+			onDeleted: () => (failure = t("notes.deleted")),
 			onStatus: (isConnected) => {
 				connected = isConnected;
 				if (!isConnected) {
@@ -118,9 +119,9 @@
 
 <main class="page">
 	{#if failure}
-		<p class="failure">{failure} <a href={backUrl}>Retour aux notes</a></p>
+		<p class="failure">{failure} <a href={backUrl}>{t("notes.back")}</a></p>
 	{:else}
-		<a class="back" href={backUrl}><Icon name="arrowLeft" size={15} /> Notes</a>
+		<a class="back" href={backUrl}><Icon name="arrowLeft" size={15} /> {t("nav.notes")}</a>
 		<header class="title">
 			<div class="heading">
 				<span class="badge"><Icon name="note" size={20} /></span>
@@ -130,7 +131,7 @@
 						bind:value={title}
 						maxlength="200"
 						readonly={readOnly}
-						aria-label="Titre de la note"
+						aria-label={t("notes.title")}
 						onblur={() => void saveTitle()}
 						onkeydown={(event) => event.key === "Enter" && event.currentTarget.blur()}
 					/>
@@ -140,15 +141,15 @@
 			<span class="status" role="status">
 				{#if !connected}
 					<span class="spinner" aria-hidden="true"></span>
-					Reconnexion…
+					{t("notes.reconnecting")}
 				{:else if !synced}
 					<span class="spinner" aria-hidden="true"></span>
-					Synchronisation…
+					{t("notes.syncing")}
 				{:else if readOnly}
-					Lecture seule
+					{t("board.readOnly")}
 				{:else}
 					<svg class="check" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
-					Synchronisé
+					{t("notes.synced")}
 				{/if}
 			</span>
 		</header>

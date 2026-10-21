@@ -11,6 +11,7 @@ import { apiRequest, ApiError } from "../api/apiClient";
 import { createSocketConnection, type SocketConnection } from "../api/wsClientWrapper";
 import { getStoredToken, clearAuthSession } from "../auth/authClient";
 import { loginUrl } from "../shared/session";
+import { i18n, t } from "../shared/i18n.svelte";
 import "./suppressUnload";
 
 //Checked against the installed package: Excalidraw 0.17 ships its CSS inside the bundle, so there is
@@ -52,8 +53,8 @@ async function loadScene(projectId: string): Promise<LoadResult> {
 		//A failed load must NOT fall back to an empty board: autosave would then overwrite what is stored.
 		const message =
 			error instanceof ApiError && error.status === 403
-				? "Vous n'avez pas accès au tableau blanc de ce projet."
-				: "Impossible de charger le tableau blanc. Rechargez la page pour réessayer.";
+				? t("whiteboard.noAccess")
+				: t("whiteboard.loadFailed");
 		return { kind: "error", message };
 	}
 }
@@ -307,6 +308,7 @@ function WhiteboardApp({ projectId, initialElements, theme }: WhiteboardAppProps
 	return (
 		<Excalidraw
 			theme={theme}
+			langCode={excalidrawLang()}
 			initialData={{ elements: initialElements }}
 			viewModeEnabled={readOnly}
 			isCollaborating
@@ -321,7 +323,14 @@ function WhiteboardApp({ projectId, initialElements, theme }: WhiteboardAppProps
 	);
 }
 
+//Excalidraw names its languages with a region (fr-FR, ja-JP), except English
+const EXCALIDRAW_LANGS: Record<string, string> = { en: "en", fr: "fr-FR", ja: "ja-JP", ru: "ru-RU", zh: "zh-CN" };
+function excalidrawLang(): string {
+	return EXCALIDRAW_LANGS[i18n.lang] ?? `${i18n.lang}-${i18n.lang.toUpperCase()}`;
+}
+
 export interface WhiteboardHandle {
+	//re-renders with this theme and the current interface language
 	setTheme: (theme: WhiteboardTheme) => void;
 	destroy: () => void;
 }

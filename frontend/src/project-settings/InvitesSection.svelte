@@ -1,21 +1,22 @@
 <script lang="ts">
+  import { t, type MessageKey } from "../shared/i18n.svelte";
   import { onMount } from "svelte";
   import { createInvite, listInvites, revokeInvite } from "../api/projectsApi";
   import type { Invite, Project, Role } from "../api/types";
   import { confirmDialog } from "../shared/confirm.svelte";
   import { errorMessage } from "../shared/errors";
-  import { ROLE_HINT, ROLE_LABEL, formatDate } from "../shared/format";
+  import { roleHint, roleLabel, formatDate } from "../shared/format";
   import { toast } from "../shared/toast.svelte";
   import CopyField from "../shared/ui/CopyField.svelte";
   import Icon from "../shared/ui/Icon.svelte";
 
   let { project, isAdmin }: { project: Project; isAdmin: boolean } = $props();
 
-  const EXPIRY: { label: string; days: number | null }[] = [
-    { label: "Jamais", days: null },
-    { label: "1 jour", days: 1 },
-    { label: "7 jours", days: 7 },
-    { label: "30 jours", days: 30 },
+  const EXPIRY: { label: MessageKey; days: number | null }[] = [
+    { label: "inv.never", days: null },
+    { label: "inv.day1", days: 1 },
+    { label: "inv.days7", days: 7 },
+    { label: "inv.days30", days: 30 },
   ];
 
   let invites = $state<Invite[] | null>(null);
@@ -48,7 +49,7 @@
     error = null;
     const uses = maxUses === null ? undefined : maxUses;
     if (uses !== undefined && (!Number.isInteger(uses) || uses < 1 || uses > 1000)) {
-      error = "Le nombre d'utilisations doit être un entier entre 1 et 1 000.";
+      error = t("inv.usesInvalid");
       return;
     }
     busy = true;
@@ -70,15 +71,15 @@
 
   async function revoke(invite: Invite): Promise<void> {
     const ok = await confirmDialog({
-      title: "Révoquer ce lien ?",
-      message: "Il ne pourra plus être utilisé. Les personnes qui l'ont déjà utilisé restent membres du projet.",
-      confirmLabel: "Révoquer",
+      title: t("inv.revokeTitle"),
+      message: t("inv.revokeText"),
+      confirmLabel: t("common.revoke"),
       danger: true,
     });
     if (!ok) return;
     try {
       await revokeInvite(project.id, invite.id);
-      toast("Lien révoqué");
+      toast(t("inv.revoked"));
       await load();
     } catch (err) {
       toast(errorMessage(err), { kind: "error" });
@@ -87,79 +88,79 @@
   }
 
   function status(invite: Invite): { label: string; tone: "ok" | "off" } {
-    if (invite.revokedAt) return { label: "Révoqué", tone: "off" };
-    if (invite.expiresAt && new Date(invite.expiresAt).getTime() <= Date.now()) return { label: "Expiré", tone: "off" };
-    if (invite.maxUses !== null && invite.useCount >= invite.maxUses) return { label: "Épuisé", tone: "off" };
-    return { label: "Actif", tone: "ok" };
+    if (invite.revokedAt) return { label: t("inv.stRevoked"), tone: "off" };
+    if (invite.expiresAt && new Date(invite.expiresAt).getTime() <= Date.now()) return { label: t("inv.stExpired"), tone: "off" };
+    if (invite.maxUses !== null && invite.useCount >= invite.maxUses) return { label: t("inv.stExhausted"), tone: "off" };
+    return { label: t("inv.stActive"), tone: "ok" };
   }
 </script>
 
 <header class="section-head">
-  <h2>Invitations</h2>
-  <p>Un lien suffit pour faire entrer quelqu'un : envoyez-le, la personne se connecte (ou crée un compte) et rejoint le projet.</p>
+  <h2>{t("ps.invites")}</h2>
+  <p>{t("inv.intro")}</p>
 </header>
 
 {#if !isAdmin}
-  <div class="panel"><p class="muted">Seuls les administrateurs peuvent créer et gérer les liens d'invitation.</p></div>
+  <div class="panel"><p class="muted">{t("inv.adminOnly")}</p></div>
 {:else}
   {#if fresh}
     <div class="panel fresh" role="status">
       <div class="row-between">
-        <strong><Icon name="check" size={16} /> Lien créé — rôle « {ROLE_LABEL[fresh.role]} »</strong>
-        <button type="button" class="icon-btn" aria-label="Fermer" onclick={() => (fresh = null)}><Icon name="x" size={16} /></button>
+        <strong><Icon name="check" size={16} /> {t("inv.created", { role: roleLabel(fresh.role) })}</strong>
+        <button type="button" class="icon-btn" aria-label={t("common.close")} onclick={() => (fresh = null)}><Icon name="x" size={16} /></button>
       </div>
-      <CopyField value={fresh.url} label="Lien d'invitation" />
-      <p class="hint warn">Copiez-le maintenant : pour votre sécurité, ce lien ne sera plus affiché ensuite.</p>
+      <CopyField value={fresh.url} label={t("inv.link")} />
+      <p class="hint warn">{t("inv.copyNow")}</p>
     </div>
   {/if}
 
   <form class="panel" onsubmit={onCreate}>
-    <h3>Créer un lien</h3>
+    <h3>{t("inv.create")}</h3>
     <div class="grid">
       <div class="field">
-        <label for="inv-role">Rôle donné</label>
+        <label for="inv-role">{t("inv.role")}</label>
         <select id="inv-role" class="input" bind:value={role}>
-          {#each ["admin", "member", "viewer"] as r (r)}<option value={r}>{ROLE_LABEL[r as Role]}</option>{/each}
+          {#each ["admin", "member", "viewer"] as r (r)}<option value={r}>{roleLabel(r as Role)}</option>{/each}
         </select>
       </div>
       <div class="field">
-        <label for="inv-exp">Expire</label>
+        <label for="inv-exp">{t("inv.expires")}</label>
         <select id="inv-exp" class="input" bind:value={expiryDays}>
-          {#each EXPIRY as option (option.label)}<option value={option.days}>{option.label}</option>{/each}
+          {#each EXPIRY as option (option.label)}<option value={option.days}>{t(option.label)}</option>{/each}
         </select>
       </div>
       <div class="field">
-        <label for="inv-uses">Utilisations max.</label>
-        <input id="inv-uses" class="input" type="number" min="1" max="1000" step="1" inputmode="numeric" placeholder="Illimité" bind:value={maxUses} />
+        <label for="inv-uses">{t("inv.maxUses")}</label>
+        <input id="inv-uses" class="input" type="number" min="1" max="1000" step="1" inputmode="numeric" placeholder={t("inv.unlimited")} bind:value={maxUses} />
       </div>
     </div>
-    <span class="hint">{ROLE_HINT[role]}.</span>
+    <span class="hint">{roleHint(role)}.</span>
     {#if error}<span class="field-error" role="alert">{error}</span>{/if}
-    <div><button type="submit" class="btn btn-primary" disabled={busy}>{#if busy}<span class="spinner"></span>{:else}<Icon name="link" size={16} />{/if} Créer le lien</button></div>
+    <div><button type="submit" class="btn btn-primary" disabled={busy}>{#if busy}<span class="spinner"></span>{:else}<Icon name="link" size={16} />{/if} {t("inv.createLink")}</button></div>
   </form>
 
   <div class="panel list">
-    <h3>Liens existants</h3>
+    <h3>{t("inv.existing")}</h3>
     {#if loadFailed}
-      <p class="muted">Impossible de charger les invitations. <button type="button" class="linklike" onclick={load}>Réessayer</button></p>
+      <p class="muted">{t("inv.loadFailed")} <button type="button" class="linklike" onclick={load}>{t("common.retry")}</button></p>
     {:else if invites === null}
       <div class="skeleton line"></div>
     {:else if invites.length === 0}
-      <p class="muted">Aucun lien pour l'instant.</p>
+      <p class="muted">{t("inv.empty")}</p>
     {:else}
       {#each invites as invite (invite.id)}
         {@const st = status(invite)}
         <div class="row" class:off={st.tone === "off"}>
           <span class="chip" class:chip-accent={st.tone === "ok"}>{st.label}</span>
           <div class="info">
-            <div><strong>{ROLE_LABEL[invite.role]}</strong> · créé le {formatDate(invite.createdAt)}</div>
+            <div><strong>{roleLabel(invite.role)}</strong> · {t("inv.createdOn", { date: formatDate(invite.createdAt) })}</div>
             <div class="sub">
-              {invite.useCount}{invite.maxUses !== null ? ` / ${invite.maxUses}` : ""} utilisation{invite.useCount > 1 ? "s" : ""}
-              · {invite.expiresAt ? `expire le ${formatDate(invite.expiresAt)}` : "n'expire pas"}
+              {invite.useCount}{invite.maxUses !== null ? ` / ${invite.maxUses}` : ""} {invite.useCount > 1 ? t("inv.uses") : t("inv.use")}
+              · {invite.expiresAt ? t("inv.expiresOn", { date: formatDate(invite.expiresAt) }) : t("inv.noExpiry")}
             </div>
           </div>
           {#if st.tone === "ok"}
-            <button type="button" class="btn btn-ghost btn-sm" onclick={() => revoke(invite)}>Révoquer</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick={() => revoke(invite)}>{t("common.revoke")}</button>
           {/if}
         </div>
       {/each}

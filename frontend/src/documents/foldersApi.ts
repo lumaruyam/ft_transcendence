@@ -1,6 +1,7 @@
 // Owner: Track 4 (Whiteboard, notes, and supporting modules)
 // Responsible for: frontend API calls for the folder tree of the Files page
 import { ApiError, apiRequest } from "../api/apiClient";
+import { t } from "../shared/i18n.svelte";
 
 export interface Folder {
 	id: string;
@@ -52,25 +53,25 @@ export function deleteFolder(projectId: string, id: string): Promise<void> {
 }
 
 export function describeDocumentError(error: unknown, limits?: FolderLimits): string {
-	if (!(error instanceof ApiError)) return "L'opération a échoué.";
+	if (!(error instanceof ApiError)) return t("folders.failed");
 	switch (error.code) {
 		case "max_depth_reached":
-			return `Profondeur maximale atteinte (${limits?.maxDepth ?? 8} niveaux).`;
+			return t("folders.maxDepth", { n: limits?.maxDepth ?? 8 });
 		case "max_subfolders_reached":
-			return `Ce dossier contient déjà le maximum de sous-dossiers (${limits?.maxSubfolders ?? 60}).`;
+			return t("folders.maxSubfolders", { n: limits?.maxSubfolders ?? 60 });
 		case "folder_not_empty":
-			return "Ce dossier n'est pas vide : déplacez ou supprimez d'abord son contenu.";
+			return t("folders.notEmpty");
 		case "folder_cycle":
-			return "Un dossier ne peut pas être déplacé dans lui-même.";
+			return t("folders.cycle");
 		case "invalid_name":
-			return "Le nom doit faire entre 1 et 100 caractères.";
+			return t("folders.invalidName");
 		case "invalid_title":
-			return "Le titre doit faire entre 1 et 200 caractères.";
+			return t("folders.invalidTitle");
 		case "folder_not_found":
-			return "Ce dossier n'existe plus.";
+			return t("folders.notFound");
 		case "insufficient_role":
-			return "Vous n'avez pas le droit de faire cela.";
+			return t("error.forbidden");
 		default:
-			return "L'opération a échoué.";
+			return t("folders.failed");
 	}
 }

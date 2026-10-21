@@ -1,6 +1,7 @@
 <!-- Owner: Track 1 (Foundation, Auth, and API infrastructure)
      Responsible for: the /app page: project list and project creation. -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { onMount } from "svelte";
   import { createProject, listMyProjects } from "../api/projectsApi";
   import type { Project } from "../api/types";
@@ -12,6 +13,10 @@
   import AppHeader from "../shared/ui/AppHeader.svelte";
   import Icon from "../shared/ui/Icon.svelte";
   import LoadStage from "../shared/ui/LoadStage.svelte";
+
+  $effect(() => {
+    document.title = `${t("userMenu.projects")} · Transcendance`;
+  });
 
   let projects = $state<Project[] | null>(null);
   let loadFailed = $state(false);
@@ -75,7 +80,7 @@
       window.location.href = `/app/${project.id}`;
     } catch (err) {
       busy = false;
-      formError = errorMessage(err, "Impossible de créer le projet.");
+      formError = errorMessage(err, t("dash.createFailed"));
     }
   }
 
@@ -94,14 +99,14 @@
 <main>
   <header class="intro">
     <div>
-      <h1>{user ? greeting(user.name) : "Mes projets"}</h1>
+      <h1>{user ? greeting(user.name) : t("userMenu.projects")}</h1>
       <p class="sub">
         {#if projects === null && !loadFailed}
-          Chargement de vos projets…
+          {t("dash.loading")}
         {:else if projects && projects.length > 0}
-          {projects.length === 1 ? "Un projet vous attend." : `${projects.length} projets vous attendent.`}
+          {projects.length === 1 ? t("dash.oneProject") : t("dash.manyProjects", { n: projects.length })}
         {:else if !loadFailed}
-          Commençons par créer votre premier projet.
+          {t("dash.startFirst")}
         {/if}
       </p>
     </div>
@@ -109,14 +114,14 @@
       {#if projects && projects.length > 5}
         <div class="filter">
           <Icon name="search" size={16} />
-          <input type="search" bind:value={filter} placeholder="Filtrer…" aria-label="Filtrer les projets" />
+          <input type="search" bind:value={filter} placeholder={t("dash.filter")} aria-label={t("dash.filterLabel")} />
         </div>
       {/if}
-      <button type="button" class="btn btn-primary" onclick={openCreate}><Icon name="plus" size={17} /> Nouveau projet</button>
+      <button type="button" class="btn btn-primary" onclick={openCreate}><Icon name="plus" size={17} /> {t("switcher.newProject")}</button>
     </div>
   </header>
 
-  <LoadStage {gate} label="Chargement de vos projets…">
+  <LoadStage {gate} label={t("dash.loading")}>
     {#snippet skeleton()}
       <div class="grid">
         {#each [0, 1, 2, 3] as i (i)}
@@ -134,16 +139,16 @@
     {#if loadFailed}
       <div class="empty surface">
         <Icon name="wifiOff" size={26} />
-        <h2>Impossible de charger vos projets</h2>
-        <p>Vérifiez votre connexion, puis réessayez.</p>
-        <button type="button" class="btn" onclick={load}>Réessayer</button>
+        <h2>{t("dash.loadFailed")}</h2>
+        <p>{t("common.checkConnection")}</p>
+        <button type="button" class="btn" onclick={load}>{t("common.retry")}</button>
       </div>
     {:else if projects && projects.length === 0}
       <div class="empty surface">
         <span class="empty-icon"><Icon name="folder" size={26} /></span>
-        <h2>Aucun projet pour l'instant</h2>
-        <p>Un projet réunit un tableau, des notes et un tableau blanc pour votre équipe.</p>
-        <button type="button" class="btn btn-primary" onclick={openCreate}><Icon name="plus" size={17} /> Créer mon premier projet</button>
+        <h2>{t("dash.emptyTitle")}</h2>
+        <p>{t("dash.emptyText")}</p>
+        <button type="button" class="btn btn-primary" onclick={openCreate}><Icon name="plus" size={17} /> {t("dash.createFirst")}</button>
       </div>
     {:else}
       <div class="grid">
@@ -153,8 +158,8 @@
             <span class="meta">
               <span class="title">{project.name}</span>
               <span class="detail">
-                {#if user && project.ownerId === user.id}<span class="chip chip-accent">Propriétaire</span>{/if}
-                <span class="date">Créé le {formatDateShort(project.createdAt)}</span>
+                {#if user && project.ownerId === user.id}<span class="chip chip-accent">{t("dash.owner")}</span>{/if}
+                <span class="date">{t("dash.createdOn", { date: formatDateShort(project.createdAt) })}</span>
               </span>
             </span>
             <span class="go"><Icon name="arrowRight" size={18} /></span>
@@ -163,7 +168,7 @@
       </div>
 
       {#if filter.trim() && visible.length === 0}
-        <p class="no-match">Aucun projet ne correspond à « {filter.trim()} ».</p>
+        <p class="no-match">{t("dash.noMatch", { q: filter.trim() })}</p>
       {/if}
     {/if}
     {/snippet}
@@ -172,15 +177,15 @@
 
 <dialog class="modal" bind:this={dialog} aria-labelledby="create-title" onclose={() => (formError = null)} onclick={(e) => e.target === dialog && closeCreate()}>
   <form onsubmit={onCreate}>
-    <h2 id="create-title">Nouveau projet</h2>
+    <h2 id="create-title">{t("switcher.newProject")}</h2>
     <div class="field">
-      <label for="project-name">Nom du projet</label>
+      <label for="project-name">{t("dash.projectName")}</label>
       <input
         id="project-name"
         class="input"
         bind:value={name}
         maxlength="100"
-        placeholder="Ex. Lancement du site"
+        placeholder={t("dash.projectNamePlaceholder")}
         autocomplete="off"
         aria-invalid={formError ? "true" : undefined}
         aria-describedby={formError ? "create-error" : undefined}
@@ -188,9 +193,9 @@
       {#if formError}<span class="field-error" id="create-error" role="alert">{formError}</span>{/if}
     </div>
     <div class="actions">
-      <button type="button" class="btn btn-ghost" onclick={closeCreate}>Annuler</button>
+      <button type="button" class="btn btn-ghost" onclick={closeCreate}>{t("common.cancel")}</button>
       <button type="submit" class="btn btn-primary" disabled={!name.trim() || busy}>
-        {#if busy}<span class="spinner"></span>{/if} Créer et ouvrir
+        {#if busy}<span class="spinner"></span>{/if} {t("dash.createOpen")}
       </button>
     </div>
   </form>

@@ -3,6 +3,7 @@
 	import { getProject } from "../api/projectsApi";
 	import type { Project } from "../api/types";
 	import { theme } from "../shared/theme.svelte";
+	import { i18n, t } from "../shared/i18n.svelte";
 	import AppHeader from "../shared/ui/AppHeader.svelte";
 	import type { WhiteboardHandle, WhiteboardTheme } from "./mountWhiteboard";
 
@@ -18,12 +19,13 @@
 	}
 
 	$effect(() => {
-		document.title = project ? `Tableau blanc · ${project.name} — Transcendance` : "Tableau blanc — Transcendance";
+		document.title = project ? `${t("nav.whiteboard")} · ${project.name} — Transcendance` : `${t("nav.whiteboard")} — Transcendance`;
 	});
 
-	//follow the app theme (also when it is "system" and the OS preference changes)
+	//follow the app theme (also when it is "system" and the OS preference changes) and the interface language
 	$effect(() => {
 		void theme.pref;
+		void i18n.lang;
 		handle?.setTheme(resolvedTheme());
 	});
 

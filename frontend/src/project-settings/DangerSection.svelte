@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { deleteProject, transferOwnership } from "../api/projectsApi";
   import type { Member, Project } from "../api/types";
   import { confirmDialog } from "../shared/confirm.svelte";
@@ -23,9 +24,9 @@
     const target = members.find((m) => m.userId === newOwner);
     if (!target) return;
     const ok = await confirmDialog({
-      title: `Transférer la propriété à ${target.user.name} ?`,
-      message: "Cette personne deviendra propriétaire du projet. Vous resterez administrateur, mais vous ne pourrez plus supprimer le projet.",
-      confirmLabel: "Transférer",
+      title: t("danger.transferTitle", { name: target.user.name }),
+      message: t("danger.transferText"),
+      confirmLabel: t("danger.transfer"),
       danger: true,
     });
     if (!ok) return;
@@ -33,7 +34,7 @@
     try {
       onchange(await transferOwnership(project.id, target.userId));
       newOwner = "";
-      toast(`${target.user.name} est maintenant propriétaire`, { kind: "success" });
+      toast(t("danger.transferred", { name: target.user.name }), { kind: "success" });
     } catch (err) {
       toast(errorMessage(err), { kind: "error" });
     } finally {
@@ -43,9 +44,9 @@
 
   async function onDelete(): Promise<void> {
     const ok = await confirmDialog({
-      title: "Supprimer ce projet ?",
-      message: "Le tableau, les notes, le tableau blanc et les fichiers seront supprimés pour tous les membres. Cette action est définitive.",
-      confirmLabel: "Supprimer définitivement",
+      title: t("danger.deleteTitle"),
+      message: t("danger.deleteText"),
+      confirmLabel: t("danger.deleteForever"),
       danger: true,
       requireText: project.name,
     });
@@ -62,35 +63,35 @@
 </script>
 
 <header class="section-head">
-  <h2>Zone sensible</h2>
-  <p>Des actions importantes, qui demandent toujours une confirmation.</p>
+  <h2>{t("ps.danger")}</h2>
+  <p>{t("danger.intro")}</p>
 </header>
 
 {#if !isOwner}
   <div class="panel">
-    <p class="muted"><Icon name="lock" size={16} /> Seul le propriétaire du projet peut le supprimer ou en transférer la propriété.</p>
+    <p class="muted"><Icon name="lock" size={16} /> {t("danger.ownerOnly")}</p>
   </div>
 {:else}
   <div class="panel panel-danger">
-    <h3>Transférer la propriété</h3>
-    <p class="muted">Confiez le projet à un autre membre. Il faut qu'il en fasse déjà partie.</p>
+    <h3>{t("danger.transferOwnership")}</h3>
+    <p class="muted">{t("danger.transferHint")}</p>
     {#if candidates.length === 0}
-      <p class="hint">Invitez d'abord quelqu'un dans le projet.</p>
+      <p class="hint">{t("danger.inviteFirst")}</p>
     {:else}
       <div class="inline">
-        <select class="input" bind:value={newOwner} aria-label="Nouveau propriétaire">
-          <option value="">Choisir un membre…</option>
+        <select class="input" bind:value={newOwner} aria-label={t("settings.newOwner")}>
+          <option value="">{t("danger.chooseMember")}</option>
           {#each candidates as member (member.userId)}<option value={member.userId}>{member.user.name} — {member.user.email}</option>{/each}
         </select>
-        <button type="button" class="btn btn-danger" disabled={!newOwner || busy} onclick={onTransfer}>Transférer</button>
+        <button type="button" class="btn btn-danger" disabled={!newOwner || busy} onclick={onTransfer}>{t("danger.transfer")}</button>
       </div>
     {/if}
   </div>
 
   <div class="panel panel-danger">
-    <h3>Supprimer le projet</h3>
-    <p class="muted">Tout ce que contient « {project.name} » disparaîtra pour tout le monde.</p>
-    <div><button type="button" class="btn btn-danger" disabled={busy} onclick={onDelete}><Icon name="trash" size={16} /> Supprimer le projet</button></div>
+    <h3>{t("danger.deleteProject")}</h3>
+    <p class="muted">{t("danger.deleteHint", { name: project.name })}</p>
+    <div><button type="button" class="btn btn-danger" disabled={busy} onclick={onDelete}><Icon name="trash" size={16} /> {t("danger.deleteProject")}</button></div>
   </div>
 {/if}
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../i18n.svelte";
   import { confirmState, answerConfirm } from "../confirm.svelte";
 
   let dialog: HTMLDialogElement;
@@ -40,7 +41,7 @@
       {#if options.message}<p class="message">{options.message}</p>{/if}
       {#if options.requireText}
         <div class="field">
-          <label for="confirm-text">Tapez <strong>{options.requireText}</strong> pour confirmer</label>
+          <label for="confirm-text">{t("confirm.typeBefore")} <strong>{options.requireText}</strong> {t("confirm.typeAfter")}</label>
           <!-- svelte-ignore a11y_autofocus -->
           <input id="confirm-text" class="input" bind:value={typed} autocomplete="off" autofocus />
         </div>
@@ -48,7 +49,7 @@
       <div class="actions">
         <!-- danger: focus Cancel so a stray Enter cannot confirm -->
         <!-- svelte-ignore a11y_autofocus -->
-        <button type="button" class="btn btn-ghost" autofocus={options.danger && !options.requireText} onclick={() => answerConfirm(false)}>Annuler</button>
+        <button type="button" class="btn btn-ghost" autofocus={options.danger && !options.requireText} onclick={() => answerConfirm(false)}>{t("common.cancel")}</button>
         <!-- svelte-ignore a11y_autofocus -->
         <button
           type="submit"
@@ -56,7 +57,7 @@
           disabled={!unlocked}
           autofocus={!options.danger && !options.requireText}
         >
-          {options.confirmLabel ?? "Confirmer"}
+          {options.confirmLabel ?? t("common.confirm")}
         </button>
       </div>
     </form>

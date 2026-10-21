@@ -1,5 +1,6 @@
 <!-- Account settings: avatar (PUT/DELETE /api/users/me/avatar), display name (PATCH /api/users/me), password (PUT /api/users/me/password). The e-mail is the login identity and is read-only. -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { ApiError } from "../api/apiClient";
   import { AVATAR_TYPES, MAX_AVATAR_BYTES, changePassword, deleteAccount, removeAvatar, updateProfile, uploadAvatar } from "../api/accountApi";
   import { MAX_NAME_LENGTH, validateName, validateNewPassword } from "../auth/validation";
@@ -14,6 +15,7 @@
   import Avatar from "../shared/ui/Avatar.svelte";
   import Icon from "../shared/ui/Icon.svelte";
   import ThemeSwitch from "../shared/ui/ThemeSwitch.svelte";
+  import LangSwitch from "../shared/ui/LangSwitch.svelte";
 
   let user = $state(getStoredUser());
   let busy = $state(false);
@@ -34,7 +36,7 @@
       user = { ...user, name: updated.name };
       storeUser(user);
       name = updated.name;
-      toast("Nom mis à jour", { kind: "success" });
+      toast(t("settings.nameUpdated"), { kind: "success" });
     } catch (err) {
       nameError = errorMessage(err);
     } finally {
@@ -60,11 +62,11 @@
     avatarError = null;
     if (!file || !user) return;
     if (!AVATAR_TYPES.includes(file.type)) {
-      avatarError = "Choisissez une image PNG, JPEG, GIF ou WebP.";
+      avatarError = t("settings.avatarType");
       return;
     }
     if (file.size > MAX_AVATAR_BYTES) {
-      avatarError = `L'image fait ${(file.size / 1024 / 1024).toFixed(1)} Mo, la limite est de 2 Mo.`;
+      avatarError = t("settings.avatarSize", { size: (file.size / 1024 / 1024).toFixed(1) });
       return;
     }
     clearPreview();
@@ -74,7 +76,7 @@
       const { avatar } = await uploadAvatar(file);
       user = { ...user, avatar };
       storeUser(user);
-      toast("Photo de profil mise à jour", { kind: "success" });
+      toast(t("settings.avatarUpdated"), { kind: "success" });
     } catch (err) {
       avatarError = errorMessage(err);
     } finally {
@@ -91,7 +93,7 @@
       await removeAvatar();
       user = { ...user, avatar: null };
       storeUser(user);
-      toast("Photo de profil retirée", { kind: "success" });
+      toast(t("settings.avatarRemoved"), { kind: "success" });
     } catch (err) {
       avatarError = errorMessage(err);
     } finally {
@@ -110,18 +112,18 @@
     event.preventDefault();
     passwordError = null;
     if (!currentPassword) {
-      passwordError = "Entrez votre mot de passe actuel.";
+      passwordError = t("settings.currentRequired");
       return;
     }
     passwordError = validateNewPassword(newPassword);
-    if (!passwordError && newPassword !== confirmPassword) passwordError = "Les deux nouveaux mots de passe ne correspondent pas.";
-    if (!passwordError && newPassword === currentPassword) passwordError = "Le nouveau mot de passe doit être différent de l'actuel.";
+    if (!passwordError && newPassword !== confirmPassword) passwordError = t("settings.mismatch");
+    if (!passwordError && newPassword === currentPassword) passwordError = t("settings.sameAsCurrent");
     if (passwordError) return;
     savingPassword = true;
     try {
       await changePassword(currentPassword, newPassword);
       currentPassword = newPassword = confirmPassword = "";
-      toast("Mot de passe modifié", { kind: "success" });
+      toast(t("settings.passwordChanged"), { kind: "success" });
     } catch (err) {
       passwordError = errorMessage(err);
     } finally {
@@ -135,11 +137,14 @@
   let transferTo = $state("");
 
   $effect(() => {
-    document.title = "Paramètres du compte — Transcendance";
     void ensureUser().then((u) => {
       user = u;
       if (u && !nameChanged) name = u.name;
     });
+  });
+
+  $effect(() => {
+    document.title = `${t("userMenu.settings")} — Transcendance`;
   });
 
   async function onLogout(): Promise<void> {
@@ -150,9 +155,9 @@
   async function onDelete(): Promise<void> {
     if (!user) return;
     const ok = await confirmDialog({
-      title: "Supprimer votre compte ?",
-      message: "Votre compte sera supprimé définitivement. Vos projets partagés doivent d'abord avoir quelqu'un d'autre pour les administrer.",
-      confirmLabel: "Supprimer mon compte",
+      title: t("settings.deleteTitle"),
+      message: t("settings.deleteText"),
+      confirmLabel: t("settings.deleteAccount"),
       danger: true,
       requireText: user.email,
     });
@@ -171,7 +176,7 @@
       if (err instanceof ApiError && (err.code === "transfer_target_required" || err.code === "last_admin_of_membership")) {
         await openHandover(err);
       } else if (err instanceof ApiError && err.code === "transfer_target_not_a_member") {
-        toast("Cette personne n'est pas membre de tous les projets concernés. Choisissez-en une autre.", { kind: "error" });
+        toast(t("settings.notMemberOfAll"), { kind: "error" });
       } else {
         toast(errorMessage(err), { kind: "error" });
       }
@@ -205,7 +210,7 @@
 <AppHeader />
 
 <main>
-  <h1>Paramètres du compte</h1>
+  <h1>{t("userMenu.settings")}</h1>
 
   <section class="panel profile">
     <Avatar name={user?.name ?? "?"} id={user?.id} src={preview ?? user?.avatar} size={72} />
@@ -213,25 +218,25 @@
       <div class="name selectable">{user?.name ?? "…"}</div>
       <div class="email selectable">{user?.email ?? ""}</div>
       <div class="actions avatar-actions">
-        <input bind:this={fileInput} type="file" accept={AVATAR_TYPES.join(",")} hidden onchange={onPickAvatar} aria-label="Choisir une photo de profil" />
+        <input bind:this={fileInput} type="file" accept={AVATAR_TYPES.join(",")} hidden onchange={onPickAvatar} aria-label={t("settings.pickAvatar")} />
         <button type="button" class="btn" disabled={avatarBusy} onclick={() => fileInput.click()}>
-          {#if avatarBusy}<span class="spinner"></span>{/if} {user?.avatar ? "Changer la photo" : "Ajouter une photo"}
+          {#if avatarBusy}<span class="spinner"></span>{/if} {user?.avatar ? t("settings.changePhoto") : t("settings.addPhoto")}
         </button>
         {#if user?.avatar}
-          <button type="button" class="btn btn-ghost" disabled={avatarBusy} onclick={onRemoveAvatar}>Retirer</button>
+          <button type="button" class="btn btn-ghost" disabled={avatarBusy} onclick={onRemoveAvatar}>{t("common.remove")}</button>
         {/if}
       </div>
       {#if avatarError}
         <span class="field-error" role="alert">{avatarError}</span>
       {:else}
-        <span class="hint">PNG, JPEG, GIF ou WebP, 2 Mo maximum. Sans photo, vos initiales sont affichées.</span>
+        <span class="hint">{t("settings.avatarHint")}</span>
       {/if}
     </div>
   </section>
 
   <form class="panel" onsubmit={onSaveName}>
     <div class="field">
-      <label for="display-name">Nom affiché</label>
+      <label for="display-name">{t("signup.name")}</label>
       <input
         id="display-name"
         class="input"
@@ -244,32 +249,32 @@
       {#if nameError}
         <span class="field-error" id="display-name-err" role="alert">{nameError}</span>
       {:else}
-        <span class="hint" id="display-name-hint">Visible par les membres de vos projets. L'adresse e-mail ne peut pas être modifiée.</span>
+        <span class="hint" id="display-name-hint">{t("settings.nameHint")}</span>
       {/if}
     </div>
     <div class="actions">
       <button type="submit" class="btn btn-primary" disabled={!nameChanged || savingName}>
-        {#if savingName}<span class="spinner"></span>{/if} Enregistrer
+        {#if savingName}<span class="spinner"></span>{/if} {t("common.save")}
       </button>
-      {#if nameChanged}<button type="button" class="btn btn-ghost" onclick={() => ((name = user?.name ?? ""), (nameError = null))}>Annuler</button>{/if}
+      {#if nameChanged}<button type="button" class="btn btn-ghost" onclick={() => ((name = user?.name ?? ""), (nameError = null))}>{t("common.cancel")}</button>{/if}
     </div>
   </form>
 
   <form class="panel" onsubmit={onSavePassword}>
     <div>
-      <h2>Mot de passe</h2>
-      <p class="sub">Choisissez-en un nouveau : 8 caractères au moins, avec une lettre et un chiffre. Les comptes créés uniquement avec GitHub n'ont pas de mot de passe à modifier.</p>
+      <h2>{t("password.label")}</h2>
+      <p class="sub">{t("settings.passwordHint")}</p>
     </div>
     <div class="field">
-      <label for="current-password">Mot de passe actuel</label>
+      <label for="current-password">{t("settings.currentPassword")}</label>
       <input id="current-password" class="input" type="password" bind:value={currentPassword} autocomplete="current-password" />
     </div>
     <div class="field">
-      <label for="new-password">Nouveau mot de passe</label>
+      <label for="new-password">{t("settings.newPassword")}</label>
       <input id="new-password" class="input" type="password" bind:value={newPassword} autocomplete="new-password" />
     </div>
     <div class="field">
-      <label for="confirm-password">Confirmer le nouveau mot de passe</label>
+      <label for="confirm-password">{t("settings.confirmPassword")}</label>
       <input
         id="confirm-password"
         class="input"
@@ -283,37 +288,45 @@
     </div>
     <div class="actions">
       <button type="submit" class="btn btn-primary" disabled={savingPassword || !currentPassword || !newPassword}>
-        {#if savingPassword}<span class="spinner"></span>{/if} Changer le mot de passe
+        {#if savingPassword}<span class="spinner"></span>{/if} {t("settings.changePassword")}
       </button>
     </div>
   </form>
 
   <section class="panel">
     <div>
-      <h2>Apparence</h2>
-      <p class="sub">« Auto » suit le réglage clair ou sombre de votre navigateur ; les deux autres choix le remplacent, sur cet appareil.</p>
+      <h2>{t("userMenu.appearance")}</h2>
+      <p class="sub">{t("settings.themeHint")}</p>
     </div>
     <div class="theme"><ThemeSwitch /></div>
   </section>
 
   <section class="panel">
+    <div>
+      <h2>{t("lang.label")}</h2>
+      <p class="sub">{t("settings.langHint")}</p>
+    </div>
+    <div><LangSwitch /></div>
+  </section>
+
+  <section class="panel">
     <div class="row-between">
       <div>
-        <h2>Session</h2>
-        <p class="sub">Vous êtes connecté sur cet appareil.</p>
+        <h2>{t("settings.session")}</h2>
+        <p class="sub">{t("settings.sessionText")}</p>
       </div>
-      <button type="button" class="btn" onclick={onLogout}><Icon name="logout" size={16} /> Se déconnecter</button>
+      <button type="button" class="btn" onclick={onLogout}><Icon name="logout" size={16} /> {t("userMenu.logout")}</button>
     </div>
   </section>
 
   <section class="panel panel-danger">
     <div class="row-between">
       <div>
-        <h2>Supprimer mon compte</h2>
-        <p class="sub">Action définitive. Vos données personnelles sont effacées.</p>
+        <h2>{t("settings.deleteAccount")}</h2>
+        <p class="sub">{t("settings.deleteHint")}</p>
       </div>
       <button type="button" class="btn btn-danger" disabled={busy} onclick={onDelete}>
-        {#if busy}<span class="spinner"></span>{:else}<Icon name="trash" size={16} />{/if} Supprimer
+        {#if busy}<span class="spinner"></span>{:else}<Icon name="trash" size={16} />{/if} {t("common.delete")}
       </button>
     </div>
   </section>
@@ -328,12 +341,12 @@
         if (transferTo) void attemptDelete(transferTo);
       }}
     >
-      <h2 id="handover-title">À qui confier vos projets ?</h2>
+      <h2 id="handover-title">{t("settings.handoverTitle")}</h2>
       <p class="sub">
         {#if handover.reason === "last_admin"}
-          Vous êtes le dernier administrateur de ces projets. Quelqu'un doit en prendre la responsabilité avant que votre compte disparaisse :
+          {t("settings.handoverLastAdmin")}
         {:else}
-          Vous administrez ces projets avec d'autres personnes. Choisissez qui en deviendra propriétaire :
+          {t("settings.handoverTransfer")}
         {/if}
       </p>
       <ul>
@@ -345,21 +358,21 @@
       {#if handover.candidates.length === 0}
         <div class="alert alert-warn">
           <Icon name="info" size={17} />
-          <span>Aucun membre n'est présent dans tous ces projets à la fois. Invitez quelqu'un, ou transférez chaque projet depuis ses réglages (liens ci-dessus), puis revenez ici.</span>
+          <span>{t("settings.handoverNone")}</span>
         </div>
       {:else}
         <div class="field">
-          <label for="transfer-to">Nouveau propriétaire</label>
+          <label for="transfer-to">{t("settings.newOwner")}</label>
           <select id="transfer-to" class="input" bind:value={transferTo}>
-            <option value="">Choisir…</option>
+            <option value="">{t("common.choose")}</option>
             {#each handover.candidates as person (person.id)}<option value={person.id}>{person.name} — {person.email}</option>{/each}
           </select>
         </div>
       {/if}
 
       <div class="actions">
-        <button type="button" class="btn btn-ghost" onclick={closeHandover}>Annuler</button>
-        <button type="submit" class="btn btn-danger" disabled={!transferTo || busy}>Transférer et supprimer mon compte</button>
+        <button type="button" class="btn btn-ghost" onclick={closeHandover}>{t("common.cancel")}</button>
+        <button type="submit" class="btn btn-danger" disabled={!transferTo || busy}>{t("settings.transferDelete")}</button>
       </div>
     </form>
   {/if}

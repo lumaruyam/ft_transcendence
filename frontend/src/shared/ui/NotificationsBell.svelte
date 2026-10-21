@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../i18n.svelte";
   import Icon from "./Icon.svelte";
   import Popover from "./Popover.svelte";
   import { listNotifications, markAllNotificationsRead, markNotificationRead } from "../../api/accountApi";
@@ -86,7 +87,7 @@
     try {
       await markAllNotificationsRead();
     } catch {
-      toast("Les notifications n'ont pas pu être marquées comme lues.", { kind: "error" });
+      toast(t("notif.markFailed"), { kind: "error" });
       await refresh();
     }
   }
@@ -109,7 +110,7 @@
     <button
       type="button"
       class="icon-btn bell"
-      aria-label={unread > 0 ? `Notifications, ${unread} non lues` : "Notifications"}
+      aria-label={unread > 0 ? t("notif.unreadLabel", { n: unread }) : t("notif.title")}
       aria-expanded={open}
       onclick={toggle}
     >
@@ -119,9 +120,9 @@
   {/snippet}
   {#snippet children()}
     <div class="head">
-      <h3>Notifications</h3>
+      <h3>{t("notif.title")}</h3>
       {#if unread > 0}
-        <button type="button" class="btn btn-ghost btn-sm" onclick={readAll}>Tout marquer comme lu</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick={readAll}>{t("notif.markAll")}</button>
       {/if}
     </div>
     <div class="list">
@@ -131,9 +132,9 @@
           <div class="skeleton line sk-enter" style:--i="1"></div>
         {/if}
       {:else if failed && items.length === 0}
-        <p class="empty">Impossible de charger les notifications.</p>
+        <p class="empty">{t("notif.loadFailed")}</p>
       {:else if items.length === 0}
-        <p class="empty">Rien pour l'instant. Les changements de vos projets apparaîtront ici.</p>
+        <p class="empty">{t("notif.empty")}</p>
       {:else}
         {#each items as item (item.id)}
           {@const link = target(item.payload.url)}
@@ -163,7 +164,7 @@
 {#snippet content(item: NotificationRow)}
   <span class="dot" aria-hidden="true"></span>
   <span class="body">
-    <span class="msg">{item.payload.message ?? "Une carte a été mise à jour."}</span>
+    <span class="msg">{item.payload.message ?? t("notif.cardUpdated")}</span>
     <span class="time">{item.payload.projectName ? `${item.payload.projectName} · ` : ""}{timeAgo(item.createdAt)}</span>
   </span>
 {/snippet}

@@ -1,19 +1,20 @@
 // Mirrors backend auth.validation.ts, with one message per field.
+import { t } from "../shared/i18n.svelte";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const MIN_PASSWORD_LENGTH = 8;
 
 export function validateEmail(email: string): string | null {
-  if (!email.trim()) return "Entrez votre adresse e-mail.";
-  if (!EMAIL_RE.test(email.trim())) return "Cette adresse e-mail ne semble pas valide.";
+  if (!email.trim()) return t("auth.emailRequired");
+  if (!EMAIL_RE.test(email.trim())) return t("auth.emailInvalid");
   return null;
 }
 
 export const MAX_NAME_LENGTH = 60;
 
 export function validateName(name: string): string | null {
-  if (!name.trim()) return "Entrez le nom à afficher.";
-  if (name.trim().length > MAX_NAME_LENGTH) return `Le nom ne peut pas dépasser ${MAX_NAME_LENGTH} caractères.`;
+  if (!name.trim()) return t("auth.nameRequired");
+  if (name.trim().length > MAX_NAME_LENGTH) return t("auth.nameTooLong", { max: MAX_NAME_LENGTH });
   return null;
 }
 
@@ -33,8 +34,8 @@ export function passwordChecks(password: string): PasswordChecks {
 
 export function validateNewPassword(password: string): string | null {
   const checks = passwordChecks(password);
-  if (!password) return "Choisissez un mot de passe.";
-  if (!checks.length) return `Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`;
-  if (!checks.letter || !checks.digit) return "Le mot de passe doit contenir au moins une lettre et un chiffre.";
+  if (!password) return t("auth.passwordRequired");
+  if (!checks.length) return t("auth.passwordTooShort", { min: MIN_PASSWORD_LENGTH });
+  if (!checks.letter || !checks.digit) return t("auth.passwordLetterDigit");
   return null;
 }
