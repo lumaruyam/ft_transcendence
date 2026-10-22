@@ -2,12 +2,20 @@
 // Responsible for: Fastify route handlers for the notification inbox/bell.
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../permissions/permissions.middleware.js";
-import { listNotifications, markAllNotificationsRead, markNotificationRead } from "./notifications.service.js";
+import {
+	deleteAllNotifications,
+	deleteNotification,
+	listNotifications,
+	markAllNotificationsRead,
+	markNotificationRead,
+} from "./notifications.service.js";
 
 export async function registerNotificationsRoutes(app: FastifyInstance): Promise<void> {
 	app.get("/", { preHandler: requireAuth }, listNotificationsHandler);
 	app.put("/read-all", { preHandler: requireAuth }, markAllReadHandler);
 	app.put("/:id/read", { preHandler: requireAuth }, markReadHandler);
+	app.delete("/", { preHandler: requireAuth }, deleteAllHandler);
+	app.delete("/:id", { preHandler: requireAuth }, deleteHandler);
 }
 
 //list the newest notifications and the unread total when GET /notifications?limit=
@@ -51,4 +59,33 @@ async function markReadHandler(request: FastifyRequest, reply: FastifyReply): Pr
 		return;
 	}
 	reply.code(204).send();//204: no content is returned, but success
+}
+
+//delete every notification of the caller when DELETE /notifications
+async function deleteAllHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const userId = request.userId;
+	if (!userId) {
+		reply.code(401).send({ error: "unauthenticated" });
+		return;
+	}
+
+	await deleteAllNotifications(userId);
+	reply.code(204).send();
+}
+
+//delete a notification when DELETE /notifications/:id
+async function deleteHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+	const userId = request.userId;
+	if (!userId) {
+		reply.code(401).send({ error: "unauthenticated" });
+		return;
+	}
+	const { id } = request.params as { id: string };
+
+	const deleted = await deleteNotification(id, userId);
+	if (!deleted) {
+		reply.code(404).send({ error: "notification_not_found" });
+		return;
+	}
+	reply.code(204).send();
 }
