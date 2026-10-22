@@ -2,7 +2,13 @@
   import { t } from "../i18n.svelte";
   import Icon from "./Icon.svelte";
   import Popover from "./Popover.svelte";
-  import { listNotifications, markAllNotificationsRead, markNotificationRead } from "../../api/accountApi";
+  import {
+    deleteAllNotifications,
+    deleteNotification,
+    listNotifications,
+    markAllNotificationsRead,
+    markNotificationRead,
+  } from "../../api/accountApi";
   import { createSocketConnection } from "../../api/wsClientWrapper";
   import { getStoredToken } from "../../auth/authClient";
   import type { NotificationRow } from "../../api/types";
@@ -93,6 +99,33 @@
     }
   }
 
+  // removes a notification right away; it comes back if the server refuses
+  async function remove(item: NotificationRow): Promise<void> {
+    const previous = items;
+    const wasUnread = !item.readAt;
+    items = items.filter((n) => n.id !== item.id);
+    if (wasUnread) unread = Math.max(0, unread - 1);
+    try {
+      await deleteNotification(item.id);
+    } catch {
+      items = previous;
+      if (wasUnread) unread += 1;
+      toast("La notification n'a pas pu être supprimée.", { kind: "error" });
+    }
+  }
+
+  // empties the list right away; reloads it if the server refuses
+  async function removeAll(): Promise<void> {
+    items = [];
+    unread = 0;
+    try {
+      await deleteAllNotifications();
+    } catch {
+      toast("Les notifications n'ont pas pu être supprimées.", { kind: "error" });
+      await refresh();
+    }
+  }
+
   // an in-app path opens in this tab, an absolute http(s) address (GitHub) in a new one; anything else is ignored
   function target(url: unknown): { href: string; external: boolean } | null {
     const raw = String(url ?? "");
@@ -139,23 +172,28 @@
       {:else}
         {#each items as item (item.id)}
           {@const link = target(item.payload.url)}
-          {#if link}
-            <a
-              class="row"
-              class:unread={!item.readAt}
-              href={link.href}
-              target={link.external ? "_blank" : undefined}
-              rel={link.external ? "noopener noreferrer" : undefined}
-              onclick={() => read(item)}
-            >
-              {@render content(item)}
-              {#if link.external}<Icon name="external" size={14} />{/if}
-            </a>
-          {:else}
-            <button type="button" class="row" class:unread={!item.readAt} onclick={() => read(item)}>
-              {@render content(item)}
+          <div class="item">
+            {#if link}
+              <a
+                class="row"
+                class:unread={!item.readAt}
+                href={link.href}
+                target={link.external ? "_blank" : undefined}
+                rel={link.external ? "noopener noreferrer" : undefined}
+                onclick={() => read(item)}
+              >
+                {@render content(item)}
+                {#if link.external}<Icon name="external" size={14} />{/if}
+              </a>
+            {:else}
+              <button type="button" class="row" class:unread={!item.readAt} onclick={() => read(item)}>
+                {@render content(item)}
+              </button>
+            {/if}
+            <button type="button" class="icon-btn del" aria-label="Supprimer la notification" onclick={() => remove(item)}>
+              <Icon name="trash" size={14} />
             </button>
-          {/if}
+          </div>
         {/each}
       {/if}
     </div>
@@ -194,19 +232,38 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px 8px;
     padding: 6px 8px 8px;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+    margin-left: auto;
+  }
+  .actions .btn {
+    white-space: nowrap;
   }
   .list {
     display: flex;
     flex-direction: column;
     max-height: min(420px, 60vh);
+    overflow-x: hidden;
     overflow-y: auto;
   }
+  .item {
+    display: flex;
+    align-items: flex-start;
+    min-width: 0;
+  }
   .row {
+    flex: 1;
+    min-width: 0;
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    width: 100%;
     padding: 10px 8px;
     border: none;
     border-radius: 8px;
@@ -218,6 +275,16 @@
   .row:hover {
     background: var(--bg-sunken);
     color: var(--text);
+  }
+  .del {
+    flex-shrink: 0;
+    margin: 6px 4px 0 0;
+    opacity: 0.55;
+  }
+  .item:hover .del,
+  .del:hover,
+  .del:focus-visible {
+    opacity: 1;
   }
   .dot {
     width: 8px;
@@ -238,13 +305,22 @@
     min-width: 0;
   }
   .msg {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-size: 0.9rem;
     overflow-wrap: anywhere;
+    word-break: break-word;
   }
   .row:not(.unread) .msg {
     color: var(--text-soft);
   }
   .time {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 0.76rem;
     color: var(--text-faint);
   }

@@ -183,3 +183,14 @@ export async function markAllNotificationsRead(userId: string): Promise<number> 
 	});
 	return result.count;
 }
+
+//deletes a notification, only if it belongs to this user; returns false if there is none
+export async function deleteNotification(id: string, userId: string): Promise<boolean> {
+	const result = await prisma.notification.deleteMany({ where: { id, userId } });
+	return result.count > 0;
+}
+
+//deletes every notification of the user
+export async function deleteAllNotifications(userId: string): Promise<void> {
+	await prisma.notification.deleteMany({ where: { userId } });
+}
