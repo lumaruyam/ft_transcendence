@@ -25,6 +25,7 @@ export function testConfig(): AppConfig {
 		jwtSecret: "jwt-secret-for-tests",
 		oauthGithub: { clientId: "", clientSecret: "", redirectUri: "" },
 		oauthTokenEncryptionKey: "ab".repeat(32),
+		signupAdminPassword: "",
 		gitWebhookSecret: "test-webhook-secret",
 		publicApiRateLimitDefault: 5000,
 		rateLimit: { globalMax: 1_000_000, globalWindowMs: 60_000 },

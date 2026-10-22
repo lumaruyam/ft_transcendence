@@ -69,6 +69,8 @@ function oauthErrorMessage(error: string): string {
       return "Vous avez refusé l'autorisation sur GitHub. Réessayez, ou utilisez votre e-mail et votre mot de passe.";
     case "OAuthAccountConflictError":
       return "Ce compte GitHub est déjà lié à un autre utilisateur.";
+    case "OAuthSignupDisabledError":
+      return "Les inscriptions sont fermées pour le moment : ce compte GitHub n'est lié à aucun compte existant.";
     default:
       return "Un problème est survenu pendant la connexion avec GitHub.";
   }
