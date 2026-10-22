@@ -76,3 +76,8 @@ backend/scratch/
 
 # --- build stamps (./transcendence) ---
 .build-hash
+
+# --- test ---
+backend/tests/
+
+
