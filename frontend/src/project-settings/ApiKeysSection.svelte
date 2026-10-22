@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { onMount } from "svelte";
   import { createApiKey, listApiKeys, revokeApiKey } from "../api/projectsApi";
   import type { ApiKeyRow, Project } from "../api/types";
@@ -41,7 +42,7 @@
     error = null;
     const limit = rateLimit === null ? undefined : rateLimit;
     if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 10000)) {
-      error = "La limite doit être un entier entre 1 et 10 000 requêtes par minute.";
+      error = t("keys.rateInvalid");
       return;
     }
     busy = true;
@@ -58,15 +59,15 @@
 
   async function revoke(key: ApiKeyRow): Promise<void> {
     const ok = await confirmDialog({
-      title: "Révoquer cette clé ?",
-      message: "Les scripts qui l'utilisent cesseront immédiatement de fonctionner.",
-      confirmLabel: "Révoquer",
+      title: t("keys.revokeTitle"),
+      message: t("keys.revokeText"),
+      confirmLabel: t("common.revoke"),
       danger: true,
     });
     if (!ok) return;
     try {
       await revokeApiKey(project.id, key.id);
-      toast("Clé révoquée");
+      toast(t("keys.revoked"));
     } catch (err) {
       toast(errorMessage(err), { kind: "error" });
     }
@@ -75,60 +76,60 @@
 </script>
 
 <header class="section-head">
-  <h2>Clés API</h2>
-  <p>Pour lire et modifier les cartes de ce projet depuis un script ou un autre outil, sans passer par l'interface.</p>
+  <h2>{t("ps.apiKeys")}</h2>
+  <p>{t("keys.intro")}</p>
 </header>
 
 {#if !isAdmin}
-  <div class="panel"><p class="muted">Seuls les administrateurs peuvent gérer les clés API.</p></div>
+  <div class="panel"><p class="muted">{t("keys.adminOnly")}</p></div>
 {:else}
   {#if fresh}
     <div class="panel fresh" role="status">
       <div class="row-between">
-        <strong><Icon name="check" size={16} /> Clé créée</strong>
-        <button type="button" class="icon-btn" aria-label="Fermer" onclick={() => (fresh = null)}><Icon name="x" size={16} /></button>
+        <strong><Icon name="check" size={16} /> {t("keys.created")}</strong>
+        <button type="button" class="icon-btn" aria-label={t("common.close")} onclick={() => (fresh = null)}><Icon name="x" size={16} /></button>
       </div>
-      <CopyField value={fresh} label="Clé API" />
-      <p class="hint warn">Copiez-la maintenant : elle ne sera plus jamais affichée. Si vous la perdez, créez-en une nouvelle.</p>
+      <CopyField value={fresh} label={t("keys.key")} />
+      <p class="hint warn">{t("keys.copyNow")}</p>
     </div>
   {/if}
 
   <form class="panel" onsubmit={onCreate}>
-    <h3>Nouvelle clé</h3>
+    <h3>{t("keys.new")}</h3>
     <div class="field narrow">
-      <label for="rate">Limite de requêtes par minute</label>
-      <input id="rate" class="input" type="number" min="1" max="10000" step="1" inputmode="numeric" placeholder="Valeur par défaut" bind:value={rateLimit} />
+      <label for="rate">{t("keys.rate")}</label>
+      <input id="rate" class="input" type="number" min="1" max="10000" step="1" inputmode="numeric" placeholder={t("keys.default")} bind:value={rateLimit} />
     </div>
     {#if error}<span class="field-error" role="alert">{error}</span>{/if}
-    <div><button type="submit" class="btn btn-primary" disabled={busy}>{#if busy}<span class="spinner"></span>{:else}<Icon name="key" size={16} />{/if} Créer une clé</button></div>
+    <div><button type="submit" class="btn btn-primary" disabled={busy}>{#if busy}<span class="spinner"></span>{:else}<Icon name="key" size={16} />{/if} {t("keys.create")}</button></div>
   </form>
 
   <div class="panel list">
-    <h3>Clés actives</h3>
+    <h3>{t("keys.active")}</h3>
     {#if loadFailed}
-      <p class="muted">Impossible de charger les clés. <button type="button" class="linklike" onclick={load}>Réessayer</button></p>
+      <p class="muted">{t("keys.loadFailed")} <button type="button" class="linklike" onclick={load}>{t("common.retry")}</button></p>
     {:else if keys === null}
       <div class="skeleton line"></div>
     {:else if keys.length === 0}
-      <p class="muted">Aucune clé pour l'instant.</p>
+      <p class="muted">{t("keys.empty")}</p>
     {:else}
       {#each keys as key (key.id)}
         <div class="row">
           <Icon name="key" size={18} />
           <div class="info">
-            <div>Clé <code>…{key.id.slice(-6)}</code></div>
-            <div class="sub">Créée le {formatDate(key.createdAt)} · {key.rateLimit} requêtes/minute</div>
+            <div>{t("keys.keyWord")} <code>…{key.id.slice(-6)}</code></div>
+            <div class="sub">{t("card.createdOn", { date: formatDate(key.createdAt) })} · {t("keys.perMinute", { n: key.rateLimit })}</div>
           </div>
-          <button type="button" class="btn btn-ghost btn-sm" onclick={() => revoke(key)}>Révoquer</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick={() => revoke(key)}>{t("common.revoke")}</button>
         </div>
       {/each}
     {/if}
   </div>
 
   <div class="panel">
-    <h3>Exemple</h3>
+    <h3>{t("keys.example")}</h3>
     <pre><code>{example}</code></pre>
-    <span class="hint">Autres routes : <code>POST</code>, <code>PUT</code> et <code>DELETE</code> sur <code>/api/projects/{"{id}"}/cards</code>. <a href="/api-docs" target="_blank" rel="noopener noreferrer">Documentation complète de l'API</a>.</span>
+    <span class="hint">{t("keys.otherRoutes")} <code>POST</code>, <code>PUT</code> {t("git.and")} <code>DELETE</code> {t("keys.on")} <code>/api/projects/{"{id}"}/cards</code>. <a href="/api-docs" target="_blank" rel="noopener noreferrer">{t("keys.fullDocs")}</a>.</span>
   </div>
 {/if}
 

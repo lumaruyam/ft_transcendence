@@ -1,10 +1,11 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
      Responsible for: the header list of participants with live online status. -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import Avatar from "../shared/ui/Avatar.svelte";
   import Icon from "../shared/ui/Icon.svelte";
   import Popover from "../shared/ui/Popover.svelte";
-  import { ROLE_LABEL } from "../shared/format";
+  import { roleLabel } from "../shared/format";
   import type { BoardStore } from "./boardStore.svelte";
 
   let { store }: { store: BoardStore } = $props();
@@ -30,7 +31,7 @@
       type="button"
       class="stack"
       aria-expanded={open}
-      aria-label={`${store.members.length} participants, ${onlineCount} en ligne`}
+      aria-label={t("participants.label", { n: store.members.length, online: onlineCount })}
       onclick={toggle}
     >
       <span class="avatars">
@@ -43,8 +44,8 @@
   {/snippet}
   {#snippet children()}
     <div class="title">
-      <span>{store.members.length} participant{store.members.length > 1 ? "s" : ""}</span>
-      <span class="online"><span class="dot"></span>{onlineCount} en ligne</span>
+      <span>{store.members.length > 1 ? t("participants.many", { n: store.members.length }) : t("participants.one", { n: store.members.length })}</span>
+      <span class="online"><span class="dot"></span>{t("participants.online", { n: onlineCount })}</span>
     </div>
     <ul>
       {#each sorted as member (member.userId)}
@@ -52,13 +53,13 @@
           <Avatar name={member.user.name} id={member.userId} src={member.user.avatar} size={32} online={store.online.has(member.userId)} />
           <div class="info">
             <div class="name selectable">{member.user.name}</div>
-            <div class="role">{ROLE_LABEL[member.role]}{store.online.has(member.userId) ? " · en ligne" : ""}</div>
+            <div class="role">{roleLabel(member.role)}{store.online.has(member.userId) ? ` · ${t("participants.isOnline")}` : ""}</div>
           </div>
         </li>
       {/each}
     </ul>
     {#if store.myRole === "admin" && store.project}
-      <a class="invite" href={`/app/${store.project.id}/settings#invitations`}><Icon name="plus" size={15} /> Inviter quelqu'un</a>
+      <a class="invite" href={`/app/${store.project.id}/settings#invitations`}><Icon name="plus" size={15} /> {t("participants.invite")}</a>
     {/if}
   {/snippet}
 </Popover>

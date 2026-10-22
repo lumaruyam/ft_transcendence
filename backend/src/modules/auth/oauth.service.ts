@@ -19,6 +19,7 @@ import { prisma } from "../../db/prisma/client.js";
 import type { OAuthProviderConfig } from "../../config/env.js";
 import { hashPassword } from "./password.service.js";
 import { encryptToken, decryptToken } from "./tokenCrypto.js";
+import { isSignupOpen } from "./signupGate.js";
 
 const PROVIDER = "github";
 
@@ -75,6 +76,14 @@ export class OAuthAccessDeniedError extends Error {
 	constructor() {
 		super("the user refused the GitHub authorization");
 		this.name = "OAuthAccessDeniedError";
+	}
+}
+
+// OAuthSignupDisabledError: a first GitHub login would create an account while signup is closed by the admin
+export class OAuthSignupDisabledError extends Error {
+	constructor() {
+		super("account creation is closed");
+		this.name = "OAuthSignupDisabledError";
 	}
 }
 
@@ -340,7 +349,10 @@ async function loginWithGitHub(code: string): Promise<User> {
 		return user;
 	}
 
-	// 3. Brand new user
+	// 3. Brand new user, only while signup is open
+	if (!(await isSignupOpen())) {
+		throw new OAuthSignupDisabledError();
+	}
 	const { hash, salt } = await randomUnusablePassword();
 	let user: User;
 	try {

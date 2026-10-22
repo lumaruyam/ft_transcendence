@@ -2,6 +2,7 @@
      Responsible for: the dialog that links a card to a GitHub branch — an existing one or a new one created
      from the repository's default branch. The webhook (backend git/) then moves the card as the PR progresses. -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { toast } from "../shared/toast.svelte";
   import Icon from "../shared/ui/Icon.svelte";
   import * as api from "./boardApi";
@@ -42,13 +43,13 @@
     try {
       await startOAuthLink(window.location.pathname + window.location.search);
     } catch {
-      error = "La connexion à GitHub n'est pas disponible pour l'instant.";
+      error = t("git.unavailable");
     }
   }
 
   function slug(text: string): string {
     const base = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    return base.slice(0, 40) || "carte";
+    return base.slice(0, 40) || t("search.card").toLowerCase();
   }
 
   // open or close the dialog with the selected card, and fill the form once per card
@@ -102,7 +103,7 @@
   function gitMessage(err: unknown): string {
     const payload = (err as { payload?: { message?: unknown } }).payload;
     if (typeof payload?.message === "string") return payload.message;
-    if ((err as { code?: string }).code === "github_not_linked") return "Votre compte GitHub n'est pas connecté.";
+    if ((err as { code?: string }).code === "github_not_linked") return t("git.notConnected");
     return errorMessage(err);
   }
 
@@ -118,7 +119,7 @@
   async function submit(): Promise<void> {
     if (!card || busy || !repoValid || !branchValid) return;
     if (mode === "new" && exists) {
-      error = "Cette branche existe déjà : choisissez « Branche existante ».";
+      error = t("git.branchExists");
       return;
     }
     busy = true;
@@ -134,7 +135,7 @@
     } catch {
       // not remembered, nothing else to do
     }
-    toast(mode === "new" ? "Branche créée et liée à la carte" : "Branche liée à la carte", { kind: "success" });
+    toast(mode === "new" ? t("git.createdLinked") : t("git.linked"), { kind: "success" });
     store.gitCardId = null;
   }
 
@@ -144,7 +145,7 @@
 <dialog
   class="modal"
   bind:this={dialog}
-  aria-label="Branche Git de la carte"
+  aria-label={t("git.cardBranch")}
   onclose={() => (store.gitCardId = null)}
   onclick={(event) => {
     if (event.target === dialog) store.gitCardId = null;
@@ -153,82 +154,81 @@
   {#if open && card}
     <form class="wrap" onsubmit={(event) => { event.preventDefault(); void submit(); }}>
       <div class="head">
-        <h2><Icon name="branch" size={18} /> Branche Git</h2>
-        <button type="button" class="icon-btn" aria-label="Fermer" onclick={() => (store.gitCardId = null)}><Icon name="x" size={18} /></button>
+        <h2><Icon name="branch" size={18} /> {t("git.branchTitle")}</h2>
+        <button type="button" class="icon-btn" aria-label={t("common.close")} onclick={() => (store.gitCardId = null)}><Icon name="x" size={18} /></button>
       </div>
       <p class="card-title">{card.title}</p>
 
       {#if connected === false}
         <p class="notice">
-          Votre compte GitHub n'est pas connecté : vous pouvez lier une branche qui existe déjà en la saisissant,
-          mais pas lister ni créer de branches.
-          <button type="button" class="btn btn-ghost btn-sm" onclick={connectGithub}><Icon name="github" size={15} /> Connecter GitHub</button>
+          {t("git.notConnectedNotice")}
+          <button type="button" class="btn btn-ghost btn-sm" onclick={connectGithub}><Icon name="github" size={15} /> {t("git.connect")}</button>
         </p>
       {/if}
 
       <div class="field">
-        <label for="git-repo">Dépôt GitHub</label>
+        <label for="git-repo">{t("git.repo")}</label>
         <div class="row">
           <input
             id="git-repo"
             class="input"
             bind:value={repoUrl}
-            placeholder="propriétaire/dépôt ou https://github.com/…"
+            placeholder={t("git.repoPlaceholder")}
             autocomplete="off"
             aria-invalid={repoUrl.trim() !== "" && !repoValid}
             onblur={() => canLoad && loadedFor !== repoUrl.trim() && void loadBranches()}
           />
           <button type="button" class="btn btn-ghost btn-sm" disabled={!canLoad} onclick={loadBranches}>
-            {loading ? "Chargement…" : "Charger les branches"}
+            {loading ? t("common.loading") : t("git.loadBranches")}
           </button>
         </div>
       </div>
 
-      <div class="modes" role="radiogroup" aria-label="Type de branche">
-        <button type="button" role="radio" aria-checked={mode === "existing"} class:on={mode === "existing"} onclick={() => switchMode("existing")}>Branche existante</button>
-        <button type="button" role="radio" aria-checked={mode === "new"} class:on={mode === "new"} disabled={connected !== true} title={connected === true ? "" : "Nécessite un compte GitHub connecté"} onclick={() => switchMode("new")}>
-          Nouvelle branche
+      <div class="modes" role="radiogroup" aria-label={t("git.branchType")}>
+        <button type="button" role="radio" aria-checked={mode === "existing"} class:on={mode === "existing"} onclick={() => switchMode("existing")}>{t("git.existing")}</button>
+        <button type="button" role="radio" aria-checked={mode === "new"} class:on={mode === "new"} disabled={connected !== true} title={connected === true ? "" : t("git.needsAccount")} onclick={() => switchMode("new")}>
+          {t("git.new")}
         </button>
       </div>
 
       <div class="field">
-        <label for="git-branch">{mode === "new" ? "Nom de la nouvelle branche" : "Branche"}</label>
+        <label for="git-branch">{mode === "new" ? t("git.newName") : t("git.branch")}</label>
         <input
           id="git-branch"
           class="input mono"
           bind:value={branch}
           list="git-branches"
-          placeholder={mode === "new" ? "feature/ma-fonctionnalite" : "main"}
+          placeholder={mode === "new" ? t("git.newPlaceholder") : "main"}
           autocomplete="off"
           aria-invalid={branch.trim() !== "" && !branchValid}
         />
         {#if mode === "existing"}<datalist id="git-branches">{#each branches as name (name)}<option value={name}></option>{/each}</datalist>{/if}
         <span class="hint">
-          {#if mode === "new"}Créée à partir de la branche par défaut du dépôt.{:else if branches.length}{branches.length} branche{branches.length > 1 ? "s" : ""} disponible{branches.length > 1 ? "s" : ""}.{:else}Saisissez le nom de la branche.{/if}
+          {#if mode === "new"}{t("git.fromDefault")}{:else if branches.length}{branches.length > 1 ? t("git.availableMany", { n: branches.length }) : t("git.availableOne")}{:else}{t("git.typeName")}{/if}
         </span>
       </div>
 
       {#if error}<p class="field-error" role="alert">{error}</p>{/if}
 
       <details class="webhook">
-        <summary>Suivi automatique de la carte</summary>
+        <summary>{t("git.autoTitle")}</summary>
         <p>
-          Quand la pull request de cette branche est ouverte, la carte passe en « PR pending » ; fusionnée, en « Done ».
-          Pour cela, ajoutez un webhook sur le dépôt (Settings → Webhooks) : URL <code class="selectable">{webhookUrl}</code>,
-          type <code>application/json</code>, événements <em>Pushes</em> et <em>Pull requests</em>, avec le secret <code>GIT_WEBHOOK_SECRET</code> du serveur.
+          {t("git.autoText1")}
+          {t("git.autoText2")} <code class="selectable">{webhookUrl}</code>,
+          {t("git.autoType")} <code>application/json</code>, {t("git.autoEvents")} <em>Pushes</em> {t("git.and")} <em>Pull requests</em>, {t("git.autoSecret")} <code>GIT_WEBHOOK_SECRET</code> {t("git.autoServer")}
         </p>
       </details>
 
       <div class="actions">
         {#if card.gitLink}
           <button type="button" class="btn btn-danger btn-sm" disabled={busy} onclick={async () => { if (await store.unlinkBranch(card.id)) store.gitCardId = null; }}>
-            Retirer le lien
+            {t("git.removeLink")}
           </button>
         {/if}
         <span class="spacer"></span>
-        <button type="button" class="btn btn-ghost btn-sm" onclick={() => (store.gitCardId = null)}>Annuler</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick={() => (store.gitCardId = null)}>{t("common.cancel")}</button>
         <button type="submit" class="btn btn-primary btn-sm" disabled={busy || !repoValid || !branchValid}>
-          {busy ? "…" : mode === "new" ? "Créer et lier" : "Lier la branche"}
+          {busy ? "…" : mode === "new" ? t("git.createLink") : t("git.linkTheBranch")}
         </button>
       </div>
     </form>

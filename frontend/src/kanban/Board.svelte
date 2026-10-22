@@ -1,6 +1,7 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
      Responsible for: the board area: columns, "add list", empty state and list drag and drop. -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import Icon from "../shared/ui/Icon.svelte";
   import Composer from "./Composer.svelte";
   import ListColumn from "./ListColumn.svelte";
@@ -52,17 +53,17 @@
       <div class="welcome">
         <div class="icon"><Icon name="columns" size={28} /></div>
         {#if store.canEdit}
-          <h2>Un tableau tout neuf</h2>
-          <p>Les listes sont les colonnes de votre tableau. Commencez avec les trois classiques — vous pourrez les renommer, les déplacer ou en ajouter à tout moment.</p>
+          <h2>{t("board.newTitle")}</h2>
+          <p>{t("board.newText")}</p>
           <button type="button" class="btn btn-primary" disabled={creatingDefaults} onclick={createDefaults}>
             {#if creatingDefaults}<span class="spinner"></span>{:else}<Icon name="sparkle" size={17} />{/if}
-            Créer « À faire · En cours · Terminé »
+            {t("board.createDefaults", { lists: [t("board.defaultTodo"), t("board.defaultDoing"), t("board.defaultDone")].join(" · ") })}
           </button>
-          <div class="or">ou ajoutez votre propre liste</div>
-          <div class="own"><Composer ghost label="Ajouter une liste" placeholder="Nom de la liste…" onadd={(t) => store.addList(t)} /></div>
+          <div class="or">{t("board.orOwnList")}</div>
+          <div class="own"><Composer ghost label={t("board.addList")} placeholder={t("board.listName")} onadd={(t) => store.addList(t)} /></div>
         {:else}
-          <h2>Ce tableau est vide</h2>
-          <p>Il n'y a pas encore de liste. Vous avez un accès en lecture seule : un membre pourra en créer.</p>
+          <h2>{t("board.emptyTitle")}</h2>
+          <p>{t("board.emptyText")}</p>
         {/if}
       </div>
     {:else}
@@ -80,7 +81,7 @@
 
       {#if store.canEdit}
         <div class="add-list">
-          <Composer ghost label="Ajouter une liste" placeholder="Nom de la liste…" onadd={(t) => store.addList(t)} />
+          <Composer ghost label={t("board.addList")} placeholder={t("board.listName")} onadd={(t) => store.addList(t)} />
         </div>
       {/if}
     {/if}

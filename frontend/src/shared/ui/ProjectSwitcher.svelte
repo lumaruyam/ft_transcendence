@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../i18n.svelte";
   import Icon from "./Icon.svelte";
   import Popover from "./Popover.svelte";
   import { listMyProjects } from "../../api/projectsApi";
@@ -29,15 +30,15 @@
 
 <Popover align="start" width={280} onopen={() => void load()}>
   {#snippet trigger({ open, toggle })}
-    <button type="button" class="name" aria-expanded={open} aria-haspopup="menu" onclick={toggle} title="Changer de projet">
+    <button type="button" class="name" aria-expanded={open} aria-haspopup="menu" onclick={toggle} title={t("switcher.change")}>
       <span class="text">{current.name}</span>
       <Icon name="chevronDown" size={15} />
     </button>
   {/snippet}
   {#snippet children({ close })}
-    <div class="label">Mes projets</div>
+    <div class="label">{t("userMenu.projects")}</div>
     {#if failed}
-      <p class="note">Impossible de charger la liste.</p>
+      <p class="note">{t("switcher.loadFailed")}</p>
     {:else if projects === null}
       {#if slow}
         <div class="skeleton row-skel sk-enter" style:--i="0"></div>
@@ -52,7 +53,7 @@
       {/each}
     {/if}
     <div class="divider"></div>
-    <a class="item" href="/app#nouveau" onclick={close}><Icon name="plus" size={15} /> Nouveau projet</a>
+    <a class="item" href="/app#nouveau" onclick={close}><Icon name="plus" size={15} /> {t("switcher.newProject")}</a>
   {/snippet}
 </Popover>
 

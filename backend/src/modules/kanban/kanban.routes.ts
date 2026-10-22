@@ -181,7 +181,7 @@ export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> 
       try {
         const tag = await createTag(request.params.projectId, request.body);
         reply.code(201).send(tag);
-        void tell(request, tag.projectId, { type: "tag_created", text: `a créé l'étiquette « ${tag.name} »`, entityId: tag.id });
+        void tell(request, tag.projectId, { type: "tag_created", text: `a créé l'étiquette « ${tag.name} »`, key: "tag_created", params: { name: tag.name }, entityId: tag.id });
       } catch (err) {
         if (err instanceof TagConflictError) reply.code(409).send({ error: "tag_name_taken" });
         else throw err;
@@ -200,7 +200,7 @@ export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> 
         if (!tag) reply.code(404).send({ error: "Tag not found" });
         else {
           reply.send(tag);
-          void tell(request, tag.projectId, { type: "tag_updated", text: `a modifié l'étiquette « ${tag.name} »`, entityId: tag.id, coalesce: true });
+          void tell(request, tag.projectId, { type: "tag_updated", text: `a modifié l'étiquette « ${tag.name} »`, key: "tag_updated", params: { name: tag.name }, entityId: tag.id, coalesce: true });
         }
       } catch (err) {
         if (err instanceof TagConflictError) reply.code(409).send({ error: "tag_name_taken" });
@@ -219,7 +219,7 @@ export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> 
       if (!deleted) reply.code(404).send({ error: "Tag not found" });
       else {
         reply.code(204).send();
-        void tell(request, deleted.projectId, { type: "tag_deleted", text: `a supprimé l'étiquette « ${deleted.name} »`, entityId: deleted.id });
+        void tell(request, deleted.projectId, { type: "tag_deleted", text: `a supprimé l'étiquette « ${deleted.name} »`, key: "tag_deleted", params: { name: deleted.name }, entityId: deleted.id });
       }
     }
   );
@@ -235,7 +235,7 @@ export async function registerKanbanRoutes(app: FastifyInstance): Promise<void> 
       else if (!card) reply.code(404).send({ error: "Card not found" });
       else {
         reply.send(card);
-        void tell(request, getProjectIdForList(card.listId), { type: "card_tags_updated", text: `a modifié les étiquettes de la carte « ${card.title} »`, entityId: card.id, coalesce: true });
+        void tell(request, getProjectIdForList(card.listId), { type: "card_tags_updated", text: `a modifié les étiquettes de la carte « ${card.title} »`, key: "card_tags_updated", params: { name: card.title }, entityId: card.id, coalesce: true });
       }
     }
   );
@@ -311,7 +311,7 @@ async function deleteBoardHandler(
     return;
   }
   reply.code(204).send();
-  void tell(request, deleted.projectId, { type: "board_deleted", text: `a supprimé le tableau « ${deleted.title} »`, entityId: deleted.id });
+  void tell(request, deleted.projectId, { type: "board_deleted", text: `a supprimé le tableau « ${deleted.title} »`, key: "board_deleted", params: { name: deleted.title }, entityId: deleted.id });
 }
 
 // createListHandler creates a new list/column on a board.
@@ -328,7 +328,7 @@ async function createListHandler(
     return;
   }
   reply.code(201).send(list);
-  void tell(request, getProjectIdForBoard(list.boardId), { type: "list_created", text: `a ajouté la liste « ${list.title} »`, entityId: list.id });
+  void tell(request, getProjectIdForBoard(list.boardId), { type: "list_created", text: `a ajouté la liste « ${list.title} »`, key: "list_created", params: { name: list.title }, entityId: list.id });
 }
 
 // getListHandler fetches a list with its cards for additionnal info.
@@ -362,7 +362,7 @@ async function updateListHandler(
   reply.send(list);
   // moving a list around is not worth a notification, renaming it is
   if (request.body.title !== undefined) {
-    void tell(request, getProjectIdForBoard(list.boardId), { type: "list_updated", text: `a renommé la liste « ${list.title} »`, entityId: list.id, coalesce: true });
+    void tell(request, getProjectIdForBoard(list.boardId), { type: "list_updated", text: `a renommé la liste « ${list.title} »`, key: "list_renamed", params: { name: list.title }, entityId: list.id, coalesce: true });
   }
 }
 
@@ -379,7 +379,7 @@ async function deleteListHandler(
     return;
   }
   reply.code(204).send();
-  void tell(request, getProjectIdForBoard(deleted.boardId), { type: "list_deleted", text: `a supprimé la liste « ${deleted.title} »`, entityId: deleted.id });
+  void tell(request, getProjectIdForBoard(deleted.boardId), { type: "list_deleted", text: `a supprimé la liste « ${deleted.title} »`, key: "list_deleted", params: { name: deleted.title }, entityId: deleted.id });
 }
 
 // reorderListsHandler persists a new list order after drag-and-drop.
@@ -414,7 +414,7 @@ async function createCardHandler(
     return;
   }
   reply.code(201).send(card);
-  void tell(request, getProjectIdForList(card.listId), { type: "card_created", text: `a créé la carte « ${card.title} »`, entityId: card.id });
+  void tell(request, getProjectIdForList(card.listId), { type: "card_created", text: `a créé la carte « ${card.title} »`, key: "card_created", params: { name: card.title }, entityId: card.id });
 }
 
 // getCardHandler fetches a card for additionnal info.
@@ -450,7 +450,7 @@ async function updateCardHandler(
   reply.send(card);
   // a pure reorder (position only) is not a content change
   if (request.body.title !== undefined || request.body.description !== undefined) {
-    void tell(request, getProjectIdForList(card.listId), { type: "card_updated", text: `a modifié la carte « ${card.title} »`, entityId: card.id, coalesce: true });
+    void tell(request, getProjectIdForList(card.listId), { type: "card_updated", text: `a modifié la carte « ${card.title} »`, key: "card_updated", params: { name: card.title }, entityId: card.id, coalesce: true });
   }
 }
 
@@ -482,7 +482,7 @@ async function moveCardHandler(
     void (async () => {
       const [card, list] = await Promise.all([getCard(id), getList(moved.toListId)]);
       if (card && list) {
-        await tell(request, getProjectIdForList(moved.toListId), { type: "card_moved", text: `a déplacé la carte « ${card.title} » vers « ${list.title} »`, entityId: id, coalesce: true });
+        await tell(request, getProjectIdForList(moved.toListId), { type: "card_moved", text: `a déplacé la carte « ${card.title} » vers « ${list.title} »`, key: "card_moved", params: { name: card.title, list: list.title }, entityId: id, coalesce: true });
       }
     })().catch((err) => request.log.warn({ err }, "could not notify the project members"));
   }
@@ -501,5 +501,5 @@ async function deleteCardHandler(
     return;
   }
   reply.code(204).send();
-  void tell(request, getProjectIdForList(deleted.listId), { type: "card_deleted", text: `a supprimé la carte « ${deleted.title} »`, entityId: deleted.id });
+  void tell(request, getProjectIdForList(deleted.listId), { type: "card_deleted", text: `a supprimé la carte « ${deleted.title} »`, key: "card_deleted", params: { name: deleted.title }, entityId: deleted.id });
 }

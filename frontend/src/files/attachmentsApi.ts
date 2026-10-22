@@ -2,6 +2,7 @@
 // Responsible for: frontend API calls for the File upload module.
 import { apiRequest, API_PREFIX } from "../api/apiClient";
 import { getStoredToken } from "../auth/authClient";
+import { t } from "../shared/i18n.svelte";
 
 export interface Attachment {
 	id: string;
@@ -97,10 +98,10 @@ export function uploadType(file: File): string | null {
 }
 
 export function validateUpload(file: File): string | null {
-	if (file.name.trim() === "") return "Ce fichier n'a pas de nom.";
-	if (file.size === 0) return `« ${file.name} » est vide.`;
-	if (file.size > MAX_UPLOAD_BYTES) return `« ${file.name} » dépasse la limite de 10 Mo.`;
-	if (!uploadType(file)) return `« ${file.name} » : type non accepté. Formats possibles : images, PDF, texte, Markdown, JSON ou ZIP.`;
+	if (file.name.trim() === "") return t("files.noName");
+	if (file.size === 0) return t("files.isEmpty", { name: file.name });
+	if (file.size > MAX_UPLOAD_BYTES) return t("files.nameTooLarge", { name: file.name });
+	if (!uploadType(file)) return t("files.nameTypeRejected", { name: file.name });
 	return null;
 }
 

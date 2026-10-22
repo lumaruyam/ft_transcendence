@@ -1,12 +1,13 @@
 <script lang="ts">
+  import { t } from "../i18n.svelte";
   const year = new Date().getFullYear();
 </script>
 
 <footer class="site-footer">
-  <span>© {year} Transcendance · projet étudiant 42 Paris</span>
-  <nav aria-label="Informations légales">
-    <a href="/legal/terms">Conditions d'utilisation</a>
-    <a href="/legal/privacy">Politique de confidentialité</a>
+  <span>© {year} Transcendance · {t("footer.student")}</span>
+  <nav aria-label={t("footer.legal")}>
+    <a href="/legal/terms">{t("footer.terms")}</a>
+    <a href="/legal/privacy">{t("footer.privacy")}</a>
   </nav>
 </footer>
 

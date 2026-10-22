@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import AuthLayout from "../auth/AuthLayout.svelte";
   import { readOAuthResult } from "../auth/oauthFlow";
   import { clearAuthSession } from "../auth/authClient";
@@ -16,22 +17,25 @@
         window.location.replace(result.next);
       } else {
         clearAuthSession();
-        message = "Connexion impossible : votre profil n'a pas pu être chargé. Réessayez.";
+        message = t("callback.profileFailed");
       }
     });
   }
+  $effect(() => {
+    document.title = `${t("callback.pageTitle")} · Transcendance`;
+  });
 </script>
 
 <AuthLayout>
   <div class="box" role="status" aria-live="polite">
     {#if message}
-      <h1>La connexion a échoué</h1>
+      <h1>{t("callback.failed")}</h1>
       <div class="alert" role="alert"><Icon name="alert" size={17} /> <span>{message}</span></div>
-      <a class="btn btn-primary btn-block" href="/login">Retour à la connexion</a>
+      <a class="btn btn-primary btn-block" href="/login">{t("auth.backToLogin")}</a>
     {:else}
       <span class="spinner big"></span>
-      <h1>Connexion avec GitHub…</h1>
-      <p class="sub">Un instant, nous ouvrons votre espace.</p>
+      <h1>{t("callback.inProgress")}</h1>
+      <p class="sub">{t("callback.sub")}</p>
     {/if}
   </div>
 </AuthLayout>

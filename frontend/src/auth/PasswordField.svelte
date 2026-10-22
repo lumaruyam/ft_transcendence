@@ -1,10 +1,11 @@
 <script lang="ts">
   import Icon from "../shared/ui/Icon.svelte";
   import { passwordChecks, MIN_PASSWORD_LENGTH } from "./validation";
+  import { t } from "../shared/i18n.svelte";
 
   let {
     id,
-    label = "Mot de passe",
+    label,
     value = $bindable(""),
     autocomplete,
     error = null,
@@ -23,14 +24,14 @@
   let visible = $state(false);
   const checks = $derived(passwordChecks(value));
   const rules = $derived([
-    { ok: checks.length, text: `${MIN_PASSWORD_LENGTH} caractères minimum` },
-    { ok: checks.letter, text: "Une lettre" },
-    { ok: checks.digit, text: "Un chiffre" },
+    { ok: checks.length, text: t("password.ruleLength", { min: MIN_PASSWORD_LENGTH }) },
+    { ok: checks.letter, text: t("password.ruleLetter") },
+    { ok: checks.digit, text: t("password.ruleDigit") },
   ]);
 </script>
 
 <div class="field">
-  <label for={id}>{label}</label>
+  <label for={id}>{label ?? t("password.label")}</label>
   <div class="wrap">
     <input
       {id}
@@ -45,7 +46,7 @@
     <button
       type="button"
       class="toggle"
-      aria-label={visible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+      aria-label={visible ? t("password.hide") : t("password.show")}
       aria-pressed={visible}
       onclick={() => (visible = !visible)}
     >

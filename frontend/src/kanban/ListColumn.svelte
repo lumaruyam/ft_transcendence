@@ -1,6 +1,7 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
      Responsible for: one column: title, count, menu, cards and "add a card". The grip drags the list, cards can be dropped here. -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { tick } from "svelte";
   import { confirmDialog } from "../shared/confirm.svelte";
   import Icon from "../shared/ui/Icon.svelte";
@@ -78,9 +79,9 @@
     if (list.cards.length > 0) {
       const n = list.cards.length;
       const ok = await confirmDialog({
-        title: `Supprimer « ${list.title} » ?`,
-        message: `${n === 1 ? "La carte" : `Les ${n} cartes`} qu'elle contient ${n === 1 ? "sera supprimée" : "seront supprimées"} définitivement.`,
-        confirmLabel: "Supprimer la liste",
+        title: t("list.deleteTitle", { name: list.title }),
+        message: n === 1 ? t("list.deleteOne") : t("list.deleteMany", { n }),
+        confirmLabel: t("list.delete"),
         danger: true,
       });
       if (!ok) return;
@@ -103,16 +104,16 @@
   ondrop={onDrop}
 >
   <header>
-    <span class="count" title={`${list.cards.length} carte${list.cards.length > 1 ? "s" : ""}`}>
+    <span class="count" title={list.cards.length > 1 ? t("board.cards", { n: list.cards.length }) : t("board.card", { n: list.cards.length })}>
       {filter ? `${shown.length}/${list.cards.length}` : list.cards.length}
     </span>
-    <InlineTitle bind:this={title} value={list.title} editable={store.canEdit} label="Titre de la liste" onsave={(t) => store.renameList(list.id, t)} />
+    <InlineTitle bind:this={title} value={list.title} editable={store.canEdit} label={t("list.title")} onsave={(t) => store.renameList(list.id, t)} />
     {#if store.canEdit}
       <span
         class="icon-btn grip"
         role="presentation"
         draggable="true"
-        title="Glisser pour déplacer la liste"
+        title={t("list.dragHint")}
         ondragstart={onGripDragStart}
         ondragend={() => (store.drag = null)}
       >
@@ -120,7 +121,7 @@
       </span>
       <Popover width={220}>
         {#snippet trigger({ open, toggle })}
-          <button type="button" class="icon-btn menu" aria-label="Options de la liste" aria-expanded={open} onclick={toggle}>
+          <button type="button" class="icon-btn menu" aria-label={t("list.options")} aria-expanded={open} onclick={toggle}>
             <Icon name="more" size={17} />
           </button>
         {/snippet}
@@ -133,7 +134,7 @@
               title?.focus();
             }}
           >
-            <Icon name="pencil" size={15} /> Renommer
+            <Icon name="pencil" size={15} /> {t("common.rename")}
           </button>
           <button
             type="button"
@@ -143,13 +144,13 @@
               composer?.show();
             }}
           >
-            <Icon name="plus" size={15} /> Ajouter une carte
+            <Icon name="plus" size={15} /> {t("list.addCard")}
           </button>
           <button type="button" class="item" disabled={listIndex <= 0} onclick={() => { close(); void store.moveList(list.id, listIndex - 1); }}>
-            <Icon name="arrowLeft" size={15} /> Déplacer à gauche
+            <Icon name="arrowLeft" size={15} /> {t("list.moveLeft")}
           </button>
           <button type="button" class="item" disabled={listIndex < 0 || listIndex >= listCount - 1} onclick={() => { close(); void store.moveList(list.id, listIndex + 1); }}>
-            <Icon name="arrowRight" size={15} /> Déplacer à droite
+            <Icon name="arrowRight" size={15} /> {t("list.moveRight")}
           </button>
           <div class="sep" role="separator"></div>
           <button
@@ -160,7 +161,7 @@
               void onDelete();
             }}
           >
-            <Icon name="trash" size={15} /> Supprimer la liste
+            <Icon name="trash" size={15} /> {t("list.delete")}
           </button>
         {/snippet}
       </Popover>
@@ -178,14 +179,14 @@
       <div class="drop-line"></div>
     {/if}
     {#if list.cards.length === 0 && dropIndex === null}
-      <p class="empty">{store.canEdit ? "Déposez une carte ici" : "Aucune carte"}</p>
+      <p class="empty">{store.canEdit ? t("list.dropHere") : t("list.noCard")}</p>
     {:else if filter && shown.length === 0}
-      <p class="empty">Aucune carte ne correspond</p>
+      <p class="empty">{t("list.noMatch")}</p>
     {/if}
   </div>
 
   {#if store.canEdit}
-    <Composer bind:this={composer} label="Ajouter une carte" placeholder="Titre de la carte…" multiline maxlength={200} onadd={addCard} />
+    <Composer bind:this={composer} label={t("list.addCard")} placeholder={t("list.cardTitle")} multiline maxlength={200} onadd={addCard} />
   {/if}
 </section>
 

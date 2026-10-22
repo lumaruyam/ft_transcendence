@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, type MessageKey } from "../shared/i18n.svelte";
   import { onMount } from "svelte";
   import { ApiError } from "../api/apiClient";
   import { searchProjectPage } from "../api/accountApi";
@@ -15,15 +16,15 @@
 
   let { projectId }: { projectId: string } = $props();
 
-  const TYPES: { key: SearchType; label: string; icon: string }[] = [
-    { key: "card", label: "Cartes", icon: "columns" },
-    { key: "note", label: "Notes", icon: "note" },
-    { key: "attachment", label: "Fichiers", icon: "folder" },
+  const TYPES: { key: SearchType; label: MessageKey; one: MessageKey; icon: string }[] = [
+    { key: "card", label: "search.cards", one: "search.card", icon: "columns" },
+    { key: "note", label: "nav.notes", one: "notes.note", icon: "note" },
+    { key: "attachment", label: "nav.files", one: "search.file", icon: "folder" },
   ];
-  const SORTS: { key: SearchSort; label: string }[] = [
-    { key: "relevance", label: "Pertinence" },
-    { key: "date", label: "Plus récents" },
-    { key: "title", label: "Titre A → Z" },
+  const SORTS: { key: SearchSort; label: MessageKey }[] = [
+    { key: "relevance", label: "search.relevance" },
+    { key: "date", label: "search.newest" },
+    { key: "title", label: "search.titleAz" },
   ];
   const LIMITS = [10, 20, 50];
   const MAX_QUERY = 200;
@@ -42,8 +43,8 @@
   let problem = $state<string | null>(null);
 
   const pages = $derived(Math.max(1, Math.ceil(total / filters.limit)));
-  const dateError = $derived(filters.from && filters.to && filters.from > filters.to ? "La date de début doit précéder la date de fin." : null);
-  const queryError = $derived(draft.trim().length > MAX_QUERY ? `La recherche est limitée à ${MAX_QUERY} caractères.` : null);
+  const dateError = $derived(filters.from && filters.to && filters.from > filters.to ? t("search.dateOrder") : null);
+  const queryError = $derived(draft.trim().length > MAX_QUERY ? t("search.tooLong", { max: MAX_QUERY }) : null);
   const active = $derived(
     filters.types.length < TYPES.length || !!filters.tag || !!filters.author || !!filters.from || !!filters.to
   );
@@ -147,12 +148,12 @@
     return result.folderId ? `${base}/files?folder=${result.folderId}` : `${base}/files`;
   }
 
-  function typeOf(result: SearchResult): { label: string; icon: string } {
+  function typeOf(result: SearchResult): (typeof TYPES)[number] {
     return TYPES.find((t) => t.key === result.entityType) ?? TYPES[0];
   }
 
   $effect(() => {
-    document.title = project ? `Recherche · ${project.name} — Transcendance` : "Recherche — Transcendance";
+    document.title = project ? `${t("search.title")} · ${project.name} — Transcendance` : `${t("search.title")} — Transcendance`;
   });
 
   onMount(() => {
@@ -176,83 +177,83 @@
 <main class="page">
   <header class="title">
     <span class="badge"><Icon name="search" size={20} /></span>
-    <h1>Recherche avancée</h1>
+    <h1>{t("palette.advancedSearch")}</h1>
   </header>
 
   <form class="bar" role="search" onsubmit={submit}>
-    <label class="sr-only" for="search-q">Rechercher dans le projet</label>
+    <label class="sr-only" for="search-q">{t("search.inProject")}</label>
     <div class="query" class:invalid={!!queryError}>
       <Icon name="search" size={18} />
       <input
         id="search-q"
         type="search"
         bind:value={draft}
-        placeholder="Mot à chercher dans les cartes, notes et fichiers…"
+        placeholder={t("search.placeholder")}
         autocomplete="off"
         maxlength={MAX_QUERY}
         aria-invalid={queryError ? "true" : undefined}
         aria-describedby={queryError ? "q-err" : undefined}
       />
     </div>
-    <button type="submit" class="btn btn-primary" disabled={!!queryError}>Rechercher</button>
+    <button type="submit" class="btn btn-primary" disabled={!!queryError}>{t("nav.search")}</button>
   </form>
   {#if queryError}<p class="field-error" id="q-err" role="alert">{queryError}</p>{/if}
 
-  <section class="panel filters" aria-label="Filtres">
+  <section class="panel filters" aria-label={t("search.filters")}>
     <fieldset class="types">
-      <legend class="label">Type</legend>
+      <legend class="label">{t("search.type")}</legend>
       {#each TYPES as type (type.key)}
         <label class="toggle" class:on={filters.types.includes(type.key)}>
           <input type="checkbox" checked={filters.types.includes(type.key)} onchange={() => toggleType(type.key)} />
           <Icon name={type.icon} size={15} />
-          <span>{type.label}</span>
+          <span>{t(type.label)}</span>
         </label>
       {/each}
     </fieldset>
 
     <div class="grid">
       <div class="field">
-        <label for="f-tag">Étiquette</label>
+        <label for="f-tag">{t("search.tag")}</label>
         <select id="f-tag" class="input" value={filters.tag} onchange={(e) => update({ tag: e.currentTarget.value })}>
-          <option value="">Toutes</option>
+          <option value="">{t("search.allTags")}</option>
           {#each tags as tag (tag.id)}<option value={tag.id}>{tag.name}</option>{/each}
         </select>
       </div>
       <div class="field">
-        <label for="f-author">Auteur</label>
+        <label for="f-author">{t("search.author")}</label>
         <select id="f-author" class="input" value={filters.author} onchange={(e) => update({ author: e.currentTarget.value })}>
-          <option value="">Tout le monde</option>
+          <option value="">{t("search.everyone")}</option>
           {#each members as member (member.userId)}<option value={member.userId}>{member.user.name}</option>{/each}
         </select>
       </div>
       <div class="field">
-        <label for="f-from">Modifié après le</label>
+        <label for="f-from">{t("search.after")}</label>
         <input id="f-from" class="input" type="date" value={filters.from} max={filters.to || undefined} aria-invalid={dateError ? "true" : undefined} onchange={(e) => update({ from: e.currentTarget.value })} />
       </div>
       <div class="field">
-        <label for="f-to">Modifié avant le</label>
+        <label for="f-to">{t("search.before")}</label>
         <input id="f-to" class="input" type="date" value={filters.to} min={filters.from || undefined} aria-invalid={dateError ? "true" : undefined} onchange={(e) => update({ to: e.currentTarget.value })} />
       </div>
     </div>
     {#if dateError}<p class="field-error" role="alert">{dateError}</p>{/if}
-    {#if filters.tag}<p class="hint">Seules les cartes portent des étiquettes : les notes et fichiers sont masqués.</p>{/if}
-    {#if active}<div><button type="button" class="btn btn-ghost btn-sm" onclick={reset}><Icon name="x" size={14} /> Effacer les filtres</button></div>{/if}
+    {#if filters.tag}<p class="hint">{t("search.tagHint")}</p>{/if}
+    {#if active}<div><button type="button" class="btn btn-ghost btn-sm" onclick={reset}><Icon name="x" size={14} /> {t("search.clear")}</button></div>{/if}
   </section>
 
   <div class="summary">
     <p aria-live="polite">
       {#if loading}
-        Recherche…
+        {t("search.searching")}
       {:else if total === 0}
-        Aucun résultat
+        {t("search.none")}
       {:else}
-        {total} résultat{total > 1 ? "s" : ""}{filters.q ? ` pour « ${filters.q} »` : ""}
+        {total > 1 ? t("search.results", { n: total }) : t("search.result", { n: total })}{filters.q ? ` ${t("search.for", { q: filters.q })}` : ""}
       {/if}
     </p>
     <div class="sort">
-      <label for="f-sort" class="label">Trier par</label>
+      <label for="f-sort" class="label">{t("search.sortBy")}</label>
       <select id="f-sort" class="input" value={filters.sort} onchange={(e) => update({ sort: e.currentTarget.value as SearchSort })}>
-        {#each SORTS as sort (sort.key)}<option value={sort.key}>{sort.label}</option>{/each}
+        {#each SORTS as sort (sort.key)}<option value={sort.key}>{t(sort.label)}</option>{/each}
       </select>
     </div>
   </div>
@@ -260,7 +261,7 @@
   {#if problem}
     <p class="alert" role="alert"><Icon name="alert" size={17} /> {problem}</p>
   {:else if !loading && results.length === 0}
-    <p class="empty">{filters.q || active ? "Essayez avec d'autres mots ou moins de filtres." : "Le projet est encore vide."}</p>
+    <p class="empty">{filters.q || active ? t("search.tryOther") : t("search.emptyProject")}</p>
   {:else}
     <ul class="results" class:dim={loading}>
       {#each results as result (`${result.entityType}:${result.entityId}`)}
@@ -268,16 +269,16 @@
         {@const href = hrefFor(result)}
         <li>
           <svelte:element this={href ? "a" : "div"} class="result" {href}>
-            <span class="kind" title={type.label}><Icon name={type.icon} size={17} /></span>
+            <span class="kind" title={t(type.label)}><Icon name={type.icon} size={17} /></span>
             <div class="body">
               <div class="head">
                 <span class="name">{result.title}</span>
-                <span class="chip">{type.label.slice(0, -1)}</span>
+                <span class="chip">{t(type.one)}</span>
               </div>
               {#if result.snippet && result.snippet !== result.title}<p class="snippet">{result.snippet}</p>{/if}
               <div class="meta">
                 {#each result.tags as tag (tag.id)}<TagChip {tag} small />{/each}
-                <span>{result.author?.name ?? "Auteur inconnu"}</span>
+                <span>{result.author?.name ?? t("search.unknownAuthor")}</span>
                 <span aria-hidden="true">·</span>
                 <span>{formatDate(result.date)}</span>
               </div>
@@ -289,16 +290,16 @@
   {/if}
 
   {#if total > 0}
-    <nav class="pager" aria-label="Pagination">
+    <nav class="pager" aria-label={t("search.pagination")}>
       <button type="button" class="btn btn-sm" disabled={filters.page <= 1 || loading} onclick={() => goTo(filters.page - 1)}>
-        <Icon name="chevronLeft" size={15} /> Précédent
+        <Icon name="chevronLeft" size={15} /> {t("search.prev")}
       </button>
-      <span>Page {filters.page} sur {pages}</span>
+      <span>{t("search.page", { n: filters.page, m: pages })}</span>
       <button type="button" class="btn btn-sm" disabled={filters.page >= pages || loading} onclick={() => goTo(filters.page + 1)}>
-        Suivant <Icon name="chevronRight" size={15} />
+        {t("search.next")} <Icon name="chevronRight" size={15} />
       </button>
       <label class="per-page">
-        <span class="label">Par page</span>
+        <span class="label">{t("search.perPage")}</span>
         <select class="input" value={filters.limit} onchange={(e) => update({ limit: Number(e.currentTarget.value) })}>
           {#each LIMITS as limit (limit)}<option value={limit}>{limit}</option>{/each}
         </select>

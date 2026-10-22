@@ -1,6 +1,7 @@
 <!-- Owner: Track 4 (Whiteboard, notes, and supporting modules)
      Responsible for: the dialog that picks the documents linked to a card -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { humanSize } from "../documents/fileInfo";
   import { listAttachments, type Attachment } from "../files/attachmentsApi";
   import { listNotes, type NoteSummary } from "../notes/notesApi";
@@ -83,7 +84,7 @@
       [notes, files] = await Promise.all([listNotes(projectId), listAttachments(projectId)]);
       queueMicrotask(() => search?.focus());
     } catch {
-      toast("Impossible de charger les documents.", { kind: "error" });
+      toast(t("docs.loadFailed"), { kind: "error" });
       open = false;
     } finally {
       loading = false;
@@ -112,7 +113,7 @@
 <dialog
   class="modal"
   bind:this={dialog}
-  aria-label="Documents liés à la carte"
+  aria-label={t("docs.ofCard")}
   onclose={() => (open = false)}
   onclick={(event) => {
     if (event.target === dialog) open = false;
@@ -120,24 +121,24 @@
 >
   {#if open}
     <div class="head">
-      <h2>Documents liés</h2>
-      <button type="button" class="icon-btn" aria-label="Fermer" onclick={() => (open = false)}><Icon name="x" size={18} /></button>
+      <h2>{t("docs.linked")}</h2>
+      <button type="button" class="icon-btn" aria-label={t("common.close")} onclick={() => (open = false)}><Icon name="x" size={18} /></button>
     </div>
 
     <div class="search">
       <Icon name="search" size={16} />
-      <input class="bare" bind:this={search} bind:value={query} placeholder="Chercher une note ou un fichier…" maxlength="100" onkeydown={onSearchKey} />
+      <input class="bare" bind:this={search} bind:value={query} placeholder={t("docs.search")} maxlength="100" onkeydown={onSearchKey} />
     </div>
 
-    <div class="filters" role="tablist" aria-label="Type de document">
-      {#each [["all", "Tous"], ["note", "Notes"], ["file", "Fichiers"]] as [value, label] (value)}
+    <div class="filters" role="tablist" aria-label={t("docs.type")}>
+      {#each [["all", t("docs.all")], ["note", t("nav.notes")], ["file", t("nav.files")]] as [value, label] (value)}
         <button type="button" role="tab" class="filter" class:on={filter === value} aria-selected={filter === value} onclick={() => (filter = value as Filter)}>{label}</button>
       {/each}
     </div>
 
     <ul class="list">
       {#if loading}
-        <li class="empty">Chargement…</li>
+        <li class="empty">{t("common.loading")}</li>
       {:else}
         {#each shown as row (row.key)}
           <li>
@@ -150,15 +151,15 @@
           </li>
         {:else}
           <li class="empty">
-            {rows.length === 0 ? "Aucune note ni aucun fichier dans ce projet." : "Aucun document ne correspond."}
+            {rows.length === 0 ? t("docs.noneInProject") : t("docs.noMatch")}
           </li>
         {/each}
       {/if}
     </ul>
 
     <div class="foot">
-      <span class="count">{linkedCount === 0 ? "Aucun document lié" : `${linkedCount} document${linkedCount > 1 ? "s" : ""} lié${linkedCount > 1 ? "s" : ""}`}</span>
-      <button type="button" class="btn btn-primary btn-sm" onclick={() => (open = false)}>Terminé</button>
+      <span class="count">{linkedCount === 0 ? t("docs.noneLinked") : linkedCount > 1 ? t("card.linkedDocs", { n: linkedCount }) : t("card.linkedDoc", { n: linkedCount })}</span>
+      <button type="button" class="btn btn-primary btn-sm" onclick={() => (open = false)}>{t("common.done")}</button>
     </div>
   {/if}
 </dialog>

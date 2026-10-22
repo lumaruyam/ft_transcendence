@@ -5,6 +5,7 @@
   import { startOAuthLogin } from "../auth/oauthFlow";
   import { validateEmail } from "../auth/validation";
   import Icon from "../shared/ui/Icon.svelte";
+  import { t } from "../shared/i18n.svelte";
   import { nextFromUrl, signupUrl } from "../shared/session";
 
   const next = nextFromUrl();
@@ -20,7 +21,7 @@
     event.preventDefault();
     formError = null;
     emailError = validateEmail(email);
-    passwordError = password ? null : "Entrez votre mot de passe.";
+    passwordError = password ? null : t("login.passwordRequired");
     if (emailError || passwordError) {
       document.getElementById(emailError ? "email" : "password")?.focus();
       return;
@@ -33,25 +34,28 @@
     } catch (err) {
       busy = false;
       if (err instanceof AuthApiError && err.status === 401) {
-        formError = "E-mail ou mot de passe incorrect.";
+        formError = t("login.wrongCredentials");
         password = "";
         document.getElementById("password")?.focus();
       } else if (err instanceof AuthApiError && err.status === 429) {
-        formError = "Trop de tentatives. Patientez une minute puis réessayez.";
+        formError = t("auth.tooManyAttempts");
       } else if (err instanceof AuthApiError && err.status === 0) {
         formError = err.message;
       } else {
-        formError = "Connexion impossible pour le moment. Réessayez dans un instant.";
+        formError = t("login.failed");
       }
     }
   }
+  $effect(() => {
+    document.title = `${t("landing.login")} · Transcendance`;
+  });
 </script>
 
 <AuthLayout>
   <form class="form" onsubmit={onSubmit} novalidate>
     <header>
-      <h1>Content de vous revoir</h1>
-      <p class="sub">Connectez-vous pour retrouver vos projets.</p>
+      <h1>{t("login.title")}</h1>
+      <p class="sub">{t("login.subtitle")}</p>
     </header>
 
     {#if formError}
@@ -59,7 +63,7 @@
     {/if}
 
     <div class="field">
-      <label for="email">Adresse e-mail</label>
+      <label for="email">{t("auth.email")}</label>
       <!-- svelte-ignore a11y_autofocus -->
       <input
         id="email"
@@ -78,20 +82,20 @@
     <PasswordField id="password" bind:value={password} autocomplete="current-password" error={passwordError} />
 
     <div class="row">
-      <a href="/forgot-password">Mot de passe oublié ?</a>
+      <a href="/forgot-password">{t("login.forgot")}</a>
     </div>
 
     <button type="submit" class="btn btn-primary btn-block" disabled={busy}>
-      {#if busy}<span class="spinner"></span> Connexion…{:else}Se connecter{/if}
+      {#if busy}<span class="spinner"></span> {t("login.busy")}{:else}{t("login.submit")}{/if}
     </button>
 
-    <div class="or"><span>ou</span></div>
+    <div class="or"><span>{t("auth.or")}</span></div>
 
     <button type="button" class="btn btn-block" disabled={busy} onclick={() => startOAuthLogin(next === "/app" ? undefined : next)}>
-      <Icon name="github" size={18} /> Continuer avec GitHub
+      <Icon name="github" size={18} /> {t("auth.github")}
     </button>
 
-    <p class="switch">Pas encore de compte ? <a href={signupUrl(next)}>Créer un compte</a></p>
+    <p class="switch">{t("login.noAccount")} <a href={signupUrl(next)}>{t("login.toSignup")}</a></p>
   </form>
 </AuthLayout>
 

@@ -6,30 +6,36 @@
   import Icon from "../shared/ui/Icon.svelte";
   import Logo from "../shared/ui/Logo.svelte";
   import ThemeSwitch from "../shared/ui/ThemeSwitch.svelte";
+  import LangSwitch from "../shared/ui/LangSwitch.svelte";
+  import { t } from "../shared/i18n.svelte";
 
   const signedIn = getStoredToken() !== null;
 
+  $effect(() => {
+    document.title = t("landing.pageTitle");
+  });
+
   const FEATURES = [
-    { icon: "columns", title: "Un tableau vivant", text: "Les cartes bougent sous vos yeux : ce que fait l'équipe apparaît à l'instant, avec la liste de qui est en ligne." },
-    { icon: "branch", title: "Branché sur Git", text: "Une branche, une pull request : la carte qui y est liée avance toute seule, et l'équipe est prévenue." },
-    { icon: "note", title: "Notes et tableau blanc", text: "Un espace pour écrire, un autre pour dessiner. Dans le même projet, sans changer d'outil." },
-    { icon: "search", title: "Tout se retrouve", text: "Un raccourci, Ctrl K, et vous cherchez dans les cartes, les notes et les fichiers du projet." },
-    { icon: "users", title: "Une équipe, des rôles", text: "Administrateurs, membres, lecteurs. On invite avec un simple lien, qu'on peut révoquer d'un clic." },
-    { icon: "key", title: "Ouvert aux scripts", text: "Une API publique à clé, limitée en débit, pour relier vos cartes au reste de vos outils." },
-  ];
+    { icon: "columns", key: "board" },
+    { icon: "branch", key: "git" },
+    { icon: "note", key: "notes" },
+    { icon: "search", key: "search" },
+    { icon: "users", key: "roles" },
+    { icon: "key", key: "api" },
+  ] as const;
 </script>
 
 <div class="page">
   <header>
     <a class="brand" href="/"><Logo size={32} /><span>Transcendance</span></a>
     <nav class:signed={signedIn}>
-      <a class="link" href="#fonctionnalites">Fonctionnalités</a>
-      <ThemeSwitch compact />
+      <a class="link" href="#fonctionnalites">{t("landing.features")}</a>
+      <div class="switches"><LangSwitch compact /><ThemeSwitch compact /></div>
       {#if signedIn}
-        <a class="btn btn-primary btn-sm" href="/app">Mes projets</a>
+        <a class="btn btn-primary btn-sm" href="/app">{t("userMenu.projects")}</a>
       {:else}
-        <a class="btn btn-ghost btn-sm" href="/login">Connexion</a>
-        <a class="btn btn-primary btn-sm" href="/signup">Créer un compte</a>
+        <a class="btn btn-ghost btn-sm" href="/login">{t("landing.login")}</a>
+        <a class="btn btn-primary btn-sm" href="/signup">{t("login.toSignup")}</a>
       {/if}
     </nav>
   </header>
@@ -37,18 +43,15 @@
   <main>
     <section class="hero">
       <div class="copy">
-        <p class="eyebrow">Gestion de projet collaborative</p>
-        <h1>Votre projet,<br /><em>sur un seul tableau.</em></h1>
-        <p class="lead">
-          Un tableau, des notes et un tableau blanc partagés, qui se mettent à jour en direct. Un outil calme, pensé pour que
-          l'équipe passe son temps à faire, pas à gérer l'outil.
-        </p>
+        <p class="eyebrow">{t("landing.eyebrow")}</p>
+        <h1>{t("landing.titleLine1")}<br /><em>{t("landing.titleLine2")}</em></h1>
+        <p class="lead">{t("landing.lead")}</p>
         <div class="cta">
           {#if signedIn}
-            <a class="btn btn-primary" href="/app">Ouvrir mes projets <Icon name="arrowRight" size={17} /></a>
+            <a class="btn btn-primary" href="/app">{t("landing.openProjects")} <Icon name="arrowRight" size={17} /></a>
           {:else}
-            <a class="btn btn-primary" href="/signup">Commencer gratuitement <Icon name="arrowRight" size={17} /></a>
-            <a class="btn" href="/login">J'ai déjà un compte</a>
+            <a class="btn btn-primary" href="/signup">{t("landing.start")} <Icon name="arrowRight" size={17} /></a>
+            <a class="btn" href="/login">{t("landing.haveAccount")}</a>
           {/if}
         </div>
       </div>
@@ -56,27 +59,27 @@
     </section>
 
     <section id="fonctionnalites" class="features">
-      <h2>Un seul outil pour toute l'équipe.</h2>
+      <h2>{t("landing.featuresTitle")}</h2>
       <div class="grid">
-        {#each FEATURES as feature (feature.title)}
+        {#each FEATURES as feature (feature.key)}
           <article>
             <span class="icon"><Icon name={feature.icon} size={20} /></span>
-            <h3>{feature.title}</h3>
-            <p>{feature.text}</p>
+            <h3>{t(`landing.feature.${feature.key}.title`)}</h3>
+            <p>{t(`landing.feature.${feature.key}.text`)}</p>
           </article>
         {/each}
       </div>
     </section>
 
     <section class="closing">
-      <h2>Prêt à travailler au calme ?</h2>
-      <p>Créez un projet en quelques secondes, invitez votre équipe avec un lien.</p>
-      <a class="btn btn-primary" href={signedIn ? "/app" : "/signup"}>{signedIn ? "Ouvrir mes projets" : "Créer un compte"}</a>
+      <h2>{t("landing.closingTitle")}</h2>
+      <p>{t("landing.closingText")}</p>
+      <a class="btn btn-primary" href={signedIn ? "/app" : "/signup"}>{signedIn ? t("landing.openProjects") : t("login.toSignup")}</a>
     </section>
   </main>
 
   <footer>
-    <span class="links"><a href="/legal/terms">Conditions</a><a href="/legal/privacy">Confidentialité</a></span>
+    <span class="links"><a href="/legal/terms">{t("auth.terms")}</a><a href="/legal/privacy">{t("auth.privacy")}</a></span>
   </footer>
 </div>
 
@@ -109,6 +112,11 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
+    gap: 8px;
+  }
+  .switches {
+    display: flex;
+    align-items: center;
     gap: 8px;
   }
   .link {
@@ -230,7 +238,12 @@
       gap: 40px;
       padding: 40px 0 64px;
     }
-    .link {
+    .switches {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .link {
       display: none;
     }
   }
@@ -238,13 +251,13 @@
     .page {
       padding: 0 16px;
     }
-    /* second row: theme switch on the left, buttons on the right (wraps again on very narrow screens) */
+    /* second row: language and theme switches on the left, buttons on the right (wraps again on very narrow screens) */
     nav {
       width: 100%;
       justify-content: space-between;
       padding-bottom: 6px;
     }
-    /* signed in: the hero already has an "Ouvrir mes projets" button, so the theme switch sits next to the logo */
+    /* signed in: the hero already has an "Ouvrir mes projets" button, so the switches sit next to the logo */
     nav.signed {
       width: auto;
       padding-bottom: 0;

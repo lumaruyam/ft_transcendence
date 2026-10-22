@@ -1,6 +1,7 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
      Responsible for: one card. Click opens it, drag moves it, Alt+arrows move it, Delete removes it (undoable). -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import Icon from "../shared/ui/Icon.svelte";
   import CardMenu from "./CardMenu.svelte";
   import TagChip from "./TagChip.svelte";
@@ -80,7 +81,7 @@
   {#if docCount > 0 || card.tags?.length}
     <div class="tags">
       {#if docCount > 0}
-        <span class="docs" title={`${docCount} document${docCount > 1 ? "s" : ""} lié${docCount > 1 ? "s" : ""}`}>
+        <span class="docs" title={docCount > 1 ? t("card.linkedDocs", { n: docCount }) : t("card.linkedDoc", { n: docCount })}>
           <Icon name="note" size={12} /><span>{docCount}</span>
         </span>
       {/if}
@@ -95,7 +96,7 @@
     <div class="meta">
       {#if status}<span class="chip" class:chip-accent={done} class:chip-warn={!done}>{status}</span>{/if}
       {#if card.linkedBranch}<span class="git" title={card.linkedBranch}><Icon name="branch" size={13} /><span class="selectable">{card.linkedBranch}</span></span>{/if}
-      {#if card.linkedPrUrl}<span class="git" title="Pull request liée"><Icon name="link" size={13} /> PR</span>{/if}
+      {#if card.linkedPrUrl}<span class="git" title={t("card.linkedPr")}><Icon name="link" size={13} /> PR</span>{/if}
     </div>
   {/if}
 </div>

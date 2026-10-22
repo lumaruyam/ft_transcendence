@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { onMount } from "svelte";
   import { ApiError } from "../api/apiClient";
   import { getProject, listMembers } from "../api/projectsApi";
@@ -18,11 +19,11 @@
   let { projectId }: { projectId: string } = $props();
 
   const SECTIONS = [
-    { key: "general", label: "Général", icon: "settings" },
-    { key: "membres", label: "Membres", icon: "users" },
-    { key: "invitations", label: "Invitations", icon: "link" },
-    { key: "api", label: "Clés API", icon: "key" },
-    { key: "danger", label: "Zone sensible", icon: "alert" },
+    { key: "general", label: "ps.general", icon: "settings" },
+    { key: "membres", label: "ps.members", icon: "users" },
+    { key: "invitations", label: "ps.invites", icon: "link" },
+    { key: "api", label: "ps.apiKeys", icon: "key" },
+    { key: "danger", label: "ps.danger", icon: "alert" },
   ] as const;
   type SectionKey = (typeof SECTIONS)[number]["key"];
 
@@ -70,7 +71,7 @@
   });
 
   $effect(() => {
-    document.title = project ? `Réglages · ${project.name} — Transcendance` : "Réglages — Transcendance";
+    document.title = project ? `${t("nav.settings")} · ${project.name} — Transcendance` : `${t("nav.settings")} — Transcendance`;
   });
 </script>
 
@@ -79,7 +80,7 @@
 <AppHeader project={project ?? undefined} active="settings" />
 
 <main>
-  <LoadStage {gate} label="Chargement des réglages…">
+  <LoadStage {gate} label={t("ps.loading")}>
     {#snippet skeleton()}
       <div class="layout">
         <div class="sk-nav sk-enter" style:--i="0">
@@ -102,25 +103,25 @@
     {#if phase === "denied"}
       <div class="center">
         <div class="state-icon"><Icon name="lock" size={26} /></div>
-        <h2>Vous n'avez pas accès à ce projet</h2>
-        <p>Il n'existe peut-être plus, ou vous n'en faites pas partie.</p>
-        <a class="btn btn-primary" href="/app">Retour à mes projets</a>
+        <h2>{t("board.noAccessTitle")}</h2>
+        <p>{t("ps.noAccessText")}</p>
+        <a class="btn btn-primary" href="/app">{t("common.backToProjects")}</a>
       </div>
     {:else if phase === "error" || !project}
       <div class="center">
         <div class="state-icon"><Icon name="wifiOff" size={26} /></div>
-        <h2>Impossible de charger les réglages</h2>
-        <p>Vérifiez votre connexion, puis réessayez.</p>
-        <button type="button" class="btn btn-primary" onclick={load}>Réessayer</button>
+        <h2>{t("ps.loadFailed")}</h2>
+        <p>{t("common.checkConnection")}</p>
+        <button type="button" class="btn btn-primary" onclick={load}>{t("common.retry")}</button>
       </div>
     {:else}
       <div class="layout">
-        <nav aria-label="Sections des réglages">
-          <h1>Réglages</h1>
+        <nav aria-label={t("ps.sections")}>
+          <h1>{t("nav.settings")}</h1>
           {#each SECTIONS as s (s.key)}
             <button type="button" class:active={section === s.key} class:danger={s.key === "danger"} aria-current={section === s.key ? "page" : undefined} onclick={() => go(s.key)}>
               <Icon name={s.icon} size={16} />
-              <span>{s.label}</span>
+              <span>{t(s.label)}</span>
             </button>
           {/each}
         </nav>
@@ -129,7 +130,7 @@
           {#if !isAdmin}
             <div class="alert alert-info">
               <Icon name="info" size={17} />
-              <span>Vous êtes <strong>{me?.role === "member" ? "membre" : "lecteur"}</strong> de ce projet : la plupart des réglages sont réservés aux administrateurs.</span>
+              <span>{t("ps.youAre")} <strong>{(me?.role === "member" ? t("role.member") : t("role.viewer")).toLowerCase()}</strong> {t("ps.adminOnly")}</span>
             </div>
           {/if}
 

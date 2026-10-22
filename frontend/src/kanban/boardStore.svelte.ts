@@ -15,6 +15,7 @@ import { listNotes } from "../notes/notesApi";
 import * as api from "./boardApi";
 import { connectKanbanSocket } from "./wsClient";
 import type { Board, Card, CardMoved, List, Member, Project, Tag } from "./types";
+import { t } from "../shared/i18n.svelte";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -26,7 +27,8 @@ const UNDO_MS = 6000;
 // ms a card changed by someone else stays highlighted
 const FLASH_MS = 1800;
 
-const DEFAULT_LISTS = ["À faire", "En cours", "Terminé"];
+// created in the interface language
+const DEFAULT_LISTS = ["board.defaultTodo", "board.defaultDoing", "board.defaultDone"] as const;
 
 interface PendingDelete {
   card: Card;
@@ -199,8 +201,8 @@ export class BoardStore {
 
   // gives an empty board the three usual lists
   async addDefaultLists(): Promise<boolean> {
-    for (const title of DEFAULT_LISTS) {
-      if (!(await this.addList(title))) return false;
+    for (const key of DEFAULT_LISTS) {
+      if (!(await this.addList(t(key)))) return false;
     }
     return true;
   }
@@ -247,7 +249,7 @@ export class BoardStore {
       return null;
     } catch (err) {
       if (err instanceof ApiError && err.code === "github_error" && typeof err.payload.message === "string") return err.payload.message;
-      if (err instanceof ApiError && err.code === "github_not_linked") return "Votre compte GitHub n'est pas connecté : impossible d'appeler GitHub.";
+      if (err instanceof ApiError && err.code === "github_not_linked") return t("git.notLinked");
       return errorMessage(err);
     }
   }
@@ -300,7 +302,7 @@ export class BoardStore {
 
     const timer = setTimeout(() => void this.#commitDelete(cardId), UNDO_MS);
     this.#pendingDeletes.set(cardId, { card: snapshot, listId: list.id, index, timer });
-    toast("Carte supprimée", { duration: UNDO_MS, action: { label: "Annuler", run: () => this.#undoDelete(cardId) } });
+    toast(t("card.deleted"), { duration: UNDO_MS, action: { label: t("common.undo"), run: () => this.#undoDelete(cardId) } });
   }
 
   #undoDelete(cardId: string): void {

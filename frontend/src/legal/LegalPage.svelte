@@ -1,37 +1,46 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import Logo from "../shared/ui/Logo.svelte";
   import ThemeSwitch from "../shared/ui/ThemeSwitch.svelte";
+  import LangSwitch from "../shared/ui/LangSwitch.svelte";
+  import { t, type MessageKey } from "../shared/i18n.svelte";
+  import { currentVersion, renderLegalDoc, type LegalVersions } from "./legalDoc";
 
   let {
-    render,
+    versions,
     other,
-  }: { render: (container: HTMLElement) => void; other: { href: string; label: string } } = $props();
+  }: { versions: LegalVersions; other: { href: string; label: MessageKey } } = $props();
 
   let content: HTMLElement;
 
-  onMount(() => {
-    render(content);
-    document.title = `${content.querySelector("h1")?.textContent ?? "Legal"} · Transcendance`;
+  // re-rendered when the interface language changes
+  $effect(() => {
+    const doc = currentVersion(versions);
+    renderLegalDoc(content, doc);
+    document.title = `${doc.title} · Transcendance`;
   });
 </script>
 
 <div class="page">
   <header>
     <a class="brand" href="/"><Logo size={30} /><span>Transcendance</span></a>
-    <ThemeSwitch compact />
+    <div class="switches"><LangSwitch compact /><ThemeSwitch compact /></div>
   </header>
 
   <main>
     <div class="content selectable" bind:this={content}></div>
     <nav>
-      <a href="/">← Accueil</a>
-      <a href={other.href}>{other.label}</a>
+      <a href="/">← {t("notFound.home")}</a>
+      <a href={other.href}>{t(other.label)}</a>
     </nav>
   </main>
 </div>
 
 <style>
+  .switches {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .page {
     min-height: 100vh;
     padding: 20px 28px 60px;

@@ -2,6 +2,6 @@
 // Responsible for: the /legal/terms entry point.
 import { boot } from "../../shared/boot";
 import LegalPage from "../LegalPage.svelte";
-import { renderTermsOfServicePage } from "../termsOfService";
+import { termsOfService } from "../termsOfService";
 
-boot(LegalPage, { footer: false, props: { render: renderTermsOfServicePage, other: { href: "/legal/privacy", label: "Privacy Policy" } } });
+boot(LegalPage, { footer: false, props: { versions: termsOfService, other: { href: "/legal/privacy", label: "footer.privacy" } } });

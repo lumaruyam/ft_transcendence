@@ -1,6 +1,7 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
      Responsible for: the dialog that sets the tags of a card, and creates, renames, recolors and deletes the project's tags. -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { confirmDialog } from "../shared/confirm.svelte";
   import Icon from "../shared/ui/Icon.svelte";
   import TagChip from "./TagChip.svelte";
@@ -82,9 +83,9 @@
     const used = (store.board?.lists ?? []).flatMap((l) => l.cards).filter((c) => c.tags?.some((t) => t.id === editingId)).length;
     if (tag && used > 0) {
       const ok = await confirmDialog({
-        title: `Supprimer « ${tag.name} » ?`,
-        message: `Cette étiquette est utilisée sur ${used} carte${used > 1 ? "s" : ""}. Elle sera retirée de toutes.`,
-        confirmLabel: "Supprimer",
+        title: t("list.deleteTitle", { name: tag.name }),
+        message: used > 1 ? t("tags.usedMany", { n: used }) : t("tags.usedOne"),
+        confirmLabel: t("common.delete"),
         danger: true,
       });
       if (!ok) return;
@@ -106,7 +107,7 @@
 <dialog
   class="modal"
   bind:this={dialog}
-  aria-label="Étiquettes de la carte"
+  aria-label={t("tags.ofCard")}
   onclose={() => (open = false)}
   onclick={(event) => {
     if (event.target === dialog) open = false;
@@ -114,8 +115,8 @@
 >
   {#if open}
     <div class="head">
-      <h2>Étiquettes</h2>
-      <button type="button" class="icon-btn" aria-label="Fermer" onclick={() => (open = false)}><Icon name="x" size={18} /></button>
+      <h2>{t("tags.title")}</h2>
+      <button type="button" class="icon-btn" aria-label={t("common.close")} onclick={() => (open = false)}><Icon name="x" size={18} /></button>
     </div>
 
     <div class="search">
@@ -123,7 +124,7 @@
       <input
         class="bare"
         bind:value={query}
-        placeholder={store.canEdit ? "Chercher ou créer une étiquette…" : "Chercher une étiquette…"}
+        placeholder={store.canEdit ? t("tags.searchOrCreatePh") : t("tags.searchPh")}
         maxlength="30"
         onkeydown={onSearchKey}
       />
@@ -133,8 +134,8 @@
       {#each shown as tag (tag.id)}
         {#if editingId === tag.id}
           <li class="editor">
-            <input class="input" bind:value={editName} maxlength="30" aria-label="Nom de l'étiquette" onkeydown={(e) => e.key === "Enter" && saveEdit()} />
-            <div class="swatches" role="radiogroup" aria-label="Couleur">
+            <input class="input" bind:value={editName} maxlength="30" aria-label={t("tags.name")} onkeydown={(e) => e.key === "Enter" && saveEdit()} />
+            <div class="swatches" role="radiogroup" aria-label={t("tags.color")}>
               {#each TAG_COLORS as color (color)}
                 <button
                   type="button"
@@ -149,10 +150,10 @@
               {/each}
             </div>
             <div class="editor-actions">
-              <button type="button" class="btn btn-danger btn-sm" disabled={busy} onclick={remove}><Icon name="trash" size={14} /> Supprimer</button>
+              <button type="button" class="btn btn-danger btn-sm" disabled={busy} onclick={remove}><Icon name="trash" size={14} /> {t("common.delete")}</button>
               <span class="spacer"></span>
-              <button type="button" class="btn btn-ghost btn-sm" onclick={() => (editingId = null)}>Annuler</button>
-              <button type="button" class="btn btn-primary btn-sm" disabled={busy || !editName.trim()} onclick={saveEdit}>Enregistrer</button>
+              <button type="button" class="btn btn-ghost btn-sm" onclick={() => (editingId = null)}>{t("common.cancel")}</button>
+              <button type="button" class="btn btn-primary btn-sm" disabled={busy || !editName.trim()} onclick={saveEdit}>{t("common.save")}</button>
             </div>
           </li>
         {:else}
@@ -162,18 +163,18 @@
               <TagChip {tag} />
             </button>
             {#if store.canEdit}
-              <button type="button" class="icon-btn" aria-label={`Modifier ${tag.name}`} onclick={() => startEdit(tag.id)}><Icon name="pencil" size={15} /></button>
+              <button type="button" class="icon-btn" aria-label={t("tags.editName", { name: tag.name })} onclick={() => startEdit(tag.id)}><Icon name="pencil" size={15} /></button>
             {/if}
           </li>
         {/if}
       {:else}
-        {#if !canCreate}<li class="empty">Aucune étiquette.</li>{/if}
+        {#if !canCreate}<li class="empty">{t("tags.empty")}</li>{/if}
       {/each}
     </ul>
 
     {#if canCreate}
       <div class="create">
-        <div class="swatches" role="radiogroup" aria-label="Couleur de la nouvelle étiquette">
+        <div class="swatches" role="radiogroup" aria-label={t("tags.newColor")}>
           {#each TAG_COLORS as color (color)}
             <button
               type="button"
@@ -188,7 +189,7 @@
           {/each}
         </div>
         <button type="button" class="btn btn-primary btn-block" disabled={busy} onclick={create}>
-          <Icon name="plus" size={15} /> Créer <TagChip tag={{ name: query.trim(), color: newColor }} small />
+          <Icon name="plus" size={15} /> {t("common.create")} <TagChip tag={{ name: query.trim(), color: newColor }} small />
         </button>
       </div>
     {/if}

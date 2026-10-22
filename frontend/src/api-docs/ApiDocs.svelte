@@ -1,10 +1,13 @@
 <!-- Documentation of the public API, drawn from GET /api/openapi.json (the same description the tools read). -->
 <script lang="ts">
+  import { i18n, t } from "../shared/i18n.svelte";
   import { onMount } from "svelte";
   import { isAuthenticated } from "../auth/authClient";
   import AppHeader from "../shared/ui/AppHeader.svelte";
   import Logo from "../shared/ui/Logo.svelte";
   import ThemeSwitch from "../shared/ui/ThemeSwitch.svelte";
+  import LangSwitch from "../shared/ui/LangSwitch.svelte";
+  import Rich from "../shared/ui/Rich.svelte";
 
   interface Param { name: string; in: string; required: boolean; description: string }
   interface Operation {
@@ -37,7 +40,6 @@
   }
 
   onMount(async () => {
-    document.title = "Documentation de l'API · Transcendance";
     try {
       const spec = await (await fetch("/api/openapi.json")).json();
       const list: Operation[] = [];
@@ -69,6 +71,10 @@
   });
 
   const pretty = (value: unknown): string => JSON.stringify(value, null, 2);
+
+  $effect(() => {
+    document.title = `${t("keys.fullDocs")} · Transcendance`;
+  });
 </script>
 
 {#if signedIn}
@@ -77,20 +83,21 @@
   <header class="public-bar">
     <a class="brand" href="/"><Logo size={30} /><span>Transcendance</span></a>
     <div class="public-right">
-      <a class="btn" href="/login?next=/api-docs">Se connecter</a>
+      <a class="btn" href="/login?next=/api-docs">{t("login.submit")}</a>
+      <LangSwitch compact />
       <ThemeSwitch compact />
     </div>
   </header>
 {/if}
 
 <div class="layout">
-  <aside aria-label="Sommaire">
+  <aside aria-label={t("apidocs.contents")}>
     <nav>
-      <div class="label">Guide</div>
-      <a href="#authentification">Authentification</a>
-      <a href="#limites">Limites de débit</a>
-      <a href="#erreurs">Erreurs</a>
-      <div class="label">Routes</div>
+      <div class="label">{t("apidocs.guide")}</div>
+      <a href="#authentification">{t("apidocs.auth")}</a>
+      <a href="#limites">{t("apidocs.limits")}</a>
+      <a href="#erreurs">{t("apidocs.errors")}</a>
+      <div class="label">{t("apidocs.routes")}</div>
       {#each operations as op (op.id)}
         <a href={`#${op.id}`}><span class="m {op.method}">{op.method.toUpperCase()}</span> <span class="nav-text">{op.summary}</span></a>
       {/each}
@@ -99,35 +106,35 @@
 
   <main class="selectable">
     <header class="section-head">
-      <h1>API publique</h1>
-      <p>Lisez et modifiez les cartes Kanban de vos projets depuis un script. Tout passe par HTTPS. Version lisible par les outils : <a href="/api/openapi.json">/api/openapi.json</a> (OpenAPI 3.0).</p>
+      <h1>{t("apidocs.title")}</h1>
+      <p>{t("apidocs.intro")} <a href="/api/openapi.json">/api/openapi.json</a> (OpenAPI 3.0).</p>
     </header>
 
     <section class="panel" id="authentification">
-      <h2>Authentification</h2>
-      <p>Chaque requête porte une clé d'API dans l'en-tête <code>X-API-Key</code>. Un administrateur du projet crée les clés dans les réglages du projet, section <em>Clés API</em> : la clé n'est montrée qu'<strong>une seule fois</strong>, seule son empreinte est conservée, et on peut la révoquer à tout moment. Elles ressemblent à <code>tk_…</code>.</p>
-      <p>Une clé agit comme la personne qui l'a créée, avec son rôle dans chaque projet (lecteur : lecture ; membre : création, modification et suppression). Si la personne est rétrogradée ou retirée, la clé perd l'accès aussitôt. Une clé peut être limitée à un seul projet (<code>403 api_key_project_mismatch</code> ailleurs). Les cartes et listes d'un autre projet répondent <code>404</code>, jamais <code>403</code> : on ne peut pas deviner les identifiants.</p>
+      <h2>{t("apidocs.auth")}</h2>
+      <p><Rich text={t("apidocs.auth1")} /></p>
+      <p><Rich text={t("apidocs.auth2")} /></p>
     </section>
 
     <section class="panel" id="limites">
-      <h2>Limites de débit</h2>
-      <p>Chaque clé a sa propre limite, en requêtes par minute (fixée par l'administrateur, de 1 à {MAX_RATE_LIMIT.toLocaleString("fr-FR")}), comptées sur une fenêtre d'une minute. Chaque réponse contient <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code> et <code>X-RateLimit-Reset</code> (secondes depuis l'epoch). Au-delà :</p>
+      <h2>{t("apidocs.limits")}</h2>
+      <p><Rich text={t("apidocs.limitsText", { max: MAX_RATE_LIMIT.toLocaleString(i18n.lang) })} /></p>
       <pre>{`429 Too Many Requests
 Retry-After: 37
 { "error": "rate_limit_exceeded", "limit": 100, "retryAfter": 37 }`}</pre>
     </section>
 
     <section class="panel" id="erreurs">
-      <h2>Erreurs</h2>
-      <p>Toujours du JSON : <code>{`{ "error": "<code>", "details": [ … ] }`}</code> (<code>details</code> liste ce qui ne va pas sur une <code>400</code>).</p>
+      <h2>{t("apidocs.errors")}</h2>
+      <p>{t("apidocs.errorsBefore")} <code>{`{ "error": "<code>", "details": [ … ] }`}</code> <Rich text={t("apidocs.errorsAfter")} /></p>
     </section>
 
-    <h2 class="routes-title">Routes</h2>
+    <h2 class="routes-title">{t("apidocs.routes")}</h2>
 
     {#if loading}
-      <div class="panel"><span class="spinner"></span> Chargement…</div>
+      <div class="panel"><span class="spinner"></span> {t("common.loading")}</div>
     {:else if failed}
-      <div class="alert alert-warn">La description de l'API n'a pas pu être chargée. Réessayez, ou ouvrez <a href="/api/openapi.json">/api/openapi.json</a>.</div>
+      <div class="alert alert-warn">{t("apidocs.loadFailed")} <a href="/api/openapi.json">/api/openapi.json</a>.</div>
     {/if}
 
     {#each operations as op (op.id)}
@@ -138,10 +145,10 @@ Retry-After: 37
         {#if op.params.length}
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Paramètre</th><th>Dans</th><th>Description</th></tr></thead>
+              <thead><tr><th>{t("apidocs.param")}</th><th>{t("apidocs.in")}</th><th>{t("card.description")}</th></tr></thead>
               <tbody>
                 {#each op.params as param (param.name)}
-                  <tr><td><code>{param.name}</code>{param.required ? " *" : ""}</td><td>{param.in === "path" ? "chemin" : "requête"}</td><td>{param.description}</td></tr>
+                  <tr><td><code>{param.name}</code>{param.required ? " *" : ""}</td><td>{param.in === "path" ? t("apidocs.inPath") : t("apidocs.inQuery")}</td><td>{param.description}</td></tr>
                 {/each}
               </tbody>
             </table>
@@ -149,30 +156,30 @@ Retry-After: 37
         {/if}
 
         {#if op.body}
-          <div class="label">Corps (JSON)</div>
+          <div class="label">{t("apidocs.body")}</div>
           <p>{op.body.description}</p>
           <pre>{pretty(op.body.example)}</pre>
         {/if}
 
         {#if op.success}
-          <div class="label">Succès <span class="chip chip-accent">{op.success.status}</span></div>
+          <div class="label">{t("apidocs.success")} <span class="chip chip-accent">{op.success.status}</span></div>
           <p>{op.success.description}</p>
           {#if op.success.example}<pre>{pretty(op.success.example)}</pre>{/if}
         {/if}
 
-        <div class="label">Erreurs</div>
+        <div class="label">{t("apidocs.errors")}</div>
         <ul class="errors">
           {#each op.errors as error (error.status)}
             <li><span class="chip chip-danger">{error.status}</span> {error.description}</li>
           {/each}
         </ul>
 
-        <div class="label">Exemple</div>
+        <div class="label">{t("keys.example")}</div>
         <pre>{op.curl}</pre>
       </section>
     {/each}
 
-    <nav class="foot"><a href="/app">← Mes projets</a><a href="/legal/terms">Conditions d'utilisation</a></nav>
+    <nav class="foot"><a href="/app">← {t("userMenu.projects")}</a><a href="/legal/terms">{t("footer.terms")}</a></nav>
   </main>
 </div>
 

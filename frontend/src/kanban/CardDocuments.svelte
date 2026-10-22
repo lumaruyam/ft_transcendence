@@ -1,6 +1,7 @@
 <!-- Owner: Track 4 (Whiteboard, notes, and supporting modules)
      Responsible for: the linked documents section of the card dialog -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { extensionBadge, humanSize } from "../documents/fileInfo";
   import { describeDocumentError } from "../documents/foldersApi";
   import { downloadAttachment, isPreviewable, linkAttachmentToCard, listAttachments, unlinkAttachmentFromCard, type Attachment } from "../files/attachmentsApi";
@@ -96,7 +97,7 @@
     try {
       await downloadAttachment(projectId, file);
     } catch {
-      toast("Le téléchargement a échoué.", { kind: "error" });
+      toast(t("files.downloadFailed"), { kind: "error" });
     }
   }
 </script>
@@ -104,23 +105,23 @@
 <ImagePreview {projectId} {images} bind:openId={previewId} ondownload={(image) => void download(image)} />
 
 <div class="field">
-  <span class="label">Documents liés</span>
+  <span class="label">{t("docs.linked")}</span>
 
   {#if failed}
-    <span class="none">Impossible de charger les documents.</span>
+    <span class="none">{t("docs.loadFailed")}</span>
   {:else if notes.length === 0 && files.length === 0}
-    <span class="none">Aucun document lié.</span>
+    <span class="none">{t("docs.noneLinkedDot")}</span>
   {:else}
     <div class="tiles">
       {#each notes as note (note.id)}
         <div class="tile">
-          <a class="open" href={noteUrl(projectId, note.id)} target="_blank" rel="noopener noreferrer" aria-label={`Ouvrir la note ${note.title}`}></a>
+          <a class="open" href={noteUrl(projectId, note.id)} target="_blank" rel="noopener noreferrer" aria-label={t("docs.openNote", { name: note.title })}></a>
           <span class="badge note">NOTE</span>
           <span class="name">{note.title}</span>
           {#if note.preview}<span class="preview">{note.preview}</span>{/if}
           <span class="meta">{timeAgo(note.updatedAt)}</span>
           {#if canEdit}
-            <button type="button" class="unlink" title="Délier" aria-label={`Délier ${note.title}`} onclick={() => void unlinkNote(note)}><Icon name="x" size={14} /></button>
+            <button type="button" class="unlink" title={t("docs.unlink")} aria-label={t("docs.unlinkName", { name: note.title })} onclick={() => void unlinkNote(note)}><Icon name="x" size={14} /></button>
           {/if}
         </div>
       {/each}
@@ -131,19 +132,19 @@
             <button
               type="button"
               class="open"
-              title="Double-cliquer pour l'aperçu"
-              aria-label={`Aperçu de ${file.fileName}`}
+              title={t("docs.dblPreview")}
+              aria-label={t("docs.previewOf", { name: file.fileName })}
               onclick={(event) => event.detail === 0 && (previewId = file.id)}
               ondblclick={() => (previewId = file.id)}
             ></button>
           {:else}
-            <button type="button" class="open" title="Télécharger" aria-label={`Télécharger ${file.fileName}`} onclick={() => void download(file)}></button>
+            <button type="button" class="open" title={t("files.download")} aria-label={t("files.downloadName", { name: file.fileName })} onclick={() => void download(file)}></button>
           {/if}
           <span class="badge">{extensionBadge(file)}</span>
           <span class="name">{file.fileName}</span>
           <span class="meta">{humanSize(file.fileSize)}</span>
           {#if canEdit}
-            <button type="button" class="unlink" title="Délier" aria-label={`Délier ${file.fileName}`} onclick={() => void unlinkFile(file)}><Icon name="x" size={14} /></button>
+            <button type="button" class="unlink" title={t("docs.unlink")} aria-label={t("docs.unlinkName", { name: file.fileName })} onclick={() => void unlinkFile(file)}><Icon name="x" size={14} /></button>
           {/if}
         </div>
       {/each}
@@ -152,7 +153,7 @@
 
   {#if canEdit}
     <button type="button" class="btn btn-ghost btn-sm add" onclick={() => (picking = true)}>
-      <Icon name="plus" size={14} /> Lier des documents
+      <Icon name="plus" size={14} /> {t("docs.link")}
     </button>
     <DocumentsModal {projectId} bind:open={picking} {canEdit} {linkedNoteIds} {linkedFileIds} ontoggle={toggle} />
   {/if}

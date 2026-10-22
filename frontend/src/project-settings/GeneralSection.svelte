@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { renameProject } from "../api/projectsApi";
   import type { Member, Project } from "../api/types";
   import { errorMessage } from "../shared/errors";
@@ -28,7 +29,7 @@
     error = null;
     try {
       onchange(await renameProject(project.id, name.trim()));
-      toast("Nom du projet mis à jour", { kind: "success" });
+      toast(t("ps.nameUpdated"), { kind: "success" });
     } catch (err) {
       error = errorMessage(err);
     } finally {
@@ -38,35 +39,35 @@
 </script>
 
 <header class="section-head">
-  <h2>Général</h2>
-  <p>Le nom du projet et ses informations de base.</p>
+  <h2>{t("ps.general")}</h2>
+  <p>{t("ps.generalText")}</p>
 </header>
 
 <form class="panel" onsubmit={onSubmit}>
   <div class="field">
-    <label for="project-name">Nom du projet</label>
+    <label for="project-name">{t("dash.projectName")}</label>
     <input id="project-name" class="input" bind:value={name} maxlength="100" readonly={!isAdmin} aria-describedby={error ? "name-err" : undefined} />
     {#if error}<span class="field-error" id="name-err" role="alert">{error}</span>{/if}
   </div>
   {#if isAdmin}
     <div class="actions">
       <button type="submit" class="btn btn-primary" disabled={!changed || busy}>
-        {#if busy}<span class="spinner"></span>{/if} Enregistrer
+        {#if busy}<span class="spinner"></span>{/if} {t("common.save")}
       </button>
-      {#if changed}<button type="button" class="btn btn-ghost" onclick={() => ((name = project.name), (error = null))}>Annuler</button>{/if}
+      {#if changed}<button type="button" class="btn btn-ghost" onclick={() => ((name = project.name), (error = null))}>{t("common.cancel")}</button>{/if}
     </div>
   {/if}
 </form>
 
 <div class="panel">
   <dl>
-    <div><dt>Propriétaire</dt><dd class="selectable">{owner?.user.name ?? "—"}</dd></div>
-    <div><dt>Créé le</dt><dd>{formatDate(project.createdAt)}</dd></div>
+    <div><dt>{t("dash.owner")}</dt><dd class="selectable">{owner?.user.name ?? "—"}</dd></div>
+    <div><dt>{t("ps.createdOn")}</dt><dd>{formatDate(project.createdAt)}</dd></div>
   </dl>
   <div class="field">
-    <span class="label">Identifiant du projet</span>
-    <CopyField value={project.id} label="Identifiant du projet" />
-    <span class="hint">Utile pour appeler l'API publique (voir « Clés API »).</span>
+    <span class="label">{t("ps.projectId")}</span>
+    <CopyField value={project.id} label={t("ps.projectId")} />
+    <span class="hint">{t("ps.projectIdHint")}</span>
   </div>
 </div>
 

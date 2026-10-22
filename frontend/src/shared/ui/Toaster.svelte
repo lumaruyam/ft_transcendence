@@ -1,25 +1,26 @@
 <script lang="ts">
+  import { t } from "../i18n.svelte";
   import Icon from "./Icon.svelte";
   import { toasts, dismissToast } from "../toast.svelte";
 </script>
 
 <div class="toaster" role="status" aria-live="polite">
-  {#each toasts as t (t.id)}
-    <div class="toast {t.kind}">
-      <span class="msg">{t.message}</span>
-      {#if t.action}
+  {#each toasts as item (item.id)}
+    <div class="toast {item.kind}">
+      <span class="msg">{item.message}</span>
+      {#if item.action}
         <button
           type="button"
           class="action"
           onclick={() => {
-            t.action?.run();
-            dismissToast(t.id);
+            item.action?.run();
+            dismissToast(item.id);
           }}
         >
-          {t.action.label}
+          {item.action.label}
         </button>
       {/if}
-      <button type="button" class="close" aria-label="Fermer" onclick={() => dismissToast(t.id)}>
+      <button type="button" class="close" aria-label={t("common.close")} onclick={() => dismissToast(item.id)}>
         <Icon name="x" size={14} />
       </button>
     </div>

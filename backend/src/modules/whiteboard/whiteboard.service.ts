@@ -28,6 +28,7 @@ export async function saveWhiteboard(
 		actorId: userId,
 		type: "whiteboard_updated",
 		text: "a modifié le tableau blanc",
+		key: "whiteboard_updated",
 		entityId: whiteboard.id,
 		path: `/app/${projectId}/whiteboard`,
 		coalesce: true,
