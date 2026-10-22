@@ -1,39 +1,22 @@
 // Turns API errors into messages for the user.
 import { ApiError } from "../api/apiClient";
+import { t, type MessageKey } from "./i18n.svelte";
 
-const MESSAGES: Record<string, string> = {
-  network_error: "Impossible de joindre le serveur. Vérifiez votre connexion.",
-  invalid_credentials: "E-mail ou mot de passe incorrect.",
-  email_already_registered: "Un compte existe déjà avec cet e-mail.",
-  forbidden: "Vous n'avez pas les droits pour faire cela.",
-  owner_required: "Seul le propriétaire du projet peut faire cela.",
-  last_admin: "Il doit toujours rester au moins un administrateur.",
-  owner_role_immutable: "Le propriétaire du projet doit rester administrateur.",
-  cannot_remove_owner: "Le propriétaire ne peut pas être retiré du projet. Transférez d'abord la propriété.",
-  not_a_project_member: "Cette personne doit d'abord être membre du projet.",
-  project_not_found: "Ce projet n'existe pas ou vous n'y avez pas accès.",
-  user_not_found: "Cet utilisateur n'existe pas.",
-  invite_not_found: "Ce lien d'invitation n'est pas valide.",
-  invite_revoked: "Ce lien d'invitation a été révoqué.",
-  invite_expired: "Ce lien d'invitation a expiré.",
-  invite_exhausted: "Ce lien d'invitation a atteint son nombre maximal d'utilisations.",
-  already_member: "Vous faites déjà partie de ce projet.",
-  already_revoked: "Ce lien est déjà révoqué.",
-  api_key_not_found: "Cette clé n'existe plus.",
-  tag_name_taken: "Une étiquette porte déjà ce nom.",
-  wrong_password: "Le mot de passe actuel est incorrect.",
-  invalid_avatar: "Ce fichier n'est pas une image PNG, JPEG, GIF ou WebP valide.",
-  avatar_too_large: "L'image est trop lourde (2 Mo maximum).",
-  rate_limit_exceeded: "Trop de requêtes. Patientez un instant puis réessayez.",
-};
+// API error codes that have their own message (key "error.<code>" in the dictionaries)
+const KNOWN_CODES = new Set([
+  "network_error", "invalid_credentials", "email_already_registered", "forbidden", "owner_required", "last_admin",
+  "owner_role_immutable", "cannot_remove_owner", "not_a_project_member", "project_not_found", "user_not_found",
+  "invite_not_found", "invite_revoked", "invite_expired", "invite_exhausted", "already_member", "already_revoked",
+  "api_key_not_found", "tag_name_taken", "wrong_password", "invalid_avatar", "avatar_too_large", "rate_limit_exceeded",
+]);
 
-export function errorMessage(err: unknown, fallback = "Une erreur est survenue. Réessayez."): string {
+export function errorMessage(err: unknown, fallback?: string): string {
   if (err instanceof ApiError) {
-    if (err.status === 429) return "Trop de tentatives. Patientez une minute puis réessayez.";
-    if (err.status >= 500) return "Le serveur a rencontré un problème. Réessayez dans un instant.";
-    if (MESSAGES[err.code]) return MESSAGES[err.code];
-    if (err.status === 403) return MESSAGES.forbidden;
+    if (err.status === 429) return t("auth.tooManyAttempts");
+    if (err.status >= 500) return t("error.server");
+    if (KNOWN_CODES.has(err.code)) return t(`error.${err.code}` as MessageKey);
+    if (err.status === 403) return t("error.forbidden");
     if (err.details.length > 0) return err.details.join(" ");
   }
-  return fallback;
+  return fallback ?? t("error.generic");
 }

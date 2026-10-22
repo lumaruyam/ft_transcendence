@@ -1,6 +1,7 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
      Responsible for: the "..." menu of a card: open, copy link, Git branch, move to another list, delete. -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import { confirmDialog } from "../shared/confirm.svelte";
   import { toast } from "../shared/toast.svelte";
   import Icon from "../shared/ui/Icon.svelte";
@@ -56,9 +57,9 @@
     const used = (store.board?.lists ?? []).flatMap((l) => l.cards).filter((c) => c.tags?.some((t) => t.id === id)).length;
     if (tag && used > 0) {
       const ok = await confirmDialog({
-        title: `Supprimer « ${tag.name} » ?`,
-        message: `Cette étiquette est utilisée sur ${used} carte${used > 1 ? "s" : ""}. Elle sera retirée de toutes.`,
-        confirmLabel: "Supprimer",
+        title: t("list.deleteTitle", { name: tag.name }),
+        message: used > 1 ? t("tags.usedMany", { n: used }) : t("tags.usedOne"),
+        confirmLabel: t("common.delete"),
         danger: true,
       });
       if (!ok) return;
@@ -111,9 +112,9 @@
     const url = `${location.origin}/app/${store.project.id}?card=${card.id}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast("Lien de la carte copié", { kind: "success" });
+      toast(t("card.linkCopied"), { kind: "success" });
     } catch {
-      toast("Copie impossible : copiez l'adresse depuis la barre du navigateur.", { kind: "error" });
+      toast(t("card.copyFailed"), { kind: "error" });
     }
   }
 </script>
@@ -123,33 +124,33 @@
 <div class="wrap" onclick={(event) => event.stopPropagation()} onkeydown={(event) => event.stopPropagation()} ondragstart={(event) => event.preventDefault()}>
   <Popover width={264} fixed bind:open={menuOpen}>
     {#snippet trigger({ open, toggle })}
-      <button type="button" class="icon-btn menu" class:on={open} aria-label="Options de la carte" aria-haspopup="menu" aria-expanded={open} onclick={toggle}>
+      <button type="button" class="icon-btn menu" class:on={open} aria-label={t("card.options")} aria-haspopup="menu" aria-expanded={open} onclick={toggle}>
         <Icon name="more" size={17} />
       </button>
     {/snippet}
     {#snippet children({ close })}
       <button type="button" class="item" onclick={() => { close(); store.openCardId = card.id; }}>
-        <Icon name="external" size={15} /> Ouvrir
+        <Icon name="external" size={15} /> {t("common.open")}
       </button>
       <button type="button" class="item" onclick={() => { close(); void copyLink(); }}>
-        <Icon name="link" size={15} /> Copier le lien
+        <Icon name="link" size={15} /> {t("card.copyLink")}
       </button>
 
       {#if store.canEdit}
         <div class="sep" role="separator"></div>
         <button type="button" class="item" aria-expanded={tagsOpen} onclick={() => (tagsOpen = !tagsOpen)}>
-          <Icon name="tag" size={15} /> Gérer les étiquettes
+          <Icon name="tag" size={15} /> {t("tags.manage")}
           <span class="caret" class:flip={tagsOpen}><Icon name="chevronDown" size={15} /></span>
         </button>
         {#if tagsOpen}
           <div class="tags-panel">
-            <input class="input" bind:value={query} placeholder="Chercher ou créer…" maxlength="30" aria-label="Chercher ou créer une étiquette" onkeydown={onTagKey} />
+            <input class="input" bind:value={query} placeholder={t("tags.searchOrCreateShort")} maxlength="30" aria-label={t("tags.searchOrCreate")} onkeydown={onTagKey} />
             <ul class="tag-list">
               {#each shown as tag (tag.id)}
                 {#if editingId === tag.id}
                   <li class="editor">
-                    <input class="input" bind:value={editName} maxlength="30" aria-label="Nom de l'étiquette" onkeydown={(e) => e.key === "Enter" && saveEdit()} />
-                    <div class="swatches" role="radiogroup" aria-label="Couleur">
+                    <input class="input" bind:value={editName} maxlength="30" aria-label={t("tags.name")} onkeydown={(e) => e.key === "Enter" && saveEdit()} />
+                    <div class="swatches" role="radiogroup" aria-label={t("tags.color")}>
                       {#each TAG_COLORS as color (color)}
                         <button type="button" class="swatch" class:on={editColor === color} style:--tag={color} role="radio" aria-checked={editColor === color} aria-label={color} onclick={() => (editColor = color)}>
                           {#if editColor === color}<Icon name="check" size={11} />{/if}
@@ -157,9 +158,9 @@
                       {/each}
                     </div>
                     <div class="editor-actions">
-                      <button type="button" class="mini danger" disabled={editBusy} onclick={removeTag}><Icon name="trash" size={13} /> Supprimer</button>
+                      <button type="button" class="mini danger" disabled={editBusy} onclick={removeTag}><Icon name="trash" size={13} /> {t("common.delete")}</button>
                       <span class="spacer"></span>
-                      <button type="button" class="mini" onclick={() => (editingId = null)}>Annuler</button>
+                      <button type="button" class="mini" onclick={() => (editingId = null)}>{t("common.cancel")}</button>
                       <button type="button" class="mini primary" disabled={editBusy || !editName.trim()} onclick={saveEdit}>OK</button>
                     </div>
                   </li>
@@ -169,17 +170,17 @@
                       <span class="box">{#if applied.has(tag.id)}<Icon name="check" size={12} />{/if}</span>
                       <TagChip {tag} />
                     </button>
-                    <button type="button" class="edit-btn" aria-label={`Modifier ${tag.name}`} title="Modifier ou supprimer" onclick={() => startEdit(tag.id)}>
+                    <button type="button" class="edit-btn" aria-label={t("tags.editName", { name: tag.name })} title={t("tags.editOrDelete")} onclick={() => startEdit(tag.id)}>
                       <Icon name="pencil" size={13} />
                     </button>
                   </li>
                 {/if}
               {:else}
-                {#if !canCreate}<li class="none">Aucune étiquette.</li>{/if}
+                {#if !canCreate}<li class="none">{t("tags.empty")}</li>{/if}
               {/each}
             </ul>
             {#if canCreate}
-              <div class="swatches" role="radiogroup" aria-label="Couleur">
+              <div class="swatches" role="radiogroup" aria-label={t("tags.color")}>
                 {#each TAG_COLORS as color (color)}
                   <button type="button" class="swatch" class:on={newColor === color} style:--tag={color} role="radio" aria-checked={newColor === color} aria-label={color} onclick={() => (newColor = color)}>
                     {#if newColor === color}<Icon name="check" size={11} />{/if}
@@ -187,24 +188,24 @@
                 {/each}
               </div>
               <button type="button" class="create" disabled={creating} onclick={createTag}>
-                <Icon name="plus" size={14} /> Créer <TagChip tag={{ name: query.trim(), color: newColor }} small />
+                <Icon name="plus" size={14} /> {t("common.create")} <TagChip tag={{ name: query.trim(), color: newColor }} small />
               </button>
             {/if}
             {#if tagError}<p class="field-error" role="alert">{tagError}</p>{/if}
           </div>
         {/if}
         <button type="button" class="item" onclick={() => { close(); store.gitCardId = card.id; }}>
-          <Icon name="branch" size={15} /> {card.gitLink ? "Modifier la branche Git" : "Lier une branche Git"}
+          <Icon name="branch" size={15} /> {card.gitLink ? t("git.editBranch") : t("git.linkGitBranch")}
         </button>
         {#if card.gitLink}
           <button type="button" class="item" onclick={() => { close(); void store.unlinkBranch(card.id); }}>
-            <Icon name="x" size={15} /> Retirer le lien Git
+            <Icon name="x" size={15} /> {t("git.unlink")}
           </button>
         {/if}
 
         <div class="sep" role="separator"></div>
         <button type="button" class="item danger" onclick={() => { close(); store.removeCard(card.id); }}>
-          <Icon name="trash" size={15} /> Supprimer
+          <Icon name="trash" size={15} /> {t("common.delete")}
         </button>
       {/if}
     {/snippet}

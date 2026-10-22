@@ -3,6 +3,8 @@
   import BoardArt from "../shared/ui/BoardArt.svelte";
   import Logo from "../shared/ui/Logo.svelte";
   import ThemeSwitch from "../shared/ui/ThemeSwitch.svelte";
+  import LangSwitch from "../shared/ui/LangSwitch.svelte";
+  import { t } from "../shared/i18n.svelte";
 
   let { children }: { children: Snippet } = $props();
 </script>
@@ -11,8 +13,8 @@
   <aside class="story">
     <a class="brand" href="/"><Logo size={34} /><span>Transcendance</span></a>
     <div class="pitch">
-      <h2>Un endroit calme pour avancer ensemble.</h2>
-      <p>Tableaux, notes et tableau blanc partagés, qui se mettent à jour sous vos yeux — sans le bruit.</p>
+      <h2>{t("auth.pitchTitle")}</h2>
+      <p>{t("auth.pitchText")}</p>
     </div>
     <BoardArt />
   </aside>
@@ -20,14 +22,14 @@
   <main class="pane">
     <div class="top">
       <a class="brand small" href="/"><Logo size={28} /><span>Transcendance</span></a>
-      <ThemeSwitch compact />
+      <div class="switches"><LangSwitch compact /><ThemeSwitch compact /></div>
     </div>
     <div class="form-wrap">
       {@render children()}
     </div>
     <footer>
-      <a href="/legal/terms">Conditions</a>
-      <a href="/legal/privacy">Confidentialité</a>
+      <a href="/legal/terms">{t("auth.terms")}</a>
+      <a href="/legal/privacy">{t("auth.privacy")}</a>
     </footer>
   </main>
 </div>
@@ -83,6 +85,11 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
+  }
+  .switches {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   .form-wrap {
     flex: 1;

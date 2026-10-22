@@ -274,7 +274,7 @@ async function joinInviteHandler(request: FastifyRequest, reply: FastifyReply): 
 		const projectId = await joinInvite(token, request.userId as string);
 		reply.code(204).send();
 		announceMembersChanged(projectId);
-		void notifyProject({ projectId, actorId: request.userId as string, type: "member_joined", text: "a rejoint le projet", entityId: request.userId as string, path: `/app/${projectId}` });
+		void notifyProject({ projectId, actorId: request.userId as string, type: "member_joined", text: "a rejoint le projet", key: "member_joined", entityId: request.userId as string, path: `/app/${projectId}` });
 	} catch (err) {
 		if (err instanceof InviteNotFoundError) {
 			reply.code(404).send({ error: "invite_not_found" });

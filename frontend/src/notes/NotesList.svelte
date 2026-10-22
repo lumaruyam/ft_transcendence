@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
 	// Owner: Track 4 (Whiteboard, notes, and supporting modules)
 	// Responsible for: the notes list page
 	import { onMount } from "svelte";
@@ -27,7 +28,7 @@
 	let renameDraft = $state("");
 
 	$effect(() => {
-		document.title = project ? `Notes · ${project.name} — Transcendance` : "Notes — Transcendance";
+		document.title = project ? `${t("nav.notes")} · ${project.name} — Transcendance` : `${t("nav.notes")} — Transcendance`;
 	});
 
 	onMount(() => {
@@ -70,9 +71,9 @@
 
 	async function remove(note: NoteSummary): Promise<void> {
 		const ok = await confirmDialog({
-			title: `Supprimer la note « ${note.title} » ?`,
-			message: "Elle disparaît pour tout le monde, et ne pourra pas être récupérée.",
-			confirmLabel: "Supprimer",
+			title: t("notes.deleteTitle", { name: note.title }),
+			message: t("notes.deleteText"),
+			confirmLabel: t("common.delete"),
 			danger: true,
 		});
 		if (!ok) return;
@@ -96,29 +97,29 @@
 	<header class="title">
 		<div class="heading">
 			<span class="badge"><Icon name="note" size={20} /></span>
-			<h1>Notes</h1>
+			<h1>{t("nav.notes")}</h1>
 		</div>
 		{#if canEdit}
 			<button type="button" class="btn btn-primary btn-sm" disabled={creating} onclick={() => void onCreate()}>
-				<Icon name="plus" size={15} /> {creating ? "Création…" : "Nouvelle note"}
+				<Icon name="plus" size={15} /> {creating ? t("signup.busy") : t("notes.new")}
 			</button>
 		{/if}
 	</header>
 
 	{#if loadFailed}
-		<p class="empty">Impossible de charger les notes. Rechargez la page.</p>
+		<p class="empty">{t("notes.loadFailed")}</p>
 	{:else if loaded && notes.length === 0}
-		<p class="empty">Aucune note pour l'instant.</p>
+		<p class="empty">{t("notes.empty")}</p>
 	{:else}
 		<TileGrid>
 			{#each notes as note (note.id)}
-				<Tile href={renamingId === note.id ? undefined : noteUrl(projectId, note.id)} label={`Ouvrir la note ${note.title}`}>
+				<Tile href={renamingId === note.id ? undefined : noteUrl(projectId, note.id)} label={t("docs.openNote", { name: note.title })}>
 					{#if renamingId === note.id}
 						<input
 							class="rename"
 							bind:value={renameDraft}
 							maxlength="200"
-							aria-label="Titre de la note"
+							aria-label={t("notes.title")}
 							use:focusOnMount
 							onblur={() => void rename(note)}
 							onkeydown={(event) => {
@@ -132,20 +133,20 @@
 					{#if note.preview}
 						<p class="preview">{note.preview}</p>
 					{:else}
-						<p class="preview empty-note">Note vide</p>
+						<p class="preview empty-note">{t("notes.emptyNote")}</p>
 					{/if}
 					<div class="foot">
 						<span class="meta">{timeAgo(note.updatedAt)}</span>
 						{#if note.cardIds.length > 0}
-							<span class="chip" title="Cartes liées">{note.cardIds.length} carte{note.cardIds.length > 1 ? "s" : ""}</span>
+							<span class="chip" title={t("notes.linkedCards")}>{note.cardIds.length > 1 ? t("board.cards", { n: note.cardIds.length }) : t("board.card", { n: note.cardIds.length })}</span>
 						{/if}
 					</div>
 					{#snippet actions()}
 						{#if canEdit}
-							<button type="button" class="icon" title="Renommer" aria-label="Renommer la note" onclick={() => ((renamingId = note.id), (renameDraft = note.title))}>
+							<button type="button" class="icon" title={t("common.rename")} aria-label={t("notes.rename")} onclick={() => ((renamingId = note.id), (renameDraft = note.title))}>
 								<Icon name="pencil" size={14} />
 							</button>
-							<button type="button" class="icon" title="Supprimer" aria-label="Supprimer la note" onclick={() => void remove(note)}>
+							<button type="button" class="icon" title={t("common.delete")} aria-label={t("notes.delete")} onclick={() => void remove(note)}>
 								<Icon name="trash" size={14} />
 							</button>
 						{/if}

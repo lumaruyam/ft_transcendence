@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
 	// Owner: Track 4 (Whiteboard, notes, and supporting modules)
 	// Responsible for: the full size preview of images, PDF and text files
 	import Icon from "../shared/ui/Icon.svelte";
@@ -79,7 +80,7 @@
 <dialog
 	class="modal preview"
 	bind:this={dialog}
-	aria-label={current ? `Aperçu de ${current.fileName}` : "Aperçu"}
+	aria-label={current ? t("docs.previewOf", { name: current.fileName }) : t("files.preview")}
 	onclose={() => (openId = null)}
 	onkeydown={onKeydown}
 	onclick={(event) => {
@@ -91,36 +92,36 @@
 			<span class="badge">{extensionBadge(current)}</span>
 			<div class="info">
 				<span class="name" title={current.fileName}>{current.fileName}</span>
-				<span class="meta">{humanSize(current.fileSize)}{images.length > 1 ? ` · ${index + 1} sur ${images.length}` : ""}</span>
+				<span class="meta">{humanSize(current.fileSize)}{images.length > 1 ? ` · ${t("files.nOfM", { n: index + 1, m: images.length })}` : ""}</span>
 			</div>
-			<button type="button" class="icon-btn" title="Fermer (Échap)" aria-label="Fermer l'aperçu" onclick={() => (openId = null)}><Icon name="x" size={18} /></button>
+			<button type="button" class="icon-btn" title={t("preview.closeHint")} aria-label={t("preview.close")} onclick={() => (openId = null)}><Icon name="x" size={18} /></button>
 		</header>
 
 		<div class="stage">
 			{#if images.length > 1}
-				<button type="button" class="nav prev" title="Précédente (←)" aria-label="Fichier précédent" onclick={() => go(-1)}><Icon name="chevronLeft" size={22} /></button>
+				<button type="button" class="nav prev" title={t("preview.prevHint")} aria-label={t("preview.prev")} onclick={() => go(-1)}><Icon name="chevronLeft" size={22} /></button>
 			{/if}
 			{#key current.id}
 				{#if url && isImage(current)}
 					<img src={url} alt={current.fileName} />
 				{:else if url}
-					<iframe src={url} title={`Aperçu de ${current.fileName}`}></iframe>
+					<iframe src={url} title={t("docs.previewOf", { name: current.fileName })}></iframe>
 				{:else if text !== null}
 					<pre class="text selectable">{text}</pre>
 				{:else if failed}
-					<p class="state"><Icon name="alert" size={22} />Impossible de charger le fichier.</p>
+					<p class="state"><Icon name="alert" size={22} />{t("preview.loadFailed")}</p>
 				{:else}
-					<p class="state"><span class="spinner" aria-hidden="true"></span>Chargement…</p>
+					<p class="state"><span class="spinner" aria-hidden="true"></span>{t("common.loading")}</p>
 				{/if}
 			{/key}
 			{#if images.length > 1}
-				<button type="button" class="nav next" title="Suivante (→)" aria-label="Fichier suivant" onclick={() => go(1)}><Icon name="chevronRight" size={22} /></button>
+				<button type="button" class="nav next" title={t("preview.nextHint")} aria-label={t("preview.next")} onclick={() => go(1)}><Icon name="chevronRight" size={22} /></button>
 			{/if}
 		</div>
 
 		<footer>
-			<span class="hint">{images.length > 1 ? "← → pour parcourir · " : ""}Échap pour fermer</span>
-			<button type="button" class="btn btn-primary btn-sm" onclick={() => ondownload(current)}><Icon name="arrowRight" size={15} /> Télécharger</button>
+			<span class="hint">{images.length > 1 ? `${t("preview.browse")} · ` : ""}{t("preview.escClose")}</span>
+			<button type="button" class="btn btn-primary btn-sm" onclick={() => ondownload(current)}><Icon name="arrowRight" size={15} /> {t("files.download")}</button>
 		</footer>
 	{/if}
 </dialog>

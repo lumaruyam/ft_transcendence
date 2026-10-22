@@ -5,6 +5,7 @@
   import { startOAuthLogin } from "../auth/oauthFlow";
   import { MAX_NAME_LENGTH, validateEmail, validateName, validateNewPassword } from "../auth/validation";
   import Icon from "../shared/ui/Icon.svelte";
+  import { t } from "../shared/i18n.svelte";
   import { loginUrl, nextFromUrl } from "../shared/session";
 
   const next = nextFromUrl();
@@ -36,26 +37,29 @@
       busy = false;
       if (err instanceof AuthApiError && err.status === 409) {
         emailTaken = true;
-        errors.email = "Un compte existe déjà avec cette adresse.";
+        errors.email = t("signup.emailTaken");
         document.getElementById("email")?.focus();
       } else if (err instanceof AuthApiError && err.status === 0) {
         formError = err.message;
       } else if (err instanceof AuthApiError && err.status === 403 && err.code === "signup_disabled") {
-        formError = "Les inscriptions sont fermées pour le moment.";
+        formError = t("signup.closed");
       } else if (err instanceof AuthApiError && err.status === 429) {
-        formError = "Trop de tentatives. Patientez une minute puis réessayez.";
+        formError = t("auth.tooManyAttempts");
       } else {
-        formError = "Création du compte impossible pour le moment. Réessayez dans un instant.";
+        formError = t("signup.failed");
       }
     }
   }
+  $effect(() => {
+    document.title = `${t("login.toSignup")} · Transcendance`;
+  });
 </script>
 
 <AuthLayout>
   <form class="form" onsubmit={onSubmit} novalidate>
     <header>
-      <h1>Créer votre compte</h1>
-      <p class="sub">Quelques secondes, puis votre premier projet.</p>
+      <h1>{t("signup.title")}</h1>
+      <p class="sub">{t("signup.subtitle")}</p>
     </header>
 
     {#if formError}
@@ -63,7 +67,7 @@
     {/if}
 
     <div class="field">
-      <label for="name">Nom affiché</label>
+      <label for="name">{t("signup.name")}</label>
       <!-- svelte-ignore a11y_autofocus -->
       <input
         id="name"
@@ -80,7 +84,7 @@
     </div>
 
     <div class="field">
-      <label for="email">Adresse e-mail</label>
+      <label for="email">{t("auth.email")}</label>
       <input
         id="email"
         class="input"
@@ -95,7 +99,7 @@
       {#if errors.email}
         <span class="field-error" id="email-error">
           {errors.email}
-          {#if emailTaken}<a href={loginUrl(next)}>Se connecter</a>{/if}
+          {#if emailTaken}<a href={loginUrl(next)}>{t("signup.toLogin")}</a>{/if}
         </span>
       {/if}
     </div>
@@ -110,20 +114,20 @@
     />
 
     <button type="submit" class="btn btn-primary btn-block" disabled={busy}>
-      {#if busy}<span class="spinner"></span> Création…{:else}Créer mon compte{/if}
+      {#if busy}<span class="spinner"></span> {t("signup.busy")}{:else}{t("signup.submit")}{/if}
     </button>
 
-    <div class="or"><span>ou</span></div>
+    <div class="or"><span>{t("auth.or")}</span></div>
 
     <button type="button" class="btn btn-block" disabled={busy} onclick={() => startOAuthLogin(next === "/app" ? undefined : next)}>
-      <Icon name="github" size={18} /> Continuer avec GitHub
+      <Icon name="github" size={18} /> {t("auth.github")}
     </button>
 
     <p class="legal">
-      En créant un compte, vous acceptez les <a href="/legal/terms">conditions d'utilisation</a> et la
-      <a href="/legal/privacy">politique de confidentialité</a>.
+      {t("signup.legalBefore")} <a href="/legal/terms">{t("signup.legalTerms")}</a> {t("signup.legalAnd")}
+      <a href="/legal/privacy">{t("signup.legalPrivacy")}</a>.
     </p>
-    <p class="switch">Déjà inscrit ? <a href={loginUrl(next)}>Se connecter</a></p>
+    <p class="switch">{t("signup.hasAccount")} <a href={loginUrl(next)}>{t("signup.toLogin")}</a></p>
   </form>
 </AuthLayout>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
 	// Owner: Track 4 (Whiteboard, notes, and supporting modules)
 	// Responsible for: the path bar of the Files page
 	import Icon from "../shared/ui/Icon.svelte";
@@ -34,7 +35,7 @@
 	}
 </script>
 
-<nav class="crumbs" aria-label="Chemin du dossier">
+<nav class="crumbs" aria-label={t("folders.path")}>
 	<button
 		type="button"
 		class="crumb"
@@ -45,7 +46,7 @@
 		ondrop={(event) => drop(event, null)}
 		onclick={() => onnavigate(null)}
 	>
-		<Icon name="folder" size={15} /> Fichiers
+		<Icon name="folder" size={15} /> {t("nav.files")}
 	</button>
 	{#each path as folder (folder.id)}
 		<Icon name="chevronRight" size={14} />

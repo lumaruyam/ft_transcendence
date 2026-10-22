@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import AuthLayout from "../auth/AuthLayout.svelte";
   import { getStoredToken, getStoredUser, logout } from "../auth/authClient";
   import { ApiError } from "../api/apiClient";
@@ -51,18 +52,21 @@
     await logout();
     window.location.href = loginUrl(currentPath());
   }
+  $effect(() => {
+    document.title = `${t("invite.pageTitle")} · Transcendance`;
+  });
 </script>
 
 <AuthLayout>
   <div class="box">
     <div class="envelope"><Icon name="users" size={26} /></div>
     <header>
-      <h1>Vous êtes invité à rejoindre un projet</h1>
+      <h1>{t("invite.title")}</h1>
       <p class="sub">
         {#if signedIn}
-          Acceptez l'invitation pour retrouver le tableau, les notes et le tableau blanc de l'équipe.
+          {t("invite.signedIn")}
         {:else}
-          Connectez-vous ou créez un compte pour accepter l'invitation. Vous reviendrez ici ensuite.
+          {t("invite.signedOut")}
         {/if}
       </p>
     </header>
@@ -79,20 +83,20 @@
             <div class="who-name selectable">{user.name}</div>
             <div class="who-email selectable">{user.email}</div>
           </div>
-          <button type="button" class="btn btn-ghost btn-sm" onclick={switchAccount}>Changer</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick={switchAccount}>{t("invite.switch")}</button>
         </div>
       {/if}
       {#if alreadyMember}
-        <a class="btn btn-primary btn-block" href="/app">Ouvrir mes projets</a>
+        <a class="btn btn-primary btn-block" href="/app">{t("landing.openProjects")}</a>
       {:else}
         <button type="button" class="btn btn-primary btn-block" disabled={busy || joined} onclick={onJoin}>
-          {#if busy}<span class="spinner"></span> Un instant…{:else}Rejoindre le projet{/if}
+          {#if busy}<span class="spinner"></span> {t("invite.wait")}{:else}{t("invite.join")}{/if}
         </button>
-        <a class="btn btn-ghost btn-block" href="/app">Pas maintenant</a>
+        <a class="btn btn-ghost btn-block" href="/app">{t("invite.notNow")}</a>
       {/if}
     {:else}
-      <a class="btn btn-primary btn-block" href={loginUrl(currentPath())}>Se connecter</a>
-      <a class="btn btn-block" href={signupUrl(currentPath())}>Créer un compte</a>
+      <a class="btn btn-primary btn-block" href={loginUrl(currentPath())}>{t("login.submit")}</a>
+      <a class="btn btn-block" href={signupUrl(currentPath())}>{t("login.toSignup")}</a>
     {/if}
   </div>
 </AuthLayout>

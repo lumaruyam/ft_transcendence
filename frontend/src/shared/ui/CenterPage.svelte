@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import Logo from "./Logo.svelte";
   import ThemeSwitch from "./ThemeSwitch.svelte";
+  import LangSwitch from "./LangSwitch.svelte";
 
   let { children }: { children: Snippet } = $props();
 </script>
@@ -9,12 +10,17 @@
 <div class="page">
   <header>
     <a class="brand" href="/"><Logo size={30} /><span>Transcendance</span></a>
-    <ThemeSwitch compact />
+    <div class="switches"><LangSwitch compact /><ThemeSwitch compact /></div>
   </header>
   <main>{@render children()}</main>
 </div>
 
 <style>
+  .switches {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .page {
     min-height: calc(100vh - var(--footer-h, 0px));
     display: flex;

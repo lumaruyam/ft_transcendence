@@ -1,6 +1,7 @@
 <!-- Owner: Track 2 (Person A — Kanban CRUD and UI)
      Responsible for: the "add a card / add a list" control. It stays open after each Enter. -->
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import Icon from "../shared/ui/Icon.svelte";
 
   let {
@@ -66,11 +67,11 @@
       <input bind:this={field} bind:value {maxlength} {placeholder} aria-label={placeholder} autocomplete="off" {onkeydown} {onblur} />
     {/if}
     <div class="actions">
-      <button type="submit" class="btn btn-primary btn-sm" disabled={!value.trim()}>Ajouter</button>
+      <button type="submit" class="btn btn-primary btn-sm" disabled={!value.trim()}>{t("common.add")}</button>
       <button
         type="button"
         class="icon-btn"
-        aria-label="Fermer"
+        aria-label={t("common.close")}
         onclick={() => {
           value = "";
           open = false;

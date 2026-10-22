@@ -1,5 +1,6 @@
 <!-- Top bar of signed-in pages. Notes and whiteboard can reuse it: <AppHeader {project} active="notes" /> -->
 <script lang="ts">
+  import { t } from "../i18n.svelte";
   import type { Snippet } from "svelte";
   import CommandPalette from "./CommandPalette.svelte";
   import Icon from "./Icon.svelte";
@@ -24,11 +25,11 @@
   const tabs = $derived(
     project
       ? ([
-          { key: "board", label: "Tableau", icon: "columns", href: `/app/${project.id}` },
-          { key: "notes", label: "Notes", icon: "note", href: `/app/${project.id}/notes` },
-          { key: "whiteboard", label: "Tableau blanc", icon: "board", href: `/app/${project.id}/whiteboard` },
-          { key: "files", label: "Fichiers", icon: "folder", href: `/app/${project.id}/files` },
-          { key: "settings", label: "Réglages", icon: "settings", href: `/app/${project.id}/settings` },
+          { key: "board", label: t("nav.board"), icon: "columns", href: `/app/${project.id}` },
+          { key: "notes", label: t("nav.notes"), icon: "note", href: `/app/${project.id}/notes` },
+          { key: "whiteboard", label: t("nav.whiteboard"), icon: "board", href: `/app/${project.id}/whiteboard` },
+          { key: "files", label: t("nav.files"), icon: "folder", href: `/app/${project.id}/files` },
+          { key: "settings", label: t("nav.settings"), icon: "settings", href: `/app/${project.id}/settings` },
         ] as const)
       : []
   );
@@ -54,7 +55,7 @@
 
 <header class="bar">
   <div class="left">
-    <a class="brand" href="/app" aria-label="Transcendance — mes projets" title="Mes projets">
+    <a class="brand" href="/app" aria-label={t("header.homeLabel")} title={t("userMenu.projects")}>
       <Logo size={30} />
       {#if !project}<span class="wordmark">Transcendance</span>{/if}
     </a>
@@ -65,7 +66,7 @@
   </div>
 
   {#if project}
-    <nav class="tabs" aria-label="Pages du projet">
+    <nav class="tabs" aria-label={t("header.projectPages")}>
       {#each tabs as tab (tab.key)}
         {#if isPageEnabled(tab.key)}
           <a class="tab" class:active={active === tab.key} href={tab.href} aria-current={active === tab.key ? "page" : undefined}>
@@ -73,7 +74,7 @@
             <span>{tab.label}</span>
           </a>
         {:else}
-          <span class="tab off" role="link" aria-disabled="true" title="Bientôt disponible">
+          <span class="tab off" role="link" aria-disabled="true" title={t("header.soon")}>
             <Icon name={tab.icon} size={16} />
             <span>{tab.label}</span>
           </span>
@@ -85,9 +86,9 @@
   <div class="right">
     {@render extra?.()}
     {#if project}
-      <button type="button" class="search" onclick={() => (paletteOpen = true)} aria-label="Rechercher">
+      <button type="button" class="search" onclick={() => (paletteOpen = true)} aria-label={t("nav.search")}>
         <Icon name="search" size={16} />
-        <span class="search-text">Rechercher</span>
+        <span class="search-text">{t("nav.search")}</span>
         <kbd>{isMac ? "⌘" : "Ctrl"} K</kbd>
       </button>
     {/if}

@@ -4,6 +4,7 @@
 import { storeToken } from "./authClient";
 import { safeNext } from "../shared/session";
 import { apiRequest } from "../api/apiClient";
+import { t } from "../shared/i18n.svelte";
 
 const GITHUB_OAUTH_START_PATH = "/api/auth/oauth/github/redirect";
 const NEXT_KEY = "ft_oauth_next";
@@ -44,7 +45,7 @@ export function readOAuthResult(): OAuthResult {
 
   if (error) return { ok: false, message: oauthErrorMessage(error) };
   // a link keeps the current session: there is no new token to store
-  if (!token && !linked) return { ok: false, message: "GitHub n'a renvoyé aucune information de connexion. Réessayez." };
+  if (!token && !linked) return { ok: false, message: t("oauth.noInfo") };
 
   if (token) storeToken(token);
   let next = "/app";
@@ -60,18 +61,18 @@ export function readOAuthResult(): OAuthResult {
 function oauthErrorMessage(error: string): string {
   switch (error) {
     case "OAuthNotConfiguredError":
-      return "La connexion avec GitHub n'est pas disponible pour l'instant. Utilisez votre e-mail et votre mot de passe.";
+      return t("oauth.notConfigured");
     case "OAuthStateError":
-      return "La tentative de connexion a expiré ou n'a pas pu être vérifiée. Réessayez.";
+      return t("oauth.state");
     case "OAuthExchangeError":
-      return "GitHub n'a pas pu être joint pour terminer la connexion. Réessayez dans un instant.";
+      return t("oauth.exchange");
     case "OAuthAccessDeniedError":
-      return "Vous avez refusé l'autorisation sur GitHub. Réessayez, ou utilisez votre e-mail et votre mot de passe.";
+      return t("oauth.accessDenied");
     case "OAuthAccountConflictError":
-      return "Ce compte GitHub est déjà lié à un autre utilisateur.";
+      return t("oauth.conflict");
     case "OAuthSignupDisabledError":
-      return "Les inscriptions sont fermées pour le moment : ce compte GitHub n'est lié à aucun compte existant.";
+      return t("oauth.signupDisabled");
     default:
-      return "Un problème est survenu pendant la connexion avec GitHub.";
+      return t("oauth.unknown");
   }
 }

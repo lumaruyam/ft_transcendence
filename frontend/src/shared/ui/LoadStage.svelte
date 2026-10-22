@@ -1,12 +1,13 @@
 <!-- Shows a skeleton while loading, then the content (see LoadGate).
      While the content reveals itself, its container has class "reveal" and --reveal-base. -->
 <script lang="ts">
+  import { t } from "../i18n.svelte";
   import type { Snippet } from "svelte";
   import type { LoadGate } from "../loadGate.svelte";
 
   let {
     gate,
-    label = "Chargement…",
+    label,
     skeleton,
     children,
   }: { gate: LoadGate; label?: string; skeleton: Snippet; children: Snippet } = $props();
@@ -25,7 +26,7 @@
     <div class="sk-layer" class:overlay={gate.phase === "skeleton-out"} class:leave={gate.phase === "skeleton-out"} aria-hidden="true">
       {@render skeleton()}
     </div>
-    <span class="sr-only" role="status">{label}</span>
+    <span class="sr-only" role="status">{label ?? t("common.loading")}</span>
   {/if}
 </div>
 

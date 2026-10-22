@@ -1,15 +1,19 @@
 <script lang="ts">
+  import { t } from "../shared/i18n.svelte";
   import CenterPage from "../shared/ui/CenterPage.svelte";
   import { getStoredToken } from "../auth/authClient";
+  $effect(() => {
+    document.title = `${t("notFound.pageTitle")} · Transcendance`;
+  });
 </script>
 
 <CenterPage>
   <div class="code" aria-hidden="true">404</div>
-  <h1>Cette page n'existe pas</h1>
-  <p>Le lien est peut-être ancien, ou l'adresse contient une faute de frappe.</p>
+  <h1>{t("notFound.title")}</h1>
+  <p>{t("notFound.text")}</p>
   <div class="actions">
-    <a class="btn btn-primary" href={getStoredToken() ? "/app" : "/"}>{getStoredToken() ? "Mes projets" : "Accueil"}</a>
-    <button type="button" class="btn" onclick={() => history.back()}>Retour</button>
+    <a class="btn btn-primary" href={getStoredToken() ? "/app" : "/"}>{getStoredToken() ? t("userMenu.projects") : t("notFound.home")}</a>
+    <button type="button" class="btn" onclick={() => history.back()}>{t("notFound.back")}</button>
   </div>
 </CenterPage>
 
