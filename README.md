@@ -107,7 +107,7 @@ The 13 end-to-end suites run against the real app and a temporary PostgreSQL sta
 | bfourmy | Product Owner, Developer | Kanban backend (lists, cards, tags), real-time layer (WebSockets), project documentation |
 | esergeev | Developer | Git integration: branches, pull requests, webhooks |
 | xzhen | Project Manager, Developer | Whiteboard, notes, search, notifications, file upload, legal pages |
-| mpareau | Developer | Interface: landing page, dashboard, Kanban screens, files page, design system, start script |
+| mpareau | Developer | Interface: landing page, dashboard, Kanban screens, files page, design system, start script, multi languages |
 
 ## Project management
 
@@ -403,10 +403,11 @@ Design points worth knowing:
 | Design system | Design tokens, light and dark themes, 18 reusable components | mpareau |
 | Legal pages | Privacy Policy and Terms of Service, linked from the footer | xzhen, mpareau |
 | Deployment | One command, HTTPS, database migrations at start-up | lulmaruy, mpareau |
+| Multiple languages | Support for multiple languages (at least 3 languages) | mpareau |
 
 ## Modules
 
-Target: **22 points** (7 major = 14, 8 minor = 8). The minimum is 14, so there are 8 points of margin if a module is not validated.
+Target: **23 points** (7 major = 14, 8 minor = 8). The minimum is 14, so there are 8 points of margin if a module is not validated.
 
 | # | Module | Type | Points | Team |
 |---|---|---|---|---|
@@ -424,8 +425,9 @@ Target: **22 points** (7 major = 14, 8 minor = 8). The minimum is 14, so there a
 | 12 | Real-time collaborative features (whiteboard and notes) | Minor | 1 | xzhen, bfourmy, mpareau |
 | 13 | Custom-made design system | Minor | 1 | mpareau |
 | 14 | Standard user management and authentication | Major | 2 | lulmaruy, bfourmy |
-| 15 | Support for additional browsers | Minor | 1 | All |
-| | **Total** | | **22** | |
+| 15 | Support for multiple languages | Minor | 1 | mpareau |
+| 16 | Support for additional browsers | Minor | 1 | All |
+| | **Total** | | **23** | |
 
 ### 1. Use a framework for both frontend and backend (Major, 2 pts)
 
@@ -576,7 +578,17 @@ Scoping is handled by Svelte at build time: it rewrites every component's select
 - **Add other users and see their online status.** In this product the social unit is the **project**, not a global contact list: a user brings other people in by adding them to a shared workspace directly, or through a revocable invite link with an expiry and a maximum number of uses. The people you share a project with appear with their name and avatar in the board's participant list and in the project's members section, and **presence is live and per person** — you see who is connected right now, a role change or a removal is reflected immediately, and someone who disconnects disappears from the list. We treat shared-workspace membership as this module's relationship between users, because in a collaboration tool a link between two people that is not attached to a workspace has nothing to act on.
 - **A profile page displaying their information.** The Settings page is the signed-in user's own profile — name, e-mail, avatar, account actions — and `GET /api/users/:userId` serves the profile of anyone you share a project with, which is what the participant list and the members section display.
 
-### 15. Support for additional browsers (Minor, 1 pt)
+### 15. Support for multiple languages (Minor, 1 pt)
+
+*Why.* A team rarely shares one language, and an interface you have to translate in your head is one you use less.
+
+*How.* A small i18n layer of our own (`frontend/src/shared/i18n.svelte.ts`) with **five complete languages**: French, English, Japanese, Russian and Simplified Chinese. Each language has its own dictionary of 639 keys. The dictionaries are typed against the French one, so a missing or misspelled key fails the build. A `t(key, params)` function fills in placeholders like `{max}` and is reactive, so switching language re-renders the page in place with no reload. A language switcher with a globe icon shows each language in its own name. It sits on the landing page, the sign-in pages, the user menu, settings, the legal pages and the API docs. The choice is saved per browser like the theme, follows the browser's language until the user picks one, sets `<html lang>`, and is picked up by other open tabs. Text that doesn't come from the dictionaries is translated too:
+- Dates and relative times use `Intl` in the current language.
+- API errors are turned into translated messages from their error code.
+- Notifications arrive from the server as an event key with values, so each reader sees them in their own language.
+- The Terms of Service and the Privacy Policy have a full version in all five languages.
+
+### 16. Support for additional browsers (Minor, 1 pt)
 
 *Why.* The subject's baseline is the latest stable Chrome. We wanted the application to be usable by whatever browser a team actually has open, so we targeted two more: **Mozilla Firefox** and **Microsoft Edge**.
 
